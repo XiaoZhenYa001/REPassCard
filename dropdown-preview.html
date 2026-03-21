@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设置界面 + 弹窗预览</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #F3F4F6;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* 手机容器 */
+    .phone-container {
+      width: 393px;
+      height: 852px;
+      background: #FFFFFF;
+      border-radius: 40px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 设置页面内容 */
+    .settings-content {
+      height: 100%;
+      overflow-y: auto;
+      padding: 24px;
+      padding-bottom: 120px;
+    }
+
+    .settings-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 40px;
+      font-weight: 800;
+      color: #000000;
+      letter-spacing: -1px;
+      margin-bottom: 32px;
+    }
+
+    .section {
+      margin-bottom: 32px;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: #000000;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+    }
+
+    /* 设置项 */
+    .setting-item {
+      display: flex;
+      align-items: center;
+      background: #F4F4F5;
+      padding: 16px;
+      border-radius: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .setting-item:hover {
+      background: #EEEEF0;
+    }
+
+    .setting-icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 16px;
+      color: #000000;
+    }
+
+    .setting-label {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 600;
+      color: #000000;
+    }
+
+    .setting-trailing {
+      font-size: 13px;
+      font-weight: 500;
+      color: #71717A;
+      margin-right: 8px;
+    }
+
+    .setting-arrow {
+      width: 20px;
+      height: 20px;
+      color: #A1A1AA;
+    }
+
+    /* 下拉菜单 */
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      width: 200px;
+      background: #FFFFFF;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+      padding: 8px;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: all 0.2s ease;
+    }
+
+    .dropdown-menu.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .dropdown-item:hover {
+      background: #F4F4F5;
+    }
+
+    .dropdown-item.selected {
+      background: rgba(79, 70, 229, 0.1);
+    }
+
+    .dropdown-item-text {
+      font-size: 16px;
+      font-weight: 500;
+      color: #000000;
+    }
+
+    .dropdown-item.selected .dropdown-item-text {
+      font-weight: 600;
+      color: #4F46E5;
+    }
+
+    .dropdown-check {
+      width: 20px;
+      height: 20px;
+      color: #4F46E5;
+      opacity: 0;
+    }
+
+    .dropdown-item.selected .dropdown-check {
+      opacity: 1;
+    }
+
+    /* 半透明遮罩 */
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0);
+      z-index: 999;
+      pointer-events: none;
+      transition: background 0.2s;
+    }
+
+    .overlay.show {
+      background: rgba(0, 0, 0, 0.3);
+      pointer-events: auto;
+    }
+
+    /* Tab Bar */
+    .tab-bar {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 345px;
+      height: 72px;
+      background: #FFFFFF;
+      border-radius: 36px;
+      border: 1px solid #F4F4F5;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+    }
+
+    .tab-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 100%;
+      border-radius: 26px;
+      color: #A1A1AA;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-item.active {
+      color: #000000;
+      background: #F4F4F5;
+    }
+
+    .tab-item svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .tab-item span {
+      font-family: 'Outfit', sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .tab-add {
+      width: 64px;
+      height: 54px;
+      background: #000000;
+      border-radius: 27px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      cursor: pointer;
+      margin: 0 4px;
+    }
+
+    .tab-add svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    /* 深色主题 */
+    body.dark {
+      background: #0F0F0F;
+    }
+
+    body.dark .phone-container {
+      background: #1A1A1A;
+    }
+
+    body.dark .settings-title,
+    body.dark .section-title,
+    body.dark .setting-label,
+    body.dark .dropdown-item-text {
+      color: #E0E0E0;
+    }
+
+    body.dark .setting-item {
+      background: #252525;
+    }
+
+    body.dark .setting-item:hover {
+      background: #2A2A2A;
+    }
+
+    body.dark .setting-trailing {
+      color: #A0A0A0;
+    }
+
+    body.dark .dropdown-menu {
+      background: #252525;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    body.dark .dropdown-item:hover {
+      background: #2A2A2A;
+    }
+
+    body.dark .dropdown-item.selected {
+      background: rgba(79, 70, 229, 0.2);
+    }
+
+    body.dark .tab-bar {
+      background: #1A1A1A;
+      border-color: #333333;
+    }
+
+    body.dark .tab-item {
+      color: #A0A0A0;
+    }
+
+    body.dark .tab-item.active {
+      color: #E0E0E0;
+      background: #252525;
+    }
+
+    /* 主题切换按钮 */
+    .theme-switcher {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .theme-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      background: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .theme-btn.active {
+      background: #4F46E5;
+      color: white;
+      border-color: #4F46E5;
+    }
+
+    body.dark .theme-btn {
+      background: #252525;
+      color: #E0E0E0;
+      border-color: #444;
+    }
+  </style>
+</head>
+<body>
+  <!-- 主题切换按钮 -->
+  <div class="theme-switcher">
+    <button class="theme-btn active" onclick="setTheme('light')">浅色</button>
+    <button class="theme-btn" onclick="setTheme('dark')">深色</button>
+  </div>
+
+  <!-- 手机容器 -->
+  <div class="phone-container">
+    <!-- 半透明遮罩 -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- 设置页面内容 -->
+    <div class="settings-content">
+      <h1 class="settings-title">设置</h1>
+
+      <!-- 应用设置 Section -->
+      <div class="section">
+        <h2 class="section-title">应用设置</h2>
+
+        <!-- 主题外观 -->
+        <div class="setting-item" id="themeItem">
+          <svg class="setting-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <span class="setting-label">主题外观</span>
+          <span class="setting-trailing" id="themeValue">浅色</span>
+          <svg class="setting-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+
+          <!-- 下拉菜单 -->
+          <div class="dropdown-menu" id="themeDropdown">
+            <div class="dropdown-item selected" data-value="light" onclick="selectTheme('light')">
+              <span class="dropdown-item-text">浅色</span>
+              <svg class="dropdown-check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="dropdown-item" data-value="dark" onclick="selectTheme('dark')">
+              <span class="dropdown-item-text">深色</span>
+              <svg class="dropdown-check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="dropdown-item" data-value="system" onclick="selectTheme('system')">
+              <span class="dropdown-item-text">跟随系统</span>
+              <svg class="dropdown-check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 语言 -->
+        <div class="setting-item" id="langItem">
+          <svg class="setting-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <span class="setting-label">语言</span>
+          <span class="setting-trailing" id="langValue">中文</span>
+          <svg class="setting-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+
+          <!-- 下拉菜单 -->
+          <div class="dropdown-menu" id="langDropdown">
+            <div class="dropdown-item selected" data-value="zh" onclick="selectLang('zh')">
+              <span class="dropdown-item-text">中文</span>
+              <svg class="dropdown-check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="dropdown-item" data-value="en" onclick="selectLang('en')">
+              <span class="dropdown-item-text">English</span>
+              <svg class="dropdown-check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- 声音反馈 -->
+        <div class="setting-item">
+          <svg class="setting-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+          <span class="setting-label">声音反馈</span>
+          <div style="margin-left: auto; width: 44px; height: 24px; background: #000000; border-radius: 12px; padding: 2px; display: flex; justify-content: flex-end;">
+            <div style="width: 20px; height: 20px; background: white; border-radius: 10px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 数据管理 Section -->
+      <div class="section">
+        <h2 class="section-title">数据管理</h2>
+
+        <div class="setting-item">
+          <svg class="setting-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span class="setting-label">导出密码</span>
+          <svg class="setting-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+
+        <div class="setting-item">
+          <svg class="setting-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span class="setting-label">导入密码</span>
+          <svg class="setting-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="tab-bar">
+      <div class="tab-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <span>首页</span>
+      </div>
+      <div class="tab-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        <span>安全</span>
+      </div>
+      <div class="tab-item">
+        <div class="tab-add">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </div>
+      </div>
+      <div class="tab-item">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>设置</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 当前状态
+    let currentTheme = 'light';
+    let currentLang = 'zh';
+    let openDropdown = null;
+
+    // 设置主题
+    function setTheme(theme) {
+      document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`.theme-btn[onclick="setTheme('${theme}')"]`).classList.add('active');
+      
+      if (theme === 'dark') {
+        document.body.classList.add('dark');
+      } else {
+        document.body.classList.remove('dark');
+      }
+    }
+
+    // 选择主题
+    function selectTheme(value) {
+      currentTheme = value;
+      const names = { light: '浅色', dark: '深色', system: '跟随系统' };
+      document.getElementById('themeValue').textContent = names[value];
+      
+      // 更新选中状态
+      document.querySelectorAll('#themeDropdown .dropdown-item').forEach(item => {
+        item.classList.toggle('selected', item.dataset.value === value);
+      });
+      
+      closeAllDropdowns();
+      
+      // 应用主题
+      if (value === 'dark') {
+        document.body.classList.add('dark');
+      } else if (value === 'light') {
+        document.body.classList.remove('dark');
+      }
+    }
+
+    // 选择语言
+    function selectLang(value) {
+      currentLang = value;
+      const names = { zh: '中文', en: 'English' };
+      document.getElementById('langValue').textContent = names[value];
+      
+      // 更新选中状态
+      document.querySelectorAll('#langDropdown .dropdown-item').forEach(item => {
+        item.classList.toggle('selected', item.dataset.value === value);
+      });
+      
+      closeAllDropdowns();
+    }
+
+    // 关闭所有下拉菜单
+    function closeAllDropdowns() {
+      document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        menu.classList.remove('show');
+      });
+      document.getElementById('overlay').classList.remove('show');
+      openDropdown = null;
+    }
+
+    // 设置项点击事件
+    document.querySelectorAll('.setting-item').forEach(item => {
+      const dropdown = item.querySelector('.dropdown-menu');
+      if (dropdown) {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          
+          if (dropdown.classList.contains('show')) {
+            closeAllDropdowns();
+          } else {
+            closeAllDropdowns();
+            dropdown.classList.add('show');
+            document.getElementById('overlay').classList.add('show');
+            openDropdown = dropdown;
+          }
+        });
+      }
+    });
+
+    // 点击遮罩关闭
+    document.getElementById('overlay').addEventListener('click', closeAllDropdowns);
+
+    // 初始化
+    selectTheme('light');
+    selectLang('zh');
+  </script>
+</body>
+</html>

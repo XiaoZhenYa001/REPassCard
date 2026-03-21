@@ -1,4 +1,114 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App Name -->
     <string name="app_name">PassCard</string>
+
+    <!-- Navigation -->
+    <string name="tab_home">首页</string>
+    <string name="tab_security">安全</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Home Screen -->
+    <string name="welcome_back">欢迎回来</string>
+    <string name="search_passwords">搜索密码…</string>
+    <string name="passwords">密码</string>
+    <string name="secure">安全</string>
+    <string name="recent_logins">最近登录</string>
+    <string name="see_all">查看全部</string>
+    <string name="items">项</string>
+
+    <!-- All Passwords Screen -->
+    <string name="all_passwords">所有密码</string>
+
+    <!-- Edit Screen -->
+    <string name="add_login">添加登录</string>
+    <string name="edit_login">编辑登录</string>
+    <string name="save">保存</string>
+    <string name="change_icon">更换图标</string>
+    <string name="name">名称</string>
+    <string name="service_name">服务名称</string>
+    <string name="username">用户名</string>
+    <string name="username_hint">用户名或邮箱</string>
+    <string name="phone">手机号</string>
+    <string name="phone_hint">手机号码</string>
+    <string name="email">邮箱</string>
+    <string name="email_hint">邮箱地址</string>
+    <string name="password">密码</string>
+    <string name="category">分类</string>
+    <string name="note">备注</string>
+    <string name="note_hint">添加备注…</string>
+    <string name="delete_password">删除密码</string>
+
+    <!-- Categories -->
+    <string name="category_all">全部</string>
+    <string name="category_social_media">社交媒体</string>
+    <string name="category_work">工作</string>
+    <string name="category_finance">金融</string>
+    <string name="category_shopping">购物</string>
+    <string name="category_entertainment">娱乐</string>
+    <string name="category_ai">AI</string>
+    <string name="category_gaming">游戏</string>
+    <string name="category_education">教育</string>
+    <string name="category_other">其他</string>
+
+    <!-- Security Screen -->
+    <string name="security_center">安全中心</string>
+    <string name="security_score">安全评分</string>
+    <string name="security_score_description">您的密码健康状况良好，但有几项需要修复。</string>
+    <string name="total_passwords">密码总数</string>
+    <string name="weak_passwords">弱密码</string>
+    <string name="reused">重复使用</string>
+    <string name="attention_needed">需要注意</string>
+    <string name="compromised_passwords">泄露密码</string>
+    <string name="compromised_description">1个账户在数据泄露中发现</string>
+    <string name="weak_passwords_description">3个账户需要更强的密码</string>
+    <string name="security_suggestions">安全建议</string>
+    <string name="enable_2fa">启用两步验证</string>
+    <string name="enable_2fa_description">为您的主保险库账户添加额外的安全保护。</string>
+
+    <!-- Settings Screen -->
+    <string name="settings">设置</string>
+    <string name="account">账户</string>
+    <string name="profile">个人资料</string>
+    <string name="master_password">主密码</string>
+    <string name="app_settings">应用设置</string>
+    <string name="theme">主题外观</string>
+    <string name="language">语言</string>
+    <string name="sound_feedback">声音反馈</string>
+    <string name="data_management">数据管理</string>
+    <string name="export_passwords">导出密码</string>
+    <string name="import_passwords">导入密码</string>
+    <string name="more">更多</string>
+    <string name="help">使用帮助</string>
+    <string name="privacy">隐私条款</string>
+    <string name="about">关于我们</string>
+
+    <!-- Theme Options -->
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_system">跟随系统</string>
+
+    <!-- Language Options -->
+    <string name="language_chinese">中文</string>
+    <string name="language_english">English</string>
+
+    <!-- Import/Export -->
+    <string name="import_preview">导入预览</string>
+    <string name="import_action">导入</string>
+    <string name="cancel">取消</string>
+    <string name="total">共计</string>
+    <string name="with_email">有邮箱</string>
+    <string name="with_phone">有手机</string>
+    <string name="with_category">有分类</string>
+    <string name="ready_to_import">准备导入</string>
+
+    <!-- Messages -->
+    <string name="password_copied">密码已复制</string>
+    <string name="export_success">密码导出成功</string>
+    <string name="import_success">密码导入成功</string>
+    <string name="error_occurred">发生错误</string>
+
+    <!-- Placeholder -->
+    <string name="placeholder">即将推出</string>
+    <string name="placeholder_description">此功能尚未实现</string>
 </resources>

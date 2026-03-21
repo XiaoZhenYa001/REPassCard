@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Name -->
+    <string name="app_name">PassCard</string>
+
+    <!-- Navigation -->
+    <string name="tab_home">Home</string>
+    <string name="tab_security">Security</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Home Screen -->
+    <string name="welcome_back">Welcome back</string>
+    <string name="search_passwords">Search passwords…</string>
+    <string name="passwords">Passwords</string>
+    <string name="secure">Secure</string>
+    <string name="recent_logins">Recent Logins</string>
+    <string name="see_all">See All</string>
+    <string name="items">items</string>
+
+    <!-- All Passwords Screen -->
+    <string name="all_passwords">All Passwords</string>
+
+    <!-- Edit Screen -->
+    <string name="add_login">Add Login</string>
+    <string name="edit_login">Edit Login</string>
+    <string name="save">Save</string>
+    <string name="change_icon">Change Icon</string>
+    <string name="name">Name</string>
+    <string name="service_name">Service name</string>
+    <string name="username">Username</string>
+    <string name="username_hint">Username or email</string>
+    <string name="phone">Phone</string>
+    <string name="phone_hint">Phone number</string>
+    <string name="email">Email</string>
+    <string name="email_hint">Email address</string>
+    <string name="password">Password</string>
+    <string name="category">Category</string>
+    <string name="note">Note</string>
+    <string name="note_hint">Add a note…</string>
+    <string name="delete_password">Delete Password</string>
+
+    <!-- Categories -->
+    <string name="category_all">All</string>
+    <string name="category_social_media">Social Media</string>
+    <string name="category_work">Work</string>
+    <string name="category_finance">Finance</string>
+    <string name="category_shopping">Shopping</string>
+    <string name="category_entertainment">Entertainment</string>
+    <string name="category_ai">AI</string>
+    <string name="category_gaming">Gaming</string>
+    <string name="category_education">Education</string>
+    <string name="category_other">Other</string>
+
+    <!-- Security Screen -->
+    <string name="security_center">Security Center</string>
+    <string name="security_score">Security Score</string>
+    <string name="security_score_description">Your password health is looking good, but there are a few items to fix.</string>
+    <string name="total_passwords">Total Passwords</string>
+    <string name="weak_passwords">Weak Passwords</string>
+    <string name="reused">Reused</string>
+    <string name="attention_needed">Attention Needed</string>
+    <string name="compromised_passwords">Compromised Passwords</string>
+    <string name="compromised_description">1 account found in data breaches</string>
+    <string name="weak_passwords_description">3 accounts need stronger passwords</string>
+    <string name="security_suggestions">Security Suggestions</string>
+    <string name="enable_2fa">Enable 2-Factor Auth</string>
+    <string name="enable_2fa_description">Add an extra layer of security to your main vault account.</string>
+
+    <!-- Settings Screen -->
+    <string name="settings">Settings</string>
+    <string name="account">Account</string>
+    <string name="profile">Profile</string>
+    <string name="master_password">Master Password</string>
+    <string name="app_settings">App Settings</string>
+    <string name="theme">Theme</string>
+    <string name="language">Language</string>
+    <string name="sound_feedback">Sound Feedback</string>
+    <string name="data_management">Data Management</string>
+    <string name="export_passwords">Export Passwords</string>
+    <string name="import_passwords">Import Passwords</string>
+    <string name="more">More</string>
+    <string name="help">Help</string>
+    <string name="privacy">Privacy Policy</string>
+    <string name="about">About</string>
+
+    <!-- Theme Options -->
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System</string>
+
+    <!-- Language Options -->
+    <string name="language_chinese">中文</string>
+    <string name="language_english">English</string>
+
+    <!-- Import/Export -->
+    <string name="import_preview">Import Preview</string>
+    <string name="import_action">Import</string>
+    <string name="cancel">Cancel</string>
+    <string name="total">Total</string>
+    <string name="with_email">With Email</string>
+    <string name="with_phone">With Phone</string>
+    <string name="with_category">With Category</string>
+    <string name="ready_to_import">Ready to import</string>
+
+    <!-- Messages -->
+    <string name="password_copied">Password copied</string>
+    <string name="export_success">Passwords exported successfully</string>
+    <string name="import_success">Passwords imported successfully</string>
+    <string name="error_occurred">An error occurred</string>
+
+    <!-- Placeholder -->
+    <string name="placeholder">Coming Soon</string>
+    <string name="placeholder_description">This feature is not yet available</string>
+</resources>

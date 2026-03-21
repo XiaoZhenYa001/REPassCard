@@ -1,7 +1,7 @@
 # REPassCard 已实现功能文档
 
-> 文档更新时间：2026-03-21
-> 版本：v1.0
+> 文档更新时间：2026-03-21 19:08
+> 版本：v1.1
 
 ---
 
@@ -53,7 +53,8 @@
 **功能：**
 - 账户信息卡片
 - 主密码设置
-- 主题外观设置
+- ⭐ **主题外观设置** - 支持浅色/深色/跟随系统
+- ⭐ **语言设置** - 支持中文/English
 - 声音反馈开关
 - 导出密码
 - 导入密码
@@ -150,6 +151,25 @@
 
 **相关文件：**
 - `app/src/main/java/com/example/passcard/util/ClipboardHelper.kt`
+
+---
+
+### 2.5 ⭐ 设置 - 主题与语言
+
+#### 主题设置
+- **选项**：浅色 / 深色 / 跟随系统
+- **持久化**：SharedPreferences
+- **实现**：点击设置项弹出上下文菜单
+
+#### 语言设置
+- **选项**：中文 / English
+- **持久化**：SharedPreferences
+- **实现**：点击设置项弹出上下文菜单
+
+**相关文件：**
+- `app/src/main/java/com/example/passcard/ui/components/DropdownMenu.kt` - 下拉选择菜单组件
+- `app/src/main/java/com/example/passcard/util/PreferencesManager.kt` - 设置管理器
+- `app/src/main/java/com/example/passcard/MainActivity.kt` - 主题监听与切换
 
 ---
 
@@ -260,6 +280,8 @@ data class ExportPasswordEntry(
 | SecurityScoreCard | `components/SecurityComponents.kt` | 安全评分卡 |
 | SecurityStatCard | `components/SecurityComponents.kt` | 安全统计卡 |
 | SecurityListItem | `components/SecurityComponents.kt` | 安全列表项 |
+| ⭐ DropdownSelectMenu | `components/DropdownMenu.kt` | 下拉选择菜单 |
+| ⭐ DropdownSelectField | `components/DropdownMenu.kt` | 下拉选择触发字段 |
 
 ### 5.2 页面组件
 
@@ -280,6 +302,7 @@ data class ExportPasswordEntry(
 | CsvImporter | `util/CsvImporter.kt` | CSV 导入解析 |
 | CsvExporter | `util/CsvExporter.kt` | CSV 导出生成 |
 | ClipboardHelper | `util/ClipboardHelper.kt` | 剪贴板操作 |
+| ⭐ PreferencesManager | `util/PreferencesManager.kt` | SharedPreferences 管理器 |
 
 ---
 
@@ -313,11 +336,34 @@ Success = #22C55E
 `app/src/main/java/com/example/passcard/ui/theme/`
 - Color.kt - 颜色定义
 - Type.kt - 字体定义
-- Theme.kt - 主题配置
+- Theme.kt - 主题配置（支持浅色/深色/跟随系统）
 
 ---
 
-## 七、待完善功能
+## 七、持久化配置
+
+### 7.1 PreferencesManager
+
+```kotlin
+// 存储位置：SharedPreferences
+// 文件名：repasscard_prefs
+
+// Key 说明
+theme = "LIGHT" | "DARK" | "SYSTEM"  // 默认 "LIGHT"
+language = "CHINESE" | "ENGLISH"       // 默认 "CHINESE"
+sound_enabled = true | false          // 默认 true
+```
+
+### 7.2 字符串资源
+
+| 语言 | 文件位置 |
+|------|---------|
+| 中文 | `res/values/strings.xml` |
+| English | `res/values-en/strings.xml` |
+
+---
+
+## 八、待完善功能
 
 | 功能 | 优先级 | 说明 |
 |------|--------|------|
@@ -330,7 +376,7 @@ Success = #22C55E
 
 ---
 
-## 八、Known Issues
+## 九、Known Issues
 
 1. **数据存储**：当前数据在内存中，重启后丢失
 2. **分类为空处理**：分类为空时显示为空白，非 "未分类"
@@ -338,5 +384,5 @@ Success = #22C55E
 
 ---
 
-**文档版本：** 1.0
+**文档版本：** 1.1
 **最后更新：** 2026-03-21

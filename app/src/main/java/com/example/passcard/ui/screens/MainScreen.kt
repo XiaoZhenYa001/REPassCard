@@ -27,6 +27,7 @@ import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.CsvExporter
 import com.example.passcard.util.ExportPasswordEntry
+import com.example.passcard.util.PreferencesManager
 
 data class MainUiState(
     val selectedTab: TabItem = TabItem.HOME,
@@ -38,11 +39,16 @@ data class MainUiState(
     // 首页数据
     val passwords: List<PasswordItem> = emptyList(),
     val selectedCategory: String? = null,
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    // 设置状态
+    val showThemeDropdown: Boolean = false,
+    val showLanguageDropdown: Boolean = false
 )
 
 @Composable
 fun MainScreen(
+    preferencesManager: PreferencesManager? = null,
+    onThemeChanged: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // 示例密码数据
@@ -111,13 +117,38 @@ fun MainScreen(
                 email = "",
                 password = "",
                 category = "AI",
-                note = "微信登陆（AI集合网站api）"
+                note = "微信登陆"
             )
         )
     }
     
     var uiState by remember { mutableStateOf(MainUiState(passwords = samplePasswords)) }
     val context = LocalContext.current
+    
+    // 获取当前主题和语言设置
+    val currentTheme = preferencesManager?.theme ?: "LIGHT"
+    val currentLanguage = preferencesManager?.language ?: "CHINESE"
+    
+    // 主题选项
+    val themeOptions = remember {
+        listOf(
+            DropdownOption("浅色", "LIGHT"),
+            DropdownOption("深色", "DARK"),
+            DropdownOption("跟随系统", "SYSTEM")
+        )
+    }
+    
+    // 语言选项
+    val languageOptions = remember {
+        listOf(
+            DropdownOption("中文", "CHINESE"),
+            DropdownOption("English", "ENGLISH")
+        )
+    }
+    
+    // 获取当前选中项的显示文本
+    val currentThemeLabel = themeOptions.find { it.value == currentTheme }?.label ?: "浅色"
+    val currentLanguageLabel = languageOptions.find { it.value == currentLanguage }?.label ?: "中文"
     
     // File picker launcher for import
     val importFilePickerLauncher = rememberLauncherForActivityResult(
@@ -138,11 +169,9 @@ fun MainScreen(
             password = currentPassword,
             onBack = { uiState = uiState.copy(showEditScreen = false, editPasswordId = null) },
             onSave = { updatedPassword ->
-                // 更新密码
                 val newList = uiState.passwords.map {
                     if (it.id == updatedPassword.id) updatedPassword else it
                 }.let { list ->
-                    // 如果是新建
                     if (uiState.editPasswordId == null) {
                         list + updatedPassword.copy(id = System.currentTimeMillis().toString())
                     } else list
@@ -170,7 +199,6 @@ fun MainScreen(
         ImportPreviewScreen(
             entries = uiState.importEntries,
             onConfirm = {
-                // TODO: Save imported entries
                 uiState = uiState.copy(showImportPreview = false, importEntries = emptyList())
             },
             onCancel = {
@@ -195,7 +223,7 @@ fun MainScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Background)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Page Content
         when (uiState.selectedTab) {
@@ -221,7 +249,6 @@ fun MainScreen(
                     ))
                 },
                 onNavigateToExport = {
-                    // 导出密码为 CSV
                     val exportData = uiState.passwords.map { p ->
                         ExportPasswordEntry(
                             service = p.name,
@@ -239,9 +266,61 @@ fun MainScreen(
                         val shareIntent = CsvExporter.createShareIntent(uri, "passwords_export")
                         shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
                     }
-                }
+                },
+                // 主题下拉
+                showThemeDropdown = uiState.showThemeDropdown,
+                onThemeDropdownToggle = { uiState = uiState.copy(showThemeDropdown = !uiState.showThemeDropdown) },
+                onThemeDismiss = { uiState = uiState.copy(showThemeDropdown = false) },
+                themeOptions = themeOptions,
+                currentThemeValue = currentTheme,
+                onThemeSelected = { option ->
+                    preferencesManager?.theme = option.value
+                    uiState = uiState.copy(showThemeDropdown = false)
+                    onThemeChanged?.invoke()
+                },
+                currentThemeLabel = currentThemeLabel,
+                // 语言下拉
+                showLanguageDropdown = uiState.showLanguageDropdown,
+                onLanguageDropdownToggle = { uiState = uiState.copy(showLanguageDropdown = !uiState.showLanguageDropdown) },
+                onLanguageDismiss = { uiState = uiState.copy(showLanguageDropdown = false) },
+                languageOptions = languageOptions,
+                currentLanguageValue = currentLanguage,
+                onLanguageSelected = { option ->
+                    preferencesManager?.language = option.value
+                    uiState = uiState.copy(showLanguageDropdown = false)
+                    // TODO: 刷新界面语言
+                },
+                currentLanguageLabel = currentLanguageLabel
             )
             TabItem.PLACEHOLDER -> PlaceholderContent()
+        }
+        
+        // 下拉菜单 - 放在最外层，不被裁剪
+        if (uiState.showThemeDropdown) {
+            DropdownSelectMenu(
+                expanded = true,
+                onDismissRequest = { uiState = uiState.copy(showThemeDropdown = false) },
+                options = themeOptions,
+                selectedValue = currentTheme,
+                onOptionSelected = { option ->
+                    preferencesManager?.theme = option.value
+                    uiState = uiState.copy(showThemeDropdown = false)
+                    onThemeChanged?.invoke()
+                }
+            )
+        }
+        
+        if (uiState.showLanguageDropdown) {
+            DropdownSelectMenu(
+                expanded = true,
+                onDismissRequest = { uiState = uiState.copy(showLanguageDropdown = false) },
+                options = languageOptions,
+                selectedValue = currentLanguage,
+                onOptionSelected = { option ->
+                    preferencesManager?.language = option.value
+                    uiState = uiState.copy(showLanguageDropdown = false)
+                }
+            )
         }
         
         // Bottom Tab Bar
@@ -280,7 +359,6 @@ private fun HomeContent(
     onNavigateToAllPasswords: () -> Unit,
     onPasswordClick: (String) -> Unit
 ) {
-    // 过滤密码列表
     val filteredPasswords = remember(passwords, selectedCategory, searchQuery) {
         passwords.filter { p ->
             val matchCategory = selectedCategory == null || 
@@ -293,10 +371,9 @@ private fun HomeContent(
                             p.phone.contains(searchQuery, ignoreCase = true) ||
                             p.note.contains(searchQuery, ignoreCase = true)
             matchCategory && matchSearch
-        }.take(5) // 首页只显示前5个
+        }.take(5)
     }
     
-    // 提取所有分类
     val allCategories = remember(passwords) {
         listOf("All") + passwords.map { it.category }.filter { it.isNotEmpty() }.distinct()
     }
@@ -306,7 +383,6 @@ private fun HomeContent(
             .fillMaxSize()
             .statusBarsPadding()
     ) {
-        // Status Bar Area
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -318,11 +394,10 @@ private fun HomeContent(
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.W600
                 ),
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
         
-        // Scroll Content
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -331,7 +406,6 @@ private fun HomeContent(
                 .padding(bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -343,34 +417,31 @@ private fun HomeContent(
                     Text(
                         text = "Welcome back",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = OnSurface
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "Alex Smith",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
             }
             
-            // Search Bar
             SearchBar(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange
             )
             
-            // Stat Cards
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Passwords Card (Clickable)
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(140.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(CardGray)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onNavigateToAllPasswords() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -397,12 +468,11 @@ private fun HomeContent(
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.W600
                             ),
-                            color = TextPrimary
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
                 
-                // Security Score Card
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -440,14 +510,12 @@ private fun HomeContent(
                 }
             }
             
-            // Category Tags - 支持 All + 动态分类
             CategoryTagRow(
                 categories = allCategories,
                 selectedCategory = selectedCategory,
                 onCategorySelected = onCategorySelected
             )
             
-            // Recent Logins Section
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -460,7 +528,7 @@ private fun HomeContent(
                     Text(
                         text = "Recent Logins",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = "See All",
@@ -472,7 +540,6 @@ private fun HomeContent(
                     )
                 }
                 
-                // Password List
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -512,7 +579,7 @@ private fun SecurityContent() {
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.W600
                 ),
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
         
@@ -526,7 +593,7 @@ private fun SecurityContent() {
             Icon(
                 imageVector = Icons.Outlined.ArrowBack,
                 contentDescription = "Back",
-                tint = TextPrimary,
+                tint = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.size(24.dp)
             )
             
@@ -535,7 +602,7 @@ private fun SecurityContent() {
             Text(
                 text = "Security Center",
                 style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
         
@@ -560,10 +627,10 @@ private fun SecurityContent() {
                     icon = Icons.Outlined.Storage,
                     value = "142",
                     label = "Total Passwords",
-                    backgroundColor = Surface,
-                    iconTint = OnSurfaceVariant,
-                    valueColor = TextPrimary,
-                    labelColor = OnSurfaceVariant,
+                    backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    valueColor = MaterialTheme.colorScheme.onBackground,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
                 
@@ -597,7 +664,7 @@ private fun SecurityContent() {
                 Text(
                     text = "Attention Needed",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 
                 SecurityListItem(
@@ -626,7 +693,7 @@ private fun SecurityContent() {
                 Text(
                     text = "Security Suggestions",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 
                 SecuritySuggestionItem(
@@ -641,7 +708,23 @@ private fun SecurityContent() {
 @Composable
 private fun SettingsContent(
     onNavigateToImport: () -> Unit,
-    onNavigateToExport: () -> Unit
+    onNavigateToExport: () -> Unit,
+    // 主题下拉
+    showThemeDropdown: Boolean,
+    onThemeDropdownToggle: () -> Unit,
+    onThemeDismiss: () -> Unit,
+    themeOptions: List<DropdownOption>,
+    currentThemeValue: String,
+    onThemeSelected: (DropdownOption) -> Unit,
+    currentThemeLabel: String,
+    // 语言下拉
+    showLanguageDropdown: Boolean,
+    onLanguageDropdownToggle: () -> Unit,
+    onLanguageDismiss: () -> Unit,
+    languageOptions: List<DropdownOption>,
+    currentLanguageValue: String,
+    onLanguageSelected: (DropdownOption) -> Unit,
+    currentLanguageLabel: String
 ) {
     Column(
         modifier = Modifier
@@ -655,7 +738,7 @@ private fun SettingsContent(
         Text(
             text = "设置",
             style = MaterialTheme.typography.displayLarge,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onBackground
         )
         
         Column(
@@ -683,11 +766,20 @@ private fun SettingsContent(
         ) {
             SectionTitle(title = "应用设置")
             
+            // 主题外观 - 点击只触发状态变化，菜单在外部显示
             SettingItem(
                 icon = Icons.Outlined.DarkMode,
                 label = "主题外观",
-                trailingText = "浅色",
-                onClick = { }
+                trailingText = currentThemeLabel,
+                onClick = onThemeDropdownToggle
+            )
+            
+            // 语言 - 点击只触发状态变化，菜单在外部显示
+            SettingItem(
+                icon = Icons.Outlined.Language,
+                label = "语言",
+                trailingText = currentLanguageLabel,
+                onClick = onLanguageDropdownToggle
             )
             
             var soundEnabled by remember { mutableStateOf(true) }
@@ -759,18 +851,17 @@ private fun PlaceholderContent() {
         Text(
             text = "暂缺",
             style = MaterialTheme.typography.headlineMedium,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onBackground
         )
         
         Text(
             text = "This tab is not yet implemented",
             style = MaterialTheme.typography.bodyMedium,
-            color = OnSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
-// Helper functions
 private fun getIconBackgroundColor(name: String): Color {
     return when (name.lowercase()) {
         "google" -> IconBackground
