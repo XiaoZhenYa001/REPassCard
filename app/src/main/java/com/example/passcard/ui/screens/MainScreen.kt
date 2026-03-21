@@ -19,8 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.example.passcard.ui.components.*
@@ -40,9 +45,13 @@ data class MainUiState(
     val passwords: List<PasswordItem> = emptyList(),
     val selectedCategory: String? = null,
     val searchQuery: String = "",
-    // 设置状态
+    // 设置状态 - 包含菜单位置和尺寸
     val showThemeDropdown: Boolean = false,
-    val showLanguageDropdown: Boolean = false
+    val themeDropdownOffset: IntOffset = IntOffset.Zero,
+    val themeDropdownSize: androidx.compose.ui.unit.IntSize = androidx.compose.ui.unit.IntSize.Zero,
+    val showLanguageDropdown: Boolean = false,
+    val languageDropdownOffset: IntOffset = IntOffset.Zero,
+    val languageDropdownSize: androidx.compose.ui.unit.IntSize = androidx.compose.ui.unit.IntSize.Zero
 )
 
 @Composable
@@ -269,7 +278,14 @@ fun MainScreen(
                 },
                 // 主题下拉
                 showThemeDropdown = uiState.showThemeDropdown,
-                onThemeDropdownToggle = { uiState = uiState.copy(showThemeDropdown = !uiState.showThemeDropdown) },
+                onThemeDropdownToggle = { offset, size ->
+                    uiState = uiState.copy(
+                        showThemeDropdown = !uiState.showThemeDropdown,
+                        themeDropdownOffset = offset,
+                        themeDropdownSize = size,
+                        showLanguageDropdown = false
+                    )
+                },
                 onThemeDismiss = { uiState = uiState.copy(showThemeDropdown = false) },
                 themeOptions = themeOptions,
                 currentThemeValue = currentTheme,
@@ -281,21 +297,27 @@ fun MainScreen(
                 currentThemeLabel = currentThemeLabel,
                 // 语言下拉
                 showLanguageDropdown = uiState.showLanguageDropdown,
-                onLanguageDropdownToggle = { uiState = uiState.copy(showLanguageDropdown = !uiState.showLanguageDropdown) },
+                onLanguageDropdownToggle = { offset, size ->
+                    uiState = uiState.copy(
+                        showLanguageDropdown = !uiState.showLanguageDropdown,
+                        languageDropdownOffset = offset,
+                        languageDropdownSize = size,
+                        showThemeDropdown = false
+                    )
+                },
                 onLanguageDismiss = { uiState = uiState.copy(showLanguageDropdown = false) },
                 languageOptions = languageOptions,
                 currentLanguageValue = currentLanguage,
                 onLanguageSelected = { option ->
                     preferencesManager?.language = option.value
                     uiState = uiState.copy(showLanguageDropdown = false)
-                    // TODO: 刷新界面语言
                 },
                 currentLanguageLabel = currentLanguageLabel
             )
             TabItem.PLACEHOLDER -> PlaceholderContent()
         }
         
-        // 下拉菜单 - 放在最外层，不被裁剪
+        // 下拉菜单 - 根据位置显示
         if (uiState.showThemeDropdown) {
             DropdownSelectMenu(
                 expanded = true,
@@ -306,7 +328,10 @@ fun MainScreen(
                     preferencesManager?.theme = option.value
                     uiState = uiState.copy(showThemeDropdown = false)
                     onThemeChanged?.invoke()
-                }
+                },
+                offset = uiState.themeDropdownOffset,
+                itemWidth = uiState.themeDropdownSize.width,
+                itemHeight = uiState.themeDropdownSize.height
             )
         }
         
@@ -319,7 +344,10 @@ fun MainScreen(
                 onOptionSelected = { option ->
                     preferencesManager?.language = option.value
                     uiState = uiState.copy(showLanguageDropdown = false)
-                }
+                },
+                offset = uiState.languageDropdownOffset,
+                itemWidth = uiState.languageDropdownSize.width,
+                itemHeight = uiState.languageDropdownSize.height
             )
         }
         
@@ -711,7 +739,7 @@ private fun SettingsContent(
     onNavigateToExport: () -> Unit,
     // 主题下拉
     showThemeDropdown: Boolean,
-    onThemeDropdownToggle: () -> Unit,
+    onThemeDropdownToggle: (offset: IntOffset, size: IntSize) -> Unit,
     onThemeDismiss: () -> Unit,
     themeOptions: List<DropdownOption>,
     currentThemeValue: String,
@@ -719,13 +747,19 @@ private fun SettingsContent(
     currentThemeLabel: String,
     // 语言下拉
     showLanguageDropdown: Boolean,
-    onLanguageDropdownToggle: () -> Unit,
+    onLanguageDropdownToggle: (offset: IntOffset, size: IntSize) -> Unit,
     onLanguageDismiss: () -> Unit,
     languageOptions: List<DropdownOption>,
     currentLanguageValue: String,
     onLanguageSelected: (DropdownOption) -> Unit,
     currentLanguageLabel: String
 ) {
+    // 用于获取设置项位置和尺寸的变量
+    var themeItemOffset by remember { mutableStateOf(IntOffset.Zero) }
+    var themeItemSize by remember { mutableStateOf(IntSize.Zero) }
+    var languageItemOffset by remember { mutableStateOf(IntOffset.Zero) }
+    var languageItemSize by remember { mutableStateOf(IntSize.Zero) }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -766,20 +800,28 @@ private fun SettingsContent(
         ) {
             SectionTitle(title = "应用设置")
             
-            // 主题外观 - 点击只触发状态变化，菜单在外部显示
+            // 主题外观 - 获取位置并回调
             SettingItem(
                 icon = Icons.Outlined.DarkMode,
                 label = "主题外观",
                 trailingText = currentThemeLabel,
-                onClick = onThemeDropdownToggle
+                onClick = { onThemeDropdownToggle(themeItemOffset, themeItemSize) },
+                onPositioned = { offset, size -> 
+                    themeItemOffset = offset
+                    themeItemSize = size
+                }
             )
             
-            // 语言 - 点击只触发状态变化，菜单在外部显示
+            // 语言 - 获取位置并回调
             SettingItem(
                 icon = Icons.Outlined.Language,
                 label = "语言",
                 trailingText = currentLanguageLabel,
-                onClick = onLanguageDropdownToggle
+                onClick = { onLanguageDropdownToggle(languageItemOffset, languageItemSize) },
+                onPositioned = { offset, size ->
+                    languageItemOffset = offset
+                    languageItemSize = size
+                }
             )
             
             var soundEnabled by remember { mutableStateOf(true) }

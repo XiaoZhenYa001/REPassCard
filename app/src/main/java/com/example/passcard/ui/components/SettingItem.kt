@@ -13,7 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
@@ -25,13 +29,28 @@ fun SettingItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     trailingText: String? = null,
-    showChevron: Boolean = true
+    showChevron: Boolean = true,
+    onPositioned: ((offset: IntOffset, size: IntSize) -> Unit)? = null
 ) {
+    var rowSize by remember { mutableStateOf(IntSize.Zero) }
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Surface)
+            .then(
+                if (onPositioned != null) {
+                    Modifier.onGloballyPositioned { coordinates ->
+                        val position = coordinates.positionInRoot()
+                        val size = coordinates.size
+                        onPositioned(
+                            IntOffset(position.x.toInt(), position.y.toInt()),
+                            IntSize(size.width, size.height)
+                        )
+                    }
+                } else Modifier
+            )
             .clickable { onClick() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
