@@ -1,0 +1,793 @@
+package com.example.passcard.ui.screens
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import com.example.passcard.ui.components.*
+import com.example.passcard.ui.theme.*
+import com.example.passcard.util.CsvExporter
+import com.example.passcard.util.ExportPasswordEntry
+
+data class MainUiState(
+    val selectedTab: TabItem = TabItem.HOME,
+    val showEditScreen: Boolean = false,
+    val editPasswordId: String? = null,
+    val showImportPreview: Boolean = false,
+    val importEntries: List<ImportEntry> = emptyList(),
+    val showAllPasswords: Boolean = false,
+    // 首页数据
+    val passwords: List<PasswordItem> = emptyList(),
+    val selectedCategory: String? = null,
+    val searchQuery: String = ""
+)
+
+@Composable
+fun MainScreen(
+    modifier: Modifier = Modifier
+) {
+    // 示例密码数据
+    val samplePasswords = remember {
+        listOf(
+            PasswordItem(
+                id = "1",
+                name = "Google Account",
+                username = "alex@gmail.com",
+                email = "alex@gmail.com",
+                password = "MySecretPassword123",
+                category = "Social Media",
+                note = "Main account"
+            ),
+            PasswordItem(
+                id = "2",
+                name = "Netflix",
+                username = "alex@gmail.com",
+                email = "alex@gmail.com",
+                password = "NetflixPass456",
+                category = "Entertainment",
+                note = ""
+            ),
+            PasswordItem(
+                id = "3",
+                name = "Facebook",
+                username = "alex.morgan",
+                email = "alex@design.com",
+                password = "FacebookPass789",
+                category = "Social Media",
+                note = ""
+            ),
+            PasswordItem(
+                id = "4",
+                name = "Twitter",
+                username = "alex_twitter",
+                email = "",
+                password = "TwitterPass000",
+                category = "",
+                note = ""
+            ),
+            PasswordItem(
+                id = "5",
+                name = "Amazon",
+                username = "alex@amazon.com",
+                email = "alex@amazon.com",
+                password = "AmazonPass111",
+                category = "Shopping",
+                note = "Prime member"
+            ),
+            PasswordItem(
+                id = "6",
+                name = "芜职大教育企业邮箱",
+                username = "李四",
+                phone = "18888888888",
+                email = "23000000@whit.edu.cn",
+                password = "Me72916i!",
+                category = "Work",
+                note = "绑定了微信，和qq邮箱，手机号"
+            ),
+            PasswordItem(
+                id = "7",
+                name = "硅基流动",
+                username = "",
+                phone = "18888888888",
+                email = "",
+                password = "",
+                category = "AI",
+                note = "微信登陆（AI集合网站api）"
+            )
+        )
+    }
+    
+    var uiState by remember { mutableStateOf(MainUiState(passwords = samplePasswords)) }
+    val context = LocalContext.current
+    
+    // File picker launcher for import
+    val importFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        // TODO: Parse CSV file
+    }
+    
+    // Share intent launcher for export
+    val shareLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { }
+    
+    // Edit Screen overlay
+    if (uiState.showEditScreen) {
+        val currentPassword = uiState.passwords.find { it.id == uiState.editPasswordId }
+        EditScreen(
+            password = currentPassword,
+            onBack = { uiState = uiState.copy(showEditScreen = false, editPasswordId = null) },
+            onSave = { updatedPassword ->
+                // 更新密码
+                val newList = uiState.passwords.map {
+                    if (it.id == updatedPassword.id) updatedPassword else it
+                }.let { list ->
+                    // 如果是新建
+                    if (uiState.editPasswordId == null) {
+                        list + updatedPassword.copy(id = System.currentTimeMillis().toString())
+                    } else list
+                }
+                uiState = uiState.copy(
+                    showEditScreen = false,
+                    editPasswordId = null,
+                    passwords = newList
+                )
+            },
+            onDelete = {
+                val newList = uiState.passwords.filter { it.id != uiState.editPasswordId }
+                uiState = uiState.copy(
+                    showEditScreen = false,
+                    editPasswordId = null,
+                    passwords = newList
+                )
+            }
+        )
+        return
+    }
+    
+    // Import Preview Screen
+    if (uiState.showImportPreview) {
+        ImportPreviewScreen(
+            entries = uiState.importEntries,
+            onConfirm = {
+                // TODO: Save imported entries
+                uiState = uiState.copy(showImportPreview = false, importEntries = emptyList())
+            },
+            onCancel = {
+                uiState = uiState.copy(showImportPreview = false, importEntries = emptyList())
+            }
+        )
+        return
+    }
+    
+    // All Passwords Screen
+    if (uiState.showAllPasswords) {
+        AllPasswordsScreen(
+            onBack = { uiState = uiState.copy(showAllPasswords = false) },
+            passwords = uiState.passwords,
+            onPasswordClick = { id ->
+                uiState = uiState.copy(showAllPasswords = false, showEditScreen = true, editPasswordId = id)
+            }
+        )
+        return
+    }
+    
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Background)
+    ) {
+        // Page Content
+        when (uiState.selectedTab) {
+            TabItem.HOME -> HomeContent(
+                passwords = uiState.passwords,
+                selectedCategory = uiState.selectedCategory,
+                searchQuery = uiState.searchQuery,
+                onCategorySelected = { uiState = uiState.copy(selectedCategory = it) },
+                onSearchQueryChange = { uiState = uiState.copy(searchQuery = it) },
+                onNavigateToAllPasswords = { uiState = uiState.copy(showAllPasswords = true) },
+                onPasswordClick = { id ->
+                    uiState = uiState.copy(showEditScreen = true, editPasswordId = id)
+                }
+            )
+            TabItem.SECURITY -> SecurityContent()
+            TabItem.SETTINGS -> SettingsContent(
+                onNavigateToImport = {
+                    importFilePickerLauncher.launch(arrayOf(
+                        "text/csv",
+                        "text/comma-separated-values",
+                        "application/csv",
+                        "*/*"
+                    ))
+                },
+                onNavigateToExport = {
+                    // 导出密码为 CSV
+                    val exportData = uiState.passwords.map { p ->
+                        ExportPasswordEntry(
+                            service = p.name,
+                            username = p.username,
+                            phone = p.phone,
+                            email = p.email,
+                            password = p.password,
+                            note = p.note,
+                            category = p.category
+                        )
+                    }
+                    
+                    val result = CsvExporter.exportToCsv(context, exportData)
+                    result.onSuccess { uri ->
+                        val shareIntent = CsvExporter.createShareIntent(uri, "passwords_export")
+                        shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
+                    }
+                }
+            )
+            TabItem.PLACEHOLDER -> PlaceholderContent()
+        }
+        
+        // Bottom Tab Bar
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp)
+                .zIndex(1f)
+        ) {
+            TabBar(
+                selectedTab = uiState.selectedTab,
+                onTabSelected = { tab -> 
+                    uiState = uiState.copy(selectedTab = tab)
+                },
+                onAddClick = { 
+                    uiState = uiState.copy(showEditScreen = true, editPasswordId = null)
+                },
+                modifier = Modifier.shadow(
+                    elevation = 12.dp,
+                    shape = RoundedCornerShape(36.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.1f),
+                    spotColor = Color.Black.copy(alpha = 0.1f)
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeContent(
+    passwords: List<PasswordItem>,
+    selectedCategory: String?,
+    searchQuery: String,
+    onCategorySelected: (String?) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onNavigateToAllPasswords: () -> Unit,
+    onPasswordClick: (String) -> Unit
+) {
+    // 过滤密码列表
+    val filteredPasswords = remember(passwords, selectedCategory, searchQuery) {
+        passwords.filter { p ->
+            val matchCategory = selectedCategory == null || 
+                               selectedCategory == "All" || 
+                               p.category == selectedCategory
+            val matchSearch = searchQuery.isEmpty() ||
+                            p.name.contains(searchQuery, ignoreCase = true) ||
+                            p.username.contains(searchQuery, ignoreCase = true) ||
+                            p.email.contains(searchQuery, ignoreCase = true) ||
+                            p.phone.contains(searchQuery, ignoreCase = true) ||
+                            p.note.contains(searchQuery, ignoreCase = true)
+            matchCategory && matchSearch
+        }.take(5) // 首页只显示前5个
+    }
+    
+    // 提取所有分类
+    val allCategories = remember(passwords) {
+        listOf("All") + passwords.map { it.category }.filter { it.isNotEmpty() }.distinct()
+    }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+    ) {
+        // Status Bar Area
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(47.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "9:41",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.W600
+                ),
+                color = TextPrimary
+            )
+        }
+        
+        // Scroll Content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Welcome back",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurface
+                    )
+                    Text(
+                        text = "Alex Smith",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TextPrimary
+                    )
+                }
+            }
+            
+            // Search Bar
+            SearchBar(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange
+            )
+            
+            // Stat Cards
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Passwords Card (Clickable)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(CardGray)
+                        .clickable { onNavigateToAllPasswords() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "🔑",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        Text(
+                            text = "${passwords.size} Passwords",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.W600
+                            ),
+                            color = TextPrimary
+                        )
+                    }
+                }
+                
+                // Security Score Card
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "🛡️",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        Text(
+                            text = "98% Secure",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.W600
+                            ),
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+            
+            // Category Tags - 支持 All + 动态分类
+            CategoryTagRow(
+                categories = allCategories,
+                selectedCategory = selectedCategory,
+                onCategorySelected = onCategorySelected
+            )
+            
+            // Recent Logins Section
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Recent Logins",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "See All",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.W500
+                        ),
+                        color = Primary,
+                        modifier = Modifier.clickable { onNavigateToAllPasswords() }
+                    )
+                }
+                
+                // Password List
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    filteredPasswords.forEach { password ->
+                        PasswordListItem(
+                            name = password.name,
+                            email = password.email.ifEmpty { password.username },
+                            password = password.password,
+                            iconText = password.name.take(1).uppercase(),
+                            iconBackgroundColor = getIconBackgroundColor(password.name),
+                            iconTextColor = getIconTextColor(password.name),
+                            onClick = { onPasswordClick(password.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SecurityContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(47.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "9:41",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.W600
+                ),
+                color = TextPrimary
+            )
+        }
+        
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = TextPrimary,
+                modifier = Modifier.size(24.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Text(
+                text = "Security Center",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+        }
+        
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            SecurityScoreCard(
+                score = 85,
+                description = "Your password health is looking good, but there are a few items to fix."
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SecurityStatCard(
+                    icon = Icons.Outlined.Storage,
+                    value = "142",
+                    label = "Total Passwords",
+                    backgroundColor = Surface,
+                    iconTint = OnSurfaceVariant,
+                    valueColor = TextPrimary,
+                    labelColor = OnSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                SecurityStatCard(
+                    icon = Icons.Outlined.Warning,
+                    value = "3",
+                    label = "Weak Passwords",
+                    backgroundColor = ErrorLight,
+                    iconTint = Error,
+                    valueColor = Error,
+                    labelColor = Error,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                SecurityStatCard(
+                    icon = Icons.Outlined.Refresh,
+                    value = "12",
+                    label = "Reused",
+                    backgroundColor = WarningContainer,
+                    iconTint = Warning,
+                    valueColor = Warning,
+                    labelColor = Warning,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Attention Needed",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary
+                )
+                
+                SecurityListItem(
+                    iconBackgroundColor = ErrorContainer,
+                    icon = Icons.Outlined.LockOpen,
+                    iconTint = Error,
+                    title = "Compromised Passwords",
+                    description = "1 account found in data breaches",
+                    onClick = { }
+                )
+                
+                SecurityListItem(
+                    iconBackgroundColor = WarningLight,
+                    icon = Icons.Outlined.Warning,
+                    iconTint = Warning,
+                    title = "Weak Passwords",
+                    description = "3 accounts need stronger passwords",
+                    onClick = { }
+                )
+            }
+            
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Security Suggestions",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary
+                )
+                
+                SecuritySuggestionItem(
+                    title = "Enable 2-Factor Auth",
+                    description = "Add an extra layer of security to your main vault account."
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsContent(
+    onNavigateToImport: () -> Unit,
+    onNavigateToExport: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(top = 47.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(32.dp)
+    ) {
+        Text(
+            text = "设置",
+            style = MaterialTheme.typography.displayLarge,
+            color = TextPrimary
+        )
+        
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionTitle(title = "账户")
+            
+            ProfileCard(
+                userName = "Alex Morgan",
+                userEmail = "alex@example.com",
+                onClick = { }
+            )
+            
+            SettingItem(
+                icon = Icons.Outlined.Shield,
+                label = "主密码",
+                onClick = { }
+            )
+        }
+        
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionTitle(title = "应用设置")
+            
+            SettingItem(
+                icon = Icons.Outlined.DarkMode,
+                label = "主题外观",
+                trailingText = "浅色",
+                onClick = { }
+            )
+            
+            var soundEnabled by remember { mutableStateOf(true) }
+            SettingToggleItem(
+                icon = Icons.Outlined.VolumeUp,
+                label = "声音反馈",
+                checked = soundEnabled,
+                onCheckedChange = { soundEnabled = it }
+            )
+        }
+        
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionTitle(title = "数据管理")
+            
+            SettingItem(
+                icon = Icons.Outlined.Upload,
+                label = "导出密码",
+                onClick = onNavigateToExport
+            )
+            
+            SettingItem(
+                icon = Icons.Outlined.Download,
+                label = "导入密码",
+                onClick = onNavigateToImport
+            )
+        }
+        
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionTitle(title = "更多")
+            
+            SettingItem(
+                icon = Icons.Outlined.HelpOutline,
+                label = "使用帮助",
+                onClick = { }
+            )
+            
+            SettingItem(
+                icon = Icons.Outlined.Lock,
+                label = "隐私条款",
+                onClick = { }
+            )
+            
+            SettingItem(
+                icon = Icons.Outlined.Info,
+                label = "关于我们",
+                onClick = { }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaceholderContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(top = 47.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Text(
+            text = "暂缺",
+            style = MaterialTheme.typography.headlineMedium,
+            color = TextPrimary
+        )
+        
+        Text(
+            text = "This tab is not yet implemented",
+            style = MaterialTheme.typography.bodyMedium,
+            color = OnSurfaceVariant
+        )
+    }
+}
+
+// Helper functions
+private fun getIconBackgroundColor(name: String): Color {
+    return when (name.lowercase()) {
+        "google" -> IconBackground
+        "netflix" -> Color.Black
+        "facebook" -> Color(0xFF1877F2)
+        "twitter" -> Color.Black
+        "amazon" -> Color(0xFFFF9900)
+        "twitter", "x" -> Color.Black
+        else -> IconBackground
+    }
+}
+
+private fun getIconTextColor(name: String): Color {
+    return when (name.lowercase()) {
+        "netflix" -> Color(0xFFE50914)
+        "facebook" -> Color.White
+        "twitter", "amazon" -> Color.White
+        else -> TextPrimary
+    }
+}
