@@ -18,7 +18,7 @@ import com.example.passcard.ui.theme.*
 fun SearchBar(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String = "Search passwords...",
+    placeholder: String = "搜索密码...",
     modifier: Modifier = Modifier
 ) {
     Box(

@@ -69,8 +69,8 @@ fun MainScreen(
                 username = "alex@gmail.com",
                 email = "alex@gmail.com",
                 password = "MySecretPassword123",
-                category = "Social Media",
-                note = "Main account"
+                category = "社交媒体",
+                note = "主账号"
             ),
             PasswordItem(
                 id = "2",
@@ -78,7 +78,7 @@ fun MainScreen(
                 username = "alex@gmail.com",
                 email = "alex@gmail.com",
                 password = "NetflixPass456",
-                category = "Entertainment",
+                category = "娱乐",
                 note = ""
             ),
             PasswordItem(
@@ -87,7 +87,7 @@ fun MainScreen(
                 username = "alex.morgan",
                 email = "alex@design.com",
                 password = "FacebookPass789",
-                category = "Social Media",
+                category = "社交媒体",
                 note = ""
             ),
             PasswordItem(
@@ -105,8 +105,8 @@ fun MainScreen(
                 username = "alex@amazon.com",
                 email = "alex@amazon.com",
                 password = "AmazonPass111",
-                category = "Shopping",
-                note = "Prime member"
+                category = "购物",
+                note = "Prime 会员"
             ),
             PasswordItem(
                 id = "6",
@@ -115,7 +115,7 @@ fun MainScreen(
                 phone = "18888888888",
                 email = "23000000@whit.edu.cn",
                 password = "Me72916i!",
-                category = "Work",
+                category = "工作",
                 note = "绑定了微信，和qq邮箱，手机号"
             ),
             PasswordItem(
@@ -443,7 +443,7 @@ private fun HomeContent(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Welcome back",
+                        text = "欢迎回来",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -492,7 +492,7 @@ private fun HomeContent(
                             )
                         }
                         Text(
-                            text = "${passwords.size} Passwords",
+                            text = "${passwords.size} 个密码",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.W600
                             ),
@@ -528,7 +528,7 @@ private fun HomeContent(
                             )
                         }
                         Text(
-                            text = "98% Secure",
+                            text = "98% 安全",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.W600
                             ),
@@ -554,12 +554,12 @@ private fun HomeContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Recent Logins",
+                        text = "最近登录",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "See All",
+                        text = "查看全部",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.W500
                         ),

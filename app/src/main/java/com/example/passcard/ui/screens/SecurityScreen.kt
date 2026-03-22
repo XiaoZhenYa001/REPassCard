@@ -62,7 +62,7 @@ fun SecurityScreen(
             Spacer(modifier = Modifier.width(16.dp))
             
             Text(
-                text = "Security Center",
+                text = "安全中心",
                 style = MaterialTheme.typography.titleLarge,
                 color = TextPrimary
             )
@@ -80,7 +80,7 @@ fun SecurityScreen(
             // Security Score Card
             SecurityScoreCard(
                 score = 85,
-                description = "Your password health is looking good, but there are a few items to fix."
+                description = "您的密码健康状况良好，但有几项需要修复。"
             )
             
             // Stats Grid
@@ -91,7 +91,7 @@ fun SecurityScreen(
                 SecurityStatCard(
                     icon = Icons.Outlined.Storage,
                     value = "142",
-                    label = "Total Passwords",
+                    label = "密码总数",
                     backgroundColor = Surface,
                     iconTint = OnSurfaceVariant,
                     valueColor = TextPrimary,
@@ -102,7 +102,7 @@ fun SecurityScreen(
                 SecurityStatCard(
                     icon = Icons.Outlined.Warning,
                     value = "3",
-                    label = "Weak Passwords",
+                    label = "弱密码",
                     backgroundColor = ErrorLight,
                     iconTint = Error,
                     valueColor = Error,
@@ -113,7 +113,7 @@ fun SecurityScreen(
                 SecurityStatCard(
                     icon = Icons.Outlined.Refresh,
                     value = "12",
-                    label = "Reused",
+                    label = "重复使用",
                     backgroundColor = WarningContainer,
                     iconTint = Warning,
                     valueColor = Warning,
@@ -128,7 +128,7 @@ fun SecurityScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Attention Needed",
+                    text = "需要注意",
                     style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary
                 )
@@ -137,8 +137,8 @@ fun SecurityScreen(
                     iconBackgroundColor = ErrorContainer,
                     icon = Icons.Outlined.LockOpen,
                     iconTint = Error,
-                    title = "Compromised Passwords",
-                    description = "1 account found in data breaches",
+                    title = "泄露密码",
+                    description = "1 个账户在数据泄露中发现",
                     onClick = onNavigateToCompromised
                 )
                 
@@ -146,8 +146,8 @@ fun SecurityScreen(
                     iconBackgroundColor = WarningLight,
                     icon = Icons.Outlined.Warning,
                     iconTint = Warning,
-                    title = "Weak Passwords",
-                    description = "3 accounts need stronger passwords",
+                    title = "弱密码",
+                    description = "3 个账户需要更强的密码",
                     onClick = onNavigateToWeak
                 )
             }
@@ -158,14 +158,14 @@ fun SecurityScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Security Suggestions",
+                    text = "安全建议",
                     style = MaterialTheme.typography.titleMedium,
                     color = TextPrimary
                 )
                 
                 SecuritySuggestionItem(
-                    title = "Enable 2-Factor Auth",
-                    description = "Add an extra layer of security to your main vault account."
+                    title = "启用两步验证",
+                    description = "为您的主密码库账户添加额外的安全保护。"
                 )
             }
         }

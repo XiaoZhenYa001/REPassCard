@@ -10,6 +10,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,8 +30,9 @@ import com.example.passcard.ui.theme.*
 
 /**
  * 可复制的密码列表项
- * - 点击图标/箭头区域：进入编辑页面
- * - 长按任意区域：复制密码
+ * - 点击左侧图标区域：进入编辑页面
+ * - 点击右侧 > 箭头区域：进入编辑页面
+ * - 双击中间区域（排除图标和箭头）：复制密码
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -44,6 +47,7 @@ fun PasswordListItem(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var lastClickTime by remember { mutableLongStateOf(0L) }
     
     Row(
         modifier = modifier
@@ -52,12 +56,19 @@ fun PasswordListItem(
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
             .border(1.dp, Border, RoundedCornerShape(12.dp))
-            .combinedClickable(
-                onClick = {},
-                onLongClick = {
-                    copyToClipboard(context, password)
-                }
-            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        // 双击检测
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastClickTime < 300) {
+                            // 双击 - 复制密码
+                            copyToClipboard(context, password)
+                        }
+                        lastClickTime = currentTime
+                    }
+                )
+            }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -84,9 +95,17 @@ fun PasswordListItem(
         
         Spacer(modifier = Modifier.width(12.dp))
         
-        // Details
+        // Details (Double-click to copy)
         Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = {
+                            copyToClipboard(context, password)
+                        }
+                    )
+                },
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
@@ -120,7 +139,7 @@ fun PasswordListItem(
         ) {
             Icon(
                 imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "More",
+                contentDescription = "更多",
                 tint = TabInactive,
                 modifier = Modifier.size(20.dp)
             )
@@ -133,11 +152,11 @@ fun PasswordListItem(
  */
 private fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("Password", text)
+    val clip = ClipData.newPlainText("密码", text)
     clipboard.setPrimaryClip(clip)
     
     Handler(Looper.getMainLooper()).post {
-        Toast.makeText(context, "Password copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "密码已复制", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -213,7 +232,7 @@ fun SimplePasswordListItem(
         
         Icon(
             imageVector = Icons.Outlined.ChevronRight,
-            contentDescription = "More",
+            contentDescription = "更多",
             tint = TabInactive,
             modifier = Modifier.size(20.dp)
         )

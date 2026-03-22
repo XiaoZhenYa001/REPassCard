@@ -41,7 +41,7 @@ fun SecurityScoreCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Security Score",
+                text = "安全评分",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = FontWeight.W600
                 ),

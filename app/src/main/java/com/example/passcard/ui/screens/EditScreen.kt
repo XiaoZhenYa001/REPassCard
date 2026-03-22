@@ -42,16 +42,16 @@ data class EditUiState(
 
 // 常用分类列表
 val COMMON_CATEGORIES = listOf(
-    "All",
-    "Social Media",
-    "Work",
-    "Finance",
-    "Shopping",
-    "Entertainment",
+    "全部",
+    "社交媒体",
+    "工作",
+    "金融",
+    "购物",
+    "娱乐",
     "AI",
-    "Gaming",
-    "Education",
-    "Other"
+    "游戏",
+    "教育",
+    "其他"
 )
 
 @Composable
@@ -126,7 +126,7 @@ fun EditScreen(
             )
             
             Text(
-                text = if (uiState.isNew) "Add Login" else "Edit Login",
+                text = if (uiState.isNew) "添加登录" else "编辑登录",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.W700
                 ),
@@ -134,7 +134,7 @@ fun EditScreen(
             )
             
             Text(
-                text = "Save",
+                text = "保存",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.W600
                 ),
@@ -188,7 +188,7 @@ fun EditScreen(
                 }
                 
                 Text(
-                    text = "Change Icon",
+                    text = "更换图标",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = FontWeight.W600
                     ),
@@ -200,36 +200,36 @@ fun EditScreen(
             
             // Form Fields
             InputFieldEdit(
-                label = "Name",
+                label = "名称",
                 value = uiState.name,
                 onValueChange = { uiState = uiState.copy(name = it) },
-                placeholder = "Service name"
+                placeholder = "服务名称"
             )
             
             InputFieldEdit(
-                label = "Username",
+                label = "用户名",
                 value = uiState.username,
                 onValueChange = { uiState = uiState.copy(username = it) },
-                placeholder = "Username or email"
+                placeholder = "用户名或邮箱"
             )
             
             InputFieldEdit(
-                label = "Phone",
+                label = "手机号",
                 value = uiState.phone,
                 onValueChange = { uiState = uiState.copy(phone = it) },
-                placeholder = "Phone number"
+                placeholder = "手机号码"
             )
             
             InputFieldEdit(
-                label = "Email",
+                label = "邮箱",
                 value = uiState.email,
                 onValueChange = { uiState = uiState.copy(email = it) },
-                placeholder = "Email address"
+                placeholder = "邮箱地址"
             )
             
             // Password Field
             PasswordFieldEdit(
-                label = "Password",
+                label = "密码",
                 value = uiState.password,
                 onValueChange = { uiState = uiState.copy(password = it) },
                 visible = uiState.passwordVisible,
@@ -242,7 +242,7 @@ fun EditScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Category",
+                    text = "分类",
                     style = MaterialTheme.typography.labelLarge,
                     color = TextPrimary
                 )
@@ -288,7 +288,7 @@ fun EditScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Current: ",
+                            text = "当前: ",
                             style = MaterialTheme.typography.bodyMedium,
                             color = OnSurfaceVariant
                         )
@@ -304,10 +304,10 @@ fun EditScreen(
             }
             
             InputFieldEdit(
-                label = "Note",
+                label = "备注",
                 value = uiState.note,
                 onValueChange = { uiState = uiState.copy(note = it) },
-                placeholder = "Add a note...",
+                placeholder = "添加备注...",
                 isMultiline = true
             )
             
@@ -333,7 +333,7 @@ fun EditScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Delete Password",
+                        text = "删除密码",
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontWeight = FontWeight.W600
                         ),
