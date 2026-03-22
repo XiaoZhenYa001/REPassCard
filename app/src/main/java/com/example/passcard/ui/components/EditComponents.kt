@@ -13,12 +13,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
 
+/**
+ * 修复后的输入框组件 - 文字垂直居中对齐
+ */
 @Composable
 fun InputField(
     label: String,
@@ -30,6 +35,8 @@ fun InputField(
     isMultiline: Boolean = false,
     trailingIcons: @Composable RowScope.() -> Unit = {}
 ) {
+    var passwordVisible by remember { mutableStateOf(false) }
+    
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -40,8 +47,7 @@ fun InputField(
             color = TextPrimary
         )
         
-        var passwordVisible by remember { mutableStateOf(false) }
-        
+        // 输入框容器
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -49,73 +55,79 @@ fun InputField(
                     if (isMultiline) Modifier.height(120.dp) else Modifier.height(56.dp)
                 )
                 .clip(RoundedCornerShape(16.dp))
-                .background(Surface)
-                .then(
-                    if (isMultiline) Modifier.padding(16.dp) else Modifier.padding(horizontal = 16.dp)
-                ),
-            contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
+                .background(Surface),
+            contentAlignment = Alignment.CenterStart
         ) {
-            if (value.isEmpty() && placeholder.isNotEmpty()) {
-                Text(
-                    text = placeholder,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = Muted,
-                    modifier = if (isMultiline) Modifier.padding(top = 0.dp) else Modifier
-                )
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = if (isMultiline) Alignment.Top else Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
+                // 使用 TextStyle 确保文字垂直居中
+                val textStyle = TextStyle(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.W500,
+                    color = TextPrimary
+                )
+                
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(if (isMultiline) Modifier.padding(top = 0.dp) else Modifier),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.W500,
-                        color = TextPrimary
-                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = textStyle,
                     visualTransformation = if (isPassword && !passwordVisible) {
                         PasswordVisualTransformation()
                     } else {
                         VisualTransformation.None
                     },
                     singleLine = !isMultiline,
-                    maxLines = if (isMultiline) 4 else 1
-                )
-                
-                // Trailing icons
-                if (isPassword || trailingIcons != {}) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isPassword) {
-                            Icon(
-                                imageVector = Icons.Outlined.ContentCopy,
-                                contentDescription = "Copy",
-                                tint = TextPrimary,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clickable { /* TODO: Copy */ }
-                            )
-                            Icon(
-                                imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                contentDescription = if (passwordVisible) "Hide" else "Show",
-                                tint = TextPrimary,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clickable { passwordVisible = !passwordVisible }
-                            )
+                    maxLines = if (isMultiline) 4 else 1,
+                    decorationBox = { innerTextField ->
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (value.isEmpty()) {
+                                Text(
+                                    text = placeholder,
+                                    style = textStyle.copy(color = Muted),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                            innerTextField()
                         }
-                        trailingIcons()
                     }
+                )
+            }
+            
+            // Trailing icons (右侧图标)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isPassword) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = "复制",
+                        tint = TextPrimary,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable { /* TODO: Copy */ }
+                    )
+                    Icon(
+                        imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                        contentDescription = if (passwordVisible) "隐藏" else "显示",
+                        tint = TextPrimary,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable { passwordVisible = !passwordVisible }
+                    )
                 }
+                trailingIcons()
             }
         }
     }
@@ -133,7 +145,7 @@ fun CategorySelector(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Category",
+            text = "分类",
             style = MaterialTheme.typography.labelLarge,
             color = TextPrimary
         )
@@ -148,7 +160,6 @@ fun CategorySelector(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectedCategory != null) {
-                // Category Pill
                 Row(
                     modifier = Modifier
                         .height(32.dp)
@@ -167,7 +178,7 @@ fun CategorySelector(
                     )
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = "Remove",
+                        contentDescription = "移除",
                         tint = OnSurfaceVariant,
                         modifier = Modifier
                             .size(14.dp)
@@ -180,7 +191,7 @@ fun CategorySelector(
             
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,
-                contentDescription = "Select",
+                contentDescription = "选择",
                 tint = Muted,
                 modifier = Modifier.size(20.dp)
             )
@@ -199,7 +210,6 @@ fun LogoSelector(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Logo Container
         Box(
             modifier = Modifier
                 .size(80.dp)
@@ -207,17 +217,16 @@ fun LogoSelector(
                 .background(Surface),
             contentAlignment = Alignment.Center
         ) {
-            // TODO: Replace with actual icon based on currentIcon
             Icon(
                 imageVector = Icons.Outlined.Key,
-                contentDescription = "Icon",
+                contentDescription = "图标",
                 tint = Primary,
                 modifier = Modifier.size(40.dp)
             )
         }
         
         Text(
-            text = "Change Icon",
+            text = "更换图标",
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.W600
             ),
@@ -245,13 +254,13 @@ fun DeleteButton(
     ) {
         Icon(
             imageVector = Icons.Outlined.Delete,
-            contentDescription = "Delete",
+            contentDescription = "删除",
             tint = Error,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Delete Password",
+            text = "删除密码",
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontWeight = FontWeight.W600
             ),

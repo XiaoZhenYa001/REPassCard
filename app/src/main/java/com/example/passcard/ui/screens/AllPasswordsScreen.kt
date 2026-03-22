@@ -15,8 +15,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.components.PasswordListItem
 import com.example.passcard.ui.theme.*
 
@@ -50,8 +52,8 @@ fun AllPasswordsScreen(
                 username = "alex@gmail.com",
                 email = "alex@gmail.com",
                 password = "MySecretPassword123",
-                category = "Social Media",
-                note = "Main Google account"
+                category = "社交媒体",
+                note = "主账号"
             ),
             PasswordItem(
                 id = "2",
@@ -59,7 +61,7 @@ fun AllPasswordsScreen(
                 username = "alex@gmail.com",
                 email = "alex@gmail.com",
                 password = "NetflixPass456",
-                category = "Entertainment",
+                category = "娱乐",
                 note = ""
             ),
             PasswordItem(
@@ -68,7 +70,7 @@ fun AllPasswordsScreen(
                 username = "alex.morgan",
                 email = "alex@design.com",
                 password = "FacebookPass789",
-                category = "Social Media",
+                category = "社交媒体",
                 note = ""
             ),
             PasswordItem(
@@ -86,8 +88,8 @@ fun AllPasswordsScreen(
                 username = "alex@amazon.com",
                 email = "alex@amazon.com",
                 password = "AmazonPass111",
-                category = "Shopping",
-                note = "Prime membership"
+                category = "购物",
+                note = "Prime 会员"
             )
         )
     }
@@ -135,7 +137,7 @@ fun AllPasswordsScreen(
             Spacer(modifier = Modifier.width(16.dp))
             
             Text(
-                text = "All Passwords",
+                text = "所有密码",
                 style = MaterialTheme.typography.titleLarge,
                 color = TextPrimary
             )
@@ -178,14 +180,13 @@ fun AllPasswordsScreen(
                         color = Muted
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    if (searchQuery.isEmpty()) {
-                        Text(
-                            text = "Search passwords...",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Muted
-                        )
-                    }
                 }
+                
+                val textStyle = TextStyle(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = TextPrimary
+                )
                 
                 BasicTextField(
                     value = searchQuery,
@@ -193,8 +194,22 @@ fun AllPasswordsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(start = 44.dp, end = 16.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextPrimary),
-                    singleLine = true
+                    textStyle = textStyle,
+                    singleLine = true,
+                    decorationBox = { innerTextField ->
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    text = "搜索密码...",
+                                    style = textStyle.copy(color = Muted)
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
                 )
             }
         }
@@ -208,7 +223,7 @@ fun AllPasswordsScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "${displayPasswords.size} items",
+                text = "${displayPasswords.size} 项",
                 style = MaterialTheme.typography.bodySmall,
                 color = OnSurfaceVariant
             )

@@ -10,8 +10,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
 
 @Composable
@@ -35,7 +37,7 @@ fun SearchBar(
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Search Icon (using emoji as placeholder, replace with proper icon)
+            // Search Icon
             Text(
                 text = "🔍",
                 style = MaterialTheme.typography.bodyLarge,
@@ -43,23 +45,36 @@ fun SearchBar(
             )
             Spacer(modifier = Modifier.width(12.dp))
             
-            if (value.isEmpty()) {
-                Text(
-                    text = placeholder,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Muted
-                )
-            }
+            // 使用 TextStyle 确保文字垂直居中
+            val textStyle = TextStyle(
+                fontSize = 16.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
+                color = TextPrimary
+            )
+            
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                textStyle = textStyle,
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = placeholder,
+                                style = textStyle.copy(color = Muted)
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
         }
-        
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 44.dp, end = 16.dp),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextPrimary),
-            singleLine = true
-        )
     }
 }
