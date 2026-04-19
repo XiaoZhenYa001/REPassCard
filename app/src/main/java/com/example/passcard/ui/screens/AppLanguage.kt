@@ -186,14 +186,14 @@ object AppStrings {
 
     @Composable
     fun addLogin(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
-        AppLanguage.CHINESE -> "添加登录"
-        AppLanguage.ENGLISH -> "Add Login"
+        AppLanguage.CHINESE -> "添加密码"
+        AppLanguage.ENGLISH -> "Add Password"
     }
 
     @Composable
     fun editLogin(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
-        AppLanguage.CHINESE -> "编辑登录"
-        AppLanguage.ENGLISH -> "Edit Login"
+        AppLanguage.CHINESE -> "编辑密码"
+        AppLanguage.ENGLISH -> "Edit Password"
     }
 
     @Composable

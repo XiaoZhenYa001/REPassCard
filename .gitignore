@@ -19,3 +19,4 @@ debug/
 release/
 /app/debug/
 /app/release/
+/*.html

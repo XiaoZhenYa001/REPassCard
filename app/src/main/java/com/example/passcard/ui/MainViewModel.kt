@@ -3,111 +3,94 @@ package com.example.passcard.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.passcard.data.AppDatabase
+import com.example.passcard.PassCardApp
 import com.example.passcard.data.PasswordEntity
 import com.example.passcard.data.PasswordRepository
-import com.example.passcard.ui.screens.AppLanguage
 import com.example.passcard.ui.screens.PasswordItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     
-    private val database = AppDatabase.getInstance(application)
-    private val repository = PasswordRepository(database.passwordDao())
+    private val _passwords = MutableStateFlow<List<PasswordItem>>(emptyList())
+    val passwords: StateFlow<List<PasswordItem>> = _passwords.asStateFlow()
     
-    // 从数据库加载密码
-    val passwords: StateFlow<List<PasswordItem>> = repository.allPasswords
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _passwordCount = MutableStateFlow(0)
+    val passwordCount: StateFlow<Int> = _passwordCount.asStateFlow()
     
-    // 密码数量
-    val passwordCount: StateFlow<Int> = repository.passwordCount
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    private var repository: PasswordRepository? = null
+    private var initialized = false
     
     init {
-        // 首次启动时插入示例数据
-        viewModelScope.launch {
-            val count = repository.passwordCount.first()
+        // 异步加载数据库数据
+        loadData()
+    }
+    
+    private fun loadData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (initialized) return@launch
+            
+            val db = try {
+                PassCardApp.getDatabase()
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (db == null) {
+                initialized = true
+                return@launch
+            }
+            
+            repository = PasswordRepository(db.passwordDao())
+            
+            // 检查是否需要插入示例数据
+            val count = repository?.passwordCount?.first() ?: 0
             if (count == 0) {
                 insertSampleData()
             }
+            
+            // 加载数据
+            repository?.allPasswords?.collectLatest { list ->
+                _passwords.value = list
+                _passwordCount.value = list.size
+            }
+            
+            initialized = true
         }
     }
     
     private suspend fun insertSampleData() {
         val samplePasswords = listOf(
-            PasswordEntity(
-                id = "1",
-                name = "Google Account",
-                username = "alex@gmail.com",
-                email = "alex@gmail.com",
-                password = "MySecretPassword123",
-                category = "社交媒体",
-                note = "主账号"
-            ),
-            PasswordEntity(
-                id = "2",
-                name = "Netflix",
-                username = "alex@gmail.com",
-                email = "alex@gmail.com",
-                password = "NetflixPass456",
-                category = "娱乐",
-                note = ""
-            ),
-            PasswordEntity(
-                id = "3",
-                name = "Facebook",
-                username = "alex.morgan",
-                email = "alex@design.com",
-                password = "FacebookPass789",
-                category = "社交媒体",
-                note = ""
-            ),
-            PasswordEntity(
-                id = "4",
-                name = "Twitter",
-                username = "alex_twitter",
-                email = "",
-                password = "TwitterPass000",
-                category = "",
-                note = ""
-            ),
-            PasswordEntity(
-                id = "5",
-                name = "Amazon",
-                username = "alex@amazon.com",
-                email = "alex@amazon.com",
-                password = "AmazonPass111",
-                category = "购物",
-                note = "Prime 会员"
-            )
+            PasswordEntity("1", "Google Account", "alex@gmail.com", "", "alex@gmail.com", "MySecretPassword123", "社交媒体", "主账号"),
+            PasswordEntity("2", "Netflix", "alex@gmail.com", "", "alex@gmail.com", "NetflixPass456", "娱乐", ""),
+            PasswordEntity("3", "Facebook", "alex.morgan", "", "alex@design.com", "FacebookPass789", "社交媒体", ""),
+            PasswordEntity("4", "Twitter", "alex_twitter", "", "", "TwitterPass000", "", ""),
+            PasswordEntity("5", "Amazon", "alex@amazon.com", "", "alex@amazon.com", "AmazonPass111", "购物", "Prime 会员")
         )
-        repository.insertAllPasswords(samplePasswords.map {
-            PasswordItem(it.id, it.name, it.username, it.phone, it.email, it.password, it.category, it.note)
-        })
+        samplePasswords.forEach { entity ->
+            repository?.insertPassword(
+                PasswordItem(entity.id, entity.name, entity.username, entity.phone, entity.email, entity.password, entity.category, entity.note)
+            )
+        }
     }
     
     fun addPassword(item: PasswordItem) {
-        viewModelScope.launch {
-            repository.insertPassword(item)
+        viewModelScope.launch(Dispatchers.IO) {
+            repository?.insertPassword(item)
         }
     }
     
     fun updatePassword(item: PasswordItem) {
-        viewModelScope.launch {
-            repository.updatePassword(item)
-        }
-    }
-    
-    fun deletePassword(item: PasswordItem) {
-        viewModelScope.launch {
-            repository.deletePassword(item)
+        viewModelScope.launch(Dispatchers.IO) {
+            repository?.updatePassword(item)
         }
     }
     
     fun deletePasswordById(id: String) {
-        viewModelScope.launch {
-            repository.deletePasswordById(id)
+        viewModelScope.launch(Dispatchers.IO) {
+            repository?.deletePasswordById(id)
         }
     }
 }
