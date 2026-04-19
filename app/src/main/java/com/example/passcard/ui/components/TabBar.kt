@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
@@ -19,13 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
 
-enum class TabItem { HOME, SECURITY, PLACEHOLDER, SETTINGS }
+enum class TabItem { HOME, SECURITY, CLOUD, SETTINGS }
 
 @Composable
 fun TabBar(
@@ -70,10 +71,10 @@ fun TabBar(
             Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(28.dp))
         }
         TabButton(
-            selected = selectedTab == TabItem.PLACEHOLDER,
-            onClick = { onTabSelected(TabItem.PLACEHOLDER) },
-            icon = Icons.Outlined.Shield,
-            label = "暂缺",
+            selected = selectedTab == TabItem.CLOUD,
+            onClick = { onTabSelected(TabItem.CLOUD) },
+            icon = if (selectedTab == TabItem.CLOUD) Icons.Filled.Cloud else Icons.Outlined.Cloud,
+            label = "加密",
             colors = themeColors,
             modifier = Modifier.weight(1f)
         )
@@ -98,7 +99,6 @@ private fun TabButton(
     modifier: Modifier = Modifier
 ) {
     val labelColor = if (selected) colors.onBackground else colors.tabInactive
-    val textStyle = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.W500)
     
     Column(
         modifier = modifier.fillMaxHeight().clip(RoundedCornerShape(26.dp))

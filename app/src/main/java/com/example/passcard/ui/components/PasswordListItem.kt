@@ -42,7 +42,7 @@ fun PasswordListItem(
 ) {
     val context = LocalContext.current
     val themeColors = rememberThemeColors()
-    var lastClickTime by remember { mutableLongStateOf(0L) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
     
     Row(
         modifier = modifier
@@ -51,29 +51,19 @@ fun PasswordListItem(
             .clip(RoundedCornerShape(12.dp))
             .background(themeColors.surface)
             .border(1.dp, themeColors.border, RoundedCornerShape(12.dp))
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = {
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime < 300) {
-                            copyToClipboard(context, password, themeColors)
-                        }
-                        lastClickTime = currentTime
-                    }
-                )
-            }
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = {}
+            )
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 图标区域 - 单击进入编辑
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(iconBackgroundColor)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = {}
-                ),
+                .background(iconBackgroundColor),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -85,10 +75,11 @@ fun PasswordListItem(
         
         Spacer(modifier = Modifier.width(12.dp))
         
+        // 中间文字区域 - 双击复制密码
         Column(
             modifier = Modifier
                 .weight(1f)
-                .pointerInput(Unit) {
+                .pointerInput(password) {
                     detectTapGestures(
                         onDoubleTap = {
                             copyToClipboard(context, password, themeColors)
@@ -113,23 +104,13 @@ fun PasswordListItem(
             )
         }
         
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = {}
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "更多",
-                tint = themeColors.tabInactive,
-                modifier = Modifier.size(20.dp)
-            )
-        }
+        // 右侧箭头 - 单击进入编辑
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = "更多",
+            tint = themeColors.tabInactive,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -137,9 +118,8 @@ private fun copyToClipboard(context: Context, text: String, themeColors: ThemeCo
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText("Password", text)
     clipboard.setPrimaryClip(clip)
-    
     Handler(Looper.getMainLooper()).post {
-        Toast.makeText(context, if (themeColors.isDark) "Password copied" else "密码已复制", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "密码已复制", Toast.LENGTH_SHORT).show()
     }
 }
 

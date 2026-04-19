@@ -40,6 +40,10 @@ data class MainUiState(
     val showImportPreview: Boolean = false,
     val importEntries: List<ImportEntry> = emptyList(),
     val showAllPasswords: Boolean = false,
+    val showHelp: Boolean = false,
+    val showPrivacy: Boolean = false,
+    val showAbout: Boolean = false,
+    val showCloudSync: Boolean = false,
     val passwords: List<PasswordItem> = emptyList(),
     val selectedCategory: String? = null,
     val searchQuery: String = "",
@@ -203,9 +207,23 @@ fun MainScreen(
                     onThemeChanged?.invoke()
                 },
                 currentLanguageLabel = currentLanguageLabel,
-                themeColors = themeColors
+                themeColors = themeColors,
+                onNavigateToHelp = { uiState = uiState.copy(showHelp = true) },
+                onNavigateToPrivacy = { uiState = uiState.copy(showPrivacy = true) },
+                onNavigateToAbout = { uiState = uiState.copy(showAbout = true) }
             )
-            TabItem.PLACEHOLDER -> PlaceholderContent(currentLanguage, themeColors)
+            TabItem.CLOUD -> CloudSyncContent(currentLanguage, themeColors)
+        }
+        
+        // 新页面覆盖层
+        if (uiState.showHelp) {
+            HelpContent(currentLanguage = currentLanguage, onBack = { uiState = uiState.copy(showHelp = false) })
+        }
+        if (uiState.showPrivacy) {
+            PrivacyContent(currentLanguage = currentLanguage, onBack = { uiState = uiState.copy(showPrivacy = false) })
+        }
+        if (uiState.showAbout) {
+            AboutContent(currentLanguage = currentLanguage, onBack = { uiState = uiState.copy(showAbout = false) })
         }
         
         if (uiState.showThemeDropdown) {
@@ -347,7 +365,8 @@ private fun HomeContent(
                             password = password.password,
                             iconText = password.name.take(1).uppercase(),
                             iconBackgroundColor = themeColors.iconBackground,
-                            iconTextColor = themeColors.onBackground
+                            iconTextColor = themeColors.onBackground,
+                            onClick = { onPasswordClick(password.id) }
                         )
                     }
                 }
@@ -420,8 +439,21 @@ private fun SettingsContent(
     currentLanguageValue: String,
     onLanguageSelected: (DropdownOption) -> Unit,
     currentLanguageLabel: String,
-    themeColors: ThemeColors
+    themeColors: ThemeColors,
+    onNavigateToHelp: () -> Unit,
+    onNavigateToPrivacy: () -> Unit,
+    onNavigateToAbout: () -> Unit
 ) {
+    @Suppress("UNUSED_PARAMETER") val _showThemeDropdown = showThemeDropdown
+    @Suppress("UNUSED_PARAMETER") val _onThemeDismiss = onThemeDismiss
+    @Suppress("UNUSED_PARAMETER") val _themeOptions = themeOptions
+    @Suppress("UNUSED_PARAMETER") val _currentThemeValue = currentThemeValue
+    @Suppress("UNUSED_PARAMETER") val _onThemeSelected = onThemeSelected
+    @Suppress("UNUSED_PARAMETER") val _showLanguageDropdown = showLanguageDropdown
+    @Suppress("UNUSED_PARAMETER") val _onLanguageDismiss = onLanguageDismiss
+    @Suppress("UNUSED_PARAMETER") val _languageOptions = languageOptions
+    @Suppress("UNUSED_PARAMETER") val _currentLanguageValue = currentLanguageValue
+    @Suppress("UNUSED_PARAMETER") val _onLanguageSelected = onLanguageSelected
     var themeItemOffset by remember { mutableStateOf(IntOffset.Zero) }
     var themeItemSize by remember { mutableStateOf(IntSize.Zero) }
     var languageItemOffset by remember { mutableStateOf(IntOffset.Zero) }
@@ -463,19 +495,171 @@ private fun SettingsContent(
         }
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = moreTitle, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.HelpOutline, label = helpLabel, onClick = { }, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Lock, label = privacyLabel, onClick = { }, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Info, label = aboutLabel, onClick = { }, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.HelpOutline, label = helpLabel, onClick = onNavigateToHelp, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Lock, label = privacyLabel, onClick = onNavigateToPrivacy, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Info, label = aboutLabel, onClick = onNavigateToAbout, colors = themeColors)
+        }
+    }
+}
+
+// ============ 云同步页面 ============
+// (See CloudSyncScreen.kt)
+
+// ============ 帮助页面 ============
+@Composable
+fun HelpContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val themeColors = rememberThemeColors()
+    val title = if (currentLanguage == AppLanguage.CHINESE) "使用帮助" else "Help"
+    
+    val helpItems = if (currentLanguage == AppLanguage.CHINESE) listOf(
+        Triple("添加密码", "点击底部导航栏的 + 按钮添加新密码。", Icons.Outlined.Add),
+        Triple("查看密码", "在密码列表中点击任意条目查看详情。", Icons.Outlined.Visibility),
+        Triple("复制密码", "双击密码列表中的任意条目即可复制密码。", Icons.Outlined.ContentCopy),
+        Triple("编辑密码", "点击密码详情页的编辑按钮修改信息。", Icons.Outlined.Edit),
+        Triple("删除密码", "在编辑页面点击删除按钮移除密码。", Icons.Outlined.Delete),
+        Triple("搜索密码", "在首页或全部密码页面使用搜索框。", Icons.Outlined.Search),
+        Triple("分类管理", "为密码添加分类标签便于管理。", Icons.Outlined.Category),
+        Triple("主题切换", "在设置中选择浅色或深色主题。", Icons.Outlined.DarkMode)
+    ) else listOf(
+        Triple("Add Password", "Tap + button to add a new password.", Icons.Outlined.Add),
+        Triple("View Password", "Tap any item in the list to view details.", Icons.Outlined.Visibility),
+        Triple("Copy Password", "Double-tap any item to copy the password.", Icons.Outlined.ContentCopy),
+        Triple("Edit Password", "Tap edit button to modify information.", Icons.Outlined.Edit),
+        Triple("Delete Password", "Tap delete button on the edit page.", Icons.Outlined.Delete),
+        Triple("Search", "Use the search bar on home or all passwords page.", Icons.Outlined.Search),
+        Triple("Categories", "Add category tags to organize passwords.", Icons.Outlined.Category),
+        Triple("Theme", "Choose light or dark theme in settings.", Icons.Outlined.DarkMode)
+    )
+    
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxWidth().height(47.dp), contentAlignment = Alignment.Center) {
+            Text(text = "9:41", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
+        }
+        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
+        }
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            helpItems.forEach { (itemTitle, itemDesc, itemIcon) ->
+                HelpItem(icon = itemIcon, title = itemTitle, description = itemDesc, themeColors = themeColors)
+            }
         }
     }
 }
 
 @Composable
-private fun PlaceholderContent(currentLanguage: AppLanguage, themeColors: ThemeColors) {
-    val title = if (currentLanguage == AppLanguage.CHINESE) "暂缺" else "Coming Soon"
-    val desc = if (currentLanguage == AppLanguage.CHINESE) "此功能即将推出" else "This feature is coming soon"
-    Column(modifier = Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(top = 47.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = themeColors.onBackground)
-        Text(text = desc, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+private fun HelpItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, description: String, themeColors: ThemeColors) {
+    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(themeColors.surface).padding(16.dp), verticalAlignment = Alignment.Top) {
+        Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+            Icon(imageVector = icon, contentDescription = title, tint = Primary, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = description, style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+        }
     }
 }
+
+// ============ 隐私页面 ============
+@Composable
+fun PrivacyContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val themeColors = rememberThemeColors()
+    val title = if (currentLanguage == AppLanguage.CHINESE) "隐私条款" else "Privacy Policy"
+    
+    val sections = if (currentLanguage == AppLanguage.CHINESE) listOf(
+        Pair("数据收集", "我们收集的最少信息仅用于应用功能。我们不会收集您的密码或敏感个人信息。"),
+        Pair("本地存储", "所有密码数据仅存储在您的设备本地。我们不会将您的数据传输到任何服务器。"),
+        Pair("加密保护", "您的密码使用 AES-256 加密算法保护，确保数据安全。"),
+        Pair("第三方访问", "我们不会与任何第三方分享您的个人信息。"),
+        Pair("数据权利", "您可以随时删除您的所有数据。应用卸载后，所有数据将被自动清除。"),
+        Pair("政策更新", "我们可能会不时更新此隐私政策。任何更改都将在应用内通知。")
+    ) else listOf(
+        Pair("Data Collection", "We collect minimal information only for app functionality. We do not collect your passwords or sensitive personal data."),
+        Pair("Local Storage", "All password data is stored locally on your device only. We do not transfer your data to any servers."),
+        Pair("Encryption", "Your passwords are protected with AES-256 encryption to ensure data security."),
+        Pair("Third Party Access", "We do not share your personal information with any third parties."),
+        Pair("Data Rights", "You can delete all your data at any time. All data will be automatically cleared after app uninstall."),
+        Pair("Policy Updates", "We may update this privacy policy from time to time. Any changes will be notified within the app.")
+    )
+    
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxWidth().height(47.dp), contentAlignment = Alignment.Center) {
+            Text(text = "9:41", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
+        }
+        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
+        }
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            sections.forEach { (secTitle, secContent) ->
+                PrivacySection(title = secTitle, content = secContent, themeColors = themeColors)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrivacySection(title: String, content: String, themeColors: ThemeColors) {
+    Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(themeColors.surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
+        Text(text = content, style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+    }
+}
+
+// ============ 关于页面 ============
+@Composable
+fun AboutContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val themeColors = rememberThemeColors()
+    val title = if (currentLanguage == AppLanguage.CHINESE) "关于我们" else "About Us"
+    
+    val appName = "PassCard"
+    val version = "v1.0.0"
+    val desc = if (currentLanguage == AppLanguage.CHINESE)
+        "PassCard 是一款安全、简洁的密码管理应用。采用先进的加密技术，帮助您安全管理所有账户密码。"
+    else
+        "PassCard is a secure and simple password manager. Using advanced encryption technology to help you safely manage all your account passwords."
+    
+    val features = if (currentLanguage == AppLanguage.CHINESE) listOf(
+        "• AES-256 本地加密", "• 生物识别解锁", "• 密码生成器", "• 分类管理", "• 导入/导出功能"
+    ) else listOf(
+        "• AES-256 Local Encryption", "• Biometric Unlock", "• Password Generator", "• Category Management", "• Import/Export"
+    )
+    
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(modifier = Modifier.fillMaxWidth().height(47.dp), contentAlignment = Alignment.Center) {
+            Text(text = "9:41", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
+        }
+        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
+        }
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(20.dp)).background(Primary), contentAlignment = Alignment.Center) {
+                    Text(text = "🔐", style = MaterialTheme.typography.displayLarge)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = appName, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = themeColors.onBackground)
+                Text(text = version, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+            }
+            Text(text = desc, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+            Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(themeColors.surface).padding(20.dp)) {
+                Text(text = if (currentLanguage == AppLanguage.CHINESE) "功能特点" else "Features", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
+                Spacer(modifier = Modifier.height(12.dp))
+                features.forEach { feature ->
+                    Text(text = feature, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+            Text(text = "© 2024 PassCard. " + (if (currentLanguage == AppLanguage.CHINESE) "保留所有权利。" else "All rights reserved."), style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+        }
+    }
+}
+
+
