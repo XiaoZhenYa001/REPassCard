@@ -25,16 +25,17 @@ fun SecurityScoreCard(
     description: String,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Column(
         modifier = modifier
             .fillMaxWidth()
             .height(200.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(PrimaryDark)
+            .background(if (themeColors.isDark) Color(0xFF1F1F23) else PrimaryDark)
             .padding(24.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top Row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -42,24 +43,18 @@ fun SecurityScoreCard(
         ) {
             Text(
                 text = "安全评分",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TabInactive
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                color = themeColors.tabInactive
             )
-            
             Icon(
                 imageVector = Icons.Outlined.Shield,
                 contentDescription = "Shield",
-                tint = Success,
+                tint = themeColors.success,
                 modifier = Modifier.size(24.dp)
             )
         }
         
-        // Score Row
-        Row(
-            verticalAlignment = Alignment.Bottom
-        ) {
+        Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = score.toString(),
                 style = TextStyle(
@@ -73,18 +68,15 @@ fun SecurityScoreCard(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "/ ∞",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W500
-                ),
-                color = OnSurfaceVariant
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500),
+                color = themeColors.tabInactive
             )
         }
         
-        // Description
         Text(
             text = description,
             style = MaterialTheme.typography.bodyMedium,
-            color = TabInactive,
+            color = themeColors.tabInactive,
             lineHeight = 20.sp
         )
     }
@@ -117,9 +109,7 @@ fun SecurityStatCard(
             modifier = Modifier.size(20.dp)
         )
         
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = value,
                 style = TextStyle(
@@ -131,9 +121,7 @@ fun SecurityStatCard(
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.W500
-                ),
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.W500),
                 color = labelColor
             )
         }
@@ -150,16 +138,17 @@ fun SecurityListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
+            .background(themeColors.surface)
             .clickable { onClick() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon Box
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -177,29 +166,26 @@ fun SecurityListItem(
         
         Spacer(modifier = Modifier.width(16.dp))
         
-        // Content
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TextPrimary
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+                color = themeColors.onBackground
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = OnSurfaceVariant
+                color = themeColors.onSurfaceVariant
             )
         }
         
         Icon(
             imageVector = Icons.Outlined.KeyboardArrowRight,
             contentDescription = "More",
-            tint = TabInactive,
+            tint = themeColors.tabInactive,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -211,37 +197,35 @@ fun SecuritySuggestionItem(
     description: String,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(SuccessContainer)
+            .background(themeColors.successContainer)
             .padding(16.dp),
         verticalAlignment = Alignment.Top
     ) {
         Icon(
             imageVector = Icons.Outlined.Shield,
             contentDescription = "Suggestion",
-            tint = Success,
+            tint = themeColors.success,
             modifier = Modifier.size(20.dp)
         )
         
         Spacer(modifier = Modifier.width(12.dp))
         
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = Color(0xFF15803D)
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                color = if (themeColors.isDark) Color(0xFF86EFAC) else Color(0xFF15803D)
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF166534),
+                color = if (themeColors.isDark) Color(0xFFBBF7D0) else Color(0xFF166534),
                 lineHeight = 17.sp
             )
         }

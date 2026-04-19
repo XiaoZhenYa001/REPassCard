@@ -9,9 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
@@ -23,12 +22,14 @@ fun SearchBar(
     placeholder: String = "搜索密码...",
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceVariant),
+            .background(themeColors.surfaceVariant),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
@@ -37,19 +38,17 @@ fun SearchBar(
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Search Icon
             Text(
                 text = "🔍",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Muted
+                color = themeColors.muted
             )
             Spacer(modifier = Modifier.width(12.dp))
             
-            // 使用 TextStyle 确保文字垂直居中
             val textStyle = TextStyle(
                 fontSize = 16.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
-                color = TextPrimary
+                fontWeight = FontWeight.Normal,
+                color = themeColors.onBackground
             )
             
             BasicTextField(
@@ -68,7 +67,7 @@ fun SearchBar(
                         if (value.isEmpty()) {
                             Text(
                                 text = placeholder,
-                                style = textStyle.copy(color = Muted)
+                                style = textStyle.copy(color = themeColors.muted)
                             )
                         }
                         innerTextField()

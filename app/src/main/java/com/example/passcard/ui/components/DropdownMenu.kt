@@ -22,20 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import com.example.passcard.ui.theme.*
 
-/**
- * 下拉选择菜单选项
- */
 data class DropdownOption(
     val label: String,
     val value: String
 )
 
-/**
- * 下拉选择菜单
- * @param offset 菜单位置（设置项在屏幕上的绝对位置）
- * @param itemWidth 设置项宽度（用于计算右下角）
- * @param itemHeight 设置项高度
- */
 @Composable
 fun DropdownSelectMenu(
     expanded: Boolean,
@@ -49,6 +40,7 @@ fun DropdownSelectMenu(
     itemHeight: Int = 60
 ) {
     val density = LocalDensity.current
+    val themeColors = rememberThemeColors()
     
     AnimatedVisibility(
         visible = expanded,
@@ -56,13 +48,10 @@ fun DropdownSelectMenu(
         exit = fadeOut()
     ) {
         Box(modifier = modifier.fillMaxSize()) {
-            // 计算菜单位置：显示在设置项的右下角
-            // X: 设置项右边缘 - 菜单宽度
-            // Y: 设置项底部
             val menuWidthPx = with(density) { 180.dp.toPx().toInt() }
             val adjustedOffset = IntOffset(
-                x = offset.x + itemWidth - menuWidthPx, // 右边缘对齐
-                y = offset.y + itemHeight               // 下方
+                x = offset.x + itemWidth - menuWidthPx,
+                y = offset.y + itemHeight
             )
             
             Popup(
@@ -70,15 +59,11 @@ fun DropdownSelectMenu(
                 onDismissRequest = onDismissRequest
             ) {
                 Box(
-                    modifier = Modifier
-                        .width(180.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
+                    modifier = Modifier.width(180.dp).clip(RoundedCornerShape(16.dp))
+                        .background(themeColors.surface)
                         .padding(8.dp)
                 ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         options.forEach { option ->
                             DropdownMenuItem(
                                 option = option,
@@ -86,7 +71,8 @@ fun DropdownSelectMenu(
                                 onClick = {
                                     onOptionSelected(option)
                                     onDismissRequest()
-                                }
+                                },
+                                colors = themeColors
                             )
                         }
                     }
@@ -96,27 +82,19 @@ fun DropdownSelectMenu(
     }
 }
 
-/**
- * 单个下拉菜单项
- */
 @Composable
 private fun DropdownMenuItem(
     option: DropdownOption,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    colors: ThemeColors = rememberThemeColors()
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
-            .then(
-                if (isSelected) {
-                    Modifier.background(Primary.copy(alpha = 0.1f))
-                } else {
-                    Modifier
-                }
-            )
+            .then(if (isSelected) Modifier.background(colors.primary.copy(alpha = 0.1f)) else Modifier)
             .clickable { onClick() }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -127,14 +105,14 @@ private fun DropdownMenuItem(
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontWeight = if (isSelected) FontWeight.W600 else FontWeight.W500
             ),
-            color = if (isSelected) Primary else TextPrimary
+            color = if (isSelected) colors.primary else colors.onBackground
         )
         
         if (isSelected) {
             Icon(
                 imageVector = Icons.Outlined.Check,
                 contentDescription = "Selected",
-                tint = Primary,
+                tint = colors.primary,
                 modifier = Modifier.size(20.dp)
             )
         }

@@ -21,9 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
 
-/**
- * 修复后的输入框组件 - 文字垂直居中对齐
- */
 @Composable
 fun InputField(
     label: String,
@@ -35,6 +32,7 @@ fun InputField(
     isMultiline: Boolean = false,
     trailingIcons: @Composable RowScope.() -> Unit = {}
 ) {
+    val themeColors = rememberThemeColors()
     var passwordVisible by remember { mutableStateOf(false) }
     
     Column(
@@ -44,18 +42,15 @@ fun InputField(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = TextPrimary
+            color = themeColors.onBackground
         )
         
-        // 输入框容器
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(
-                    if (isMultiline) Modifier.height(120.dp) else Modifier.height(56.dp)
-                )
+                .then(if (isMultiline) Modifier.height(120.dp) else Modifier.height(56.dp))
                 .clip(RoundedCornerShape(16.dp))
-                .background(Surface),
+                .background(themeColors.surface),
             contentAlignment = Alignment.CenterStart
         ) {
             Box(
@@ -64,11 +59,10 @@ fun InputField(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                // 使用 TextStyle 确保文字垂直居中
                 val textStyle = TextStyle(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.W500,
-                    color = TextPrimary
+                    color = themeColors.onBackground
                 )
                 
                 BasicTextField(
@@ -91,7 +85,7 @@ fun InputField(
                             if (value.isEmpty()) {
                                 Text(
                                     text = placeholder,
-                                    style = textStyle.copy(color = Muted),
+                                    style = textStyle.copy(color = themeColors.muted),
                                     modifier = Modifier.padding(top = 2.dp)
                                 )
                             }
@@ -101,7 +95,6 @@ fun InputField(
                 )
             }
             
-            // Trailing icons (右侧图标)
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -113,15 +106,13 @@ fun InputField(
                     Icon(
                         imageVector = Icons.Outlined.ContentCopy,
                         contentDescription = "复制",
-                        tint = TextPrimary,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { /* TODO: Copy */ }
+                        tint = themeColors.onBackground,
+                        modifier = Modifier.size(20.dp)
                     )
                     Icon(
                         imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                         contentDescription = if (passwordVisible) "隐藏" else "显示",
-                        tint = TextPrimary,
+                        tint = themeColors.onBackground,
                         modifier = Modifier
                             .size(20.dp)
                             .clickable { passwordVisible = !passwordVisible }
@@ -140,6 +131,8 @@ fun CategorySelector(
     onCategorySelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -147,7 +140,7 @@ fun CategorySelector(
         Text(
             text = "分类",
             style = MaterialTheme.typography.labelLarge,
-            color = TextPrimary
+            color = themeColors.onBackground
         )
         
         Row(
@@ -155,7 +148,7 @@ fun CategorySelector(
                 .fillMaxWidth()
                 .height(56.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Surface)
+                .background(themeColors.surface)
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -164,22 +157,20 @@ fun CategorySelector(
                     modifier = Modifier
                         .height(32.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(OnSurfaceVariant.copy(alpha = 0.15f))
+                        .background(themeColors.onSurfaceVariant.copy(alpha = 0.15f))
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = selectedCategory,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = FontWeight.W600
-                        ),
-                        color = TextPrimary
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.W600),
+                        color = themeColors.onBackground
                     )
                     Icon(
                         imageVector = Icons.Outlined.Close,
                         contentDescription = "移除",
-                        tint = OnSurfaceVariant,
+                        tint = themeColors.onSurfaceVariant,
                         modifier = Modifier
                             .size(14.dp)
                             .clickable { onCategorySelected("") }
@@ -192,7 +183,7 @@ fun CategorySelector(
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,
                 contentDescription = "选择",
-                tint = Muted,
+                tint = themeColors.muted,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -205,6 +196,8 @@ fun LogoSelector(
     onIconChange: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -214,7 +207,7 @@ fun LogoSelector(
             modifier = Modifier
                 .size(80.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Surface),
+                .background(themeColors.surface),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -227,10 +220,8 @@ fun LogoSelector(
         
         Text(
             text = "更换图标",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = FontWeight.W600
-            ),
-            color = TextPrimary,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+            color = themeColors.onBackground,
             modifier = Modifier.clickable { onIconChange() }
         )
     }
@@ -241,12 +232,14 @@ fun DeleteButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(56.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(ErrorContainer)
+            .background(themeColors.errorContainer)
             .clickable { onClick() }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -255,16 +248,14 @@ fun DeleteButton(
         Icon(
             imageVector = Icons.Outlined.Delete,
             contentDescription = "删除",
-            tint = Error,
+            tint = themeColors.error,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = "删除密码",
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.W600
-            ),
-            color = Error
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+            color = themeColors.error
         )
     }
 }

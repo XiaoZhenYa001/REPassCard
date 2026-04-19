@@ -10,7 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import com.example.passcard.ui.screens.AppLanguage
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.passcard.ui.MainViewModel
 import com.example.passcard.ui.screens.MainScreen
 import com.example.passcard.ui.theme.PassCardTheme
 import com.example.passcard.util.PreferencesManager
@@ -26,7 +27,6 @@ class MainActivity : ComponentActivity() {
         preferencesManager = PreferencesManager(this)
         
         setContent {
-            // 从 SharedPreferences 读取主题设置
             val savedTheme = preferencesManager.theme
             val isDarkTheme = when (savedTheme) {
                 "DARK" -> true
@@ -35,6 +35,11 @@ class MainActivity : ComponentActivity() {
                 else -> false
             }
             
+            val languageKey by remember { mutableStateOf(preferencesManager.language) }
+            
+            val viewModel: MainViewModel = viewModel()
+            val passwords by viewModel.passwords.collectAsState()
+            
             PassCardTheme(darkTheme = isDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -42,10 +47,11 @@ class MainActivity : ComponentActivity() {
                 ) {
                     MainScreen(
                         preferencesManager = preferencesManager,
-                        onThemeChanged = {
-                            // 刷新主题 - 重新创建 Activity
-                            recreate()
-                        }
+                        onThemeChanged = { recreate() },
+                        languageKey = languageKey,
+                        passwords = passwords,
+                        onSavePassword = { item -> viewModel.addPassword(item) },
+                        onDeletePassword = { id -> viewModel.deletePasswordById(id) }
                     )
                 }
             }

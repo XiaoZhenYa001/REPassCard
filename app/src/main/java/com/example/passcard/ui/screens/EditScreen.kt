@@ -1,7 +1,6 @@
 package com.example.passcard.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,9 +23,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.*
 
-/**
- * 编辑界面状态
- */
 data class EditUiState(
     val id: String = "",
     val name: String = "",
@@ -40,29 +36,21 @@ data class EditUiState(
     val passwordVisible: Boolean = false
 )
 
-// 常用分类列表
-val COMMON_CATEGORIES = listOf(
-    "全部",
-    "社交媒体",
-    "工作",
-    "金融",
-    "购物",
-    "娱乐",
-    "AI",
-    "游戏",
-    "教育",
-    "其他"
-)
+val COMMON_CATEGORIES_ZH = listOf("全部", "社交媒体", "工作", "金融", "购物", "娱乐", "AI", "游戏", "教育", "其他")
+val COMMON_CATEGORIES_EN = listOf("All", "Social Media", "Work", "Finance", "Shopping", "Entertainment", "AI", "Gaming", "Education", "Other")
 
 @Composable
 fun EditScreen(
     password: PasswordItem? = null,
+    currentLanguage: AppLanguage = AppLanguage.CHINESE,
     onBack: () -> Unit,
     onSave: (PasswordItem) -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 如果有密码数据则编辑，否则新建
+    val themeColors = rememberThemeColors()
+    val categories = if (currentLanguage == AppLanguage.CHINESE) COMMON_CATEGORIES_ZH else COMMON_CATEGORIES_EN
+    
     var uiState by remember {
         mutableStateOf(
             if (password != null) {
@@ -83,64 +71,41 @@ fun EditScreen(
         )
     }
     
-    // 是否显示分类选择器
-    var showCategoryPicker by remember { mutableStateOf(false) }
-    
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Background)
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
-        // Status Bar Area
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(47.dp),
+            modifier = Modifier.fillMaxWidth().height(47.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "9:41",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TextPrimary
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                color = themeColors.onBackground
             )
         }
         
-        // Nav Bar
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 24.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Icon(
                 imageVector = Icons.Outlined.ArrowBack,
                 contentDescription = "Back",
-                tint = TextPrimary,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { onBack() }
+                tint = themeColors.onBackground,
+                modifier = Modifier.size(24.dp).clickable { onBack() }
             )
-            
             Text(
-                text = if (uiState.isNew) "添加登录" else "编辑登录",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W700
-                ),
-                color = TextPrimary
+                text = if (uiState.isNew) AppStrings.addLogin(currentLanguage) else AppStrings.editLogin(currentLanguage),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+                color = themeColors.onBackground
             )
-            
             Text(
-                text = "保存",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W600
-                ),
+                text = AppStrings.save(currentLanguage),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
                 color = Primary,
                 modifier = Modifier.clickable {
-                    // 保存
                     val item = PasswordItem(
                         id = uiState.id.ifEmpty { System.currentTimeMillis().toString() },
                         name = uiState.name,
@@ -156,16 +121,11 @@ fun EditScreen(
             )
         }
         
-        // Scroll Content
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 40.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp).padding(bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Logo Selector
             Spacer(modifier = Modifier.height(4.dp))
             
             Column(
@@ -174,10 +134,7 @@ fun EditScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Surface),
+                    modifier = Modifier.size(80.dp).clip(RoundedCornerShape(24.dp)).background(themeColors.surface),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -186,141 +143,111 @@ fun EditScreen(
                         color = Primary
                     )
                 }
-                
                 Text(
-                    text = "更换图标",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.W600
-                    ),
-                    color = TextPrimary
+                    text = AppStrings.changeIcon(currentLanguage),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                    color = themeColors.onBackground
                 )
             }
             
             Spacer(modifier = Modifier.height(4.dp))
             
-            // Form Fields
-            InputFieldEdit(
-                label = "名称",
+            EditInputField(
+                label = AppStrings.name(currentLanguage),
                 value = uiState.name,
                 onValueChange = { uiState = uiState.copy(name = it) },
-                placeholder = "服务名称"
+                placeholder = if (currentLanguage == AppLanguage.CHINESE) "服务名称" else "Service name",
+                colors = themeColors
             )
-            
-            InputFieldEdit(
-                label = "用户名",
+            EditInputField(
+                label = AppStrings.username(currentLanguage),
                 value = uiState.username,
                 onValueChange = { uiState = uiState.copy(username = it) },
-                placeholder = "用户名或邮箱"
+                placeholder = if (currentLanguage == AppLanguage.CHINESE) "用户名或邮箱" else "Username or email",
+                colors = themeColors
             )
-            
-            InputFieldEdit(
-                label = "手机号",
+            EditInputField(
+                label = AppStrings.phone(currentLanguage),
                 value = uiState.phone,
                 onValueChange = { uiState = uiState.copy(phone = it) },
-                placeholder = "手机号码"
+                placeholder = if (currentLanguage == AppLanguage.CHINESE) "手机号码" else "Phone number",
+                colors = themeColors
             )
-            
-            InputFieldEdit(
-                label = "邮箱",
+            EditInputField(
+                label = AppStrings.email(currentLanguage),
                 value = uiState.email,
                 onValueChange = { uiState = uiState.copy(email = it) },
-                placeholder = "邮箱地址"
+                placeholder = if (currentLanguage == AppLanguage.CHINESE) "邮箱地址" else "Email address",
+                colors = themeColors
             )
-            
-            // Password Field
-            PasswordFieldEdit(
-                label = "密码",
+            EditPasswordField(
+                label = AppStrings.passwordLabel(currentLanguage),
                 value = uiState.password,
                 onValueChange = { uiState = uiState.copy(password = it) },
                 visible = uiState.passwordVisible,
-                onToggleVisibility = { uiState = uiState.copy(passwordVisible = !uiState.passwordVisible) }
+                onToggleVisibility = { uiState = uiState.copy(passwordVisible = !uiState.passwordVisible) },
+                colors = themeColors
             )
             
-            // Category Selector
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "分类",
+                    text = AppStrings.category(currentLanguage),
                     style = MaterialTheme.typography.labelLarge,
-                    color = TextPrimary
+                    color = themeColors.onBackground
                 )
-                
-                // Category Chips
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(COMMON_CATEGORIES.filter { it != "All" }) { category ->
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(categories.filter { it != "全部" && it != "All" }) { category ->
                         val isSelected = uiState.category == category
                         Box(
-                            modifier = Modifier
-                                .height(36.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(if (isSelected) Primary else Surface)
-                                .clickable { 
-                                    uiState = uiState.copy(
-                                        category = if (isSelected) "" else category
-                                    )
-                                }
+                            modifier = Modifier.height(36.dp).clip(RoundedCornerShape(18.dp))
+                                .background(if (isSelected) Primary else themeColors.surface)
+                                .clickable { uiState = uiState.copy(category = if (isSelected) "" else category) }
                                 .padding(horizontal = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = category,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (isSelected) Color.White else TextPrimary
+                                color = if (isSelected) Color.White else themeColors.onBackground
                             )
                         }
                     }
                 }
-                
-                // Selected category display
                 if (uiState.category.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Surface)
-                            .padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp))
+                            .background(themeColors.surface).padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "当前: ",
+                            text = if (currentLanguage == AppLanguage.CHINESE) "当前: " else "Current: ",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = OnSurfaceVariant
+                            color = themeColors.onSurfaceVariant
                         )
                         Text(
                             text = uiState.category,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.W600
-                            ),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
                             color = Primary
                         )
                     }
                 }
             }
             
-            InputFieldEdit(
-                label = "备注",
+            EditInputField(
+                label = AppStrings.note(currentLanguage),
                 value = uiState.note,
                 onValueChange = { uiState = uiState.copy(note = it) },
-                placeholder = "添加备注...",
-                isMultiline = true
+                placeholder = if (currentLanguage == AppLanguage.CHINESE) "添加备注..." else "Add note...",
+                isMultiline = true,
+                colors = themeColors
             )
             
-            // Delete Button (only for existing items)
             if (!uiState.isNew) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(ErrorContainer)
-                        .clickable { onDelete() }
+                    modifier = Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp))
+                        .background(themeColors.errorContainer).clickable { onDelete() }
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
@@ -328,16 +255,14 @@ fun EditScreen(
                     Icon(
                         imageVector = Icons.Outlined.Delete,
                         contentDescription = "Delete",
-                        tint = Error,
+                        tint = themeColors.error,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "删除密码",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.W600
-                        ),
-                        color = Error
+                        text = AppStrings.deletePassword(currentLanguage),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+                        color = themeColors.error
                     )
                 }
             }
@@ -346,53 +271,36 @@ fun EditScreen(
 }
 
 @Composable
-private fun InputFieldEdit(
+private fun EditInputField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String = "",
-    isMultiline: Boolean = false
+    isMultiline: Boolean = false,
+    colors: ThemeColors = rememberThemeColors()
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = TextPrimary
+            color = colors.onBackground
         )
-        
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (isMultiline) Modifier.height(100.dp) else Modifier.height(56.dp)
-                )
+            modifier = Modifier.fillMaxWidth()
+                .then(if (isMultiline) Modifier.height(100.dp) else Modifier.height(56.dp))
                 .clip(RoundedCornerShape(16.dp))
-                .background(Surface)
-                .padding(
-                    horizontal = if (isMultiline) 16.dp else 16.dp,
-                    vertical = if (isMultiline) 12.dp else 0.dp
-                ),
+                .background(colors.surface)
+                .padding(horizontal = 16.dp, vertical = if (isMultiline) 12.dp else 0.dp),
             contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
         ) {
             if (value.isEmpty() && placeholder.isNotEmpty()) {
-                Text(
-                    text = placeholder,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Muted
-                )
+                Text(text = placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.muted)
             }
-            
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxSize(),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W500,
-                    color = TextPrimary
-                ),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500, color = colors.onBackground),
                 singleLine = !isMultiline,
                 maxLines = if (isMultiline) 4 else 1
             )
@@ -401,55 +309,41 @@ private fun InputFieldEdit(
 }
 
 @Composable
-private fun PasswordFieldEdit(
+private fun EditPasswordField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
     visible: Boolean,
-    onToggleVisibility: () -> Unit
+    onToggleVisibility: () -> Unit,
+    colors: ThemeColors = rememberThemeColors()
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = TextPrimary
+            color = colors.onBackground
         )
-        
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
+            modifier = Modifier.fillMaxWidth().height(56.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Surface)
+                .background(colors.surface)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.CenterStart
         ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
                     modifier = Modifier.weight(1f),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.W500,
-                        color = TextPrimary
-                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500, color = colors.onBackground),
                     visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
                     singleLine = true
                 )
-                
                 Icon(
                     imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                     contentDescription = if (visible) "Hide" else "Show",
-                    tint = TextPrimary,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable { onToggleVisibility() }
+                    tint = colors.onBackground,
+                    modifier = Modifier.size(20.dp).clickable { onToggleVisibility() }
                 )
             }
         }

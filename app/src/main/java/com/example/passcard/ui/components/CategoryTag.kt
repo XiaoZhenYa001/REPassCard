@@ -22,11 +22,13 @@ fun CategoryTag(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Box(
         modifier = modifier
             .height(36.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) CategoryActive else SurfaceVariant)
+            .background(if (selected) Primary else themeColors.surfaceVariant)
             .clickable { onClick() }
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
@@ -34,7 +36,7 @@ fun CategoryTag(
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = if (selected) Color.White else TextTertiary,
+            color = if (selected) Color.White else themeColors.onSurfaceVariant,
             fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.W600 
                         else androidx.compose.ui.text.font.FontWeight.W500
         )

@@ -28,12 +28,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.*
 
-/**
- * 可复制的密码列表项
- * - 点击左侧图标区域：进入编辑页面
- * - 点击右侧 > 箭头区域：进入编辑页面
- * - 双击中间区域（排除图标和箭头）：复制密码
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PasswordListItem(
@@ -43,10 +37,11 @@ fun PasswordListItem(
     iconText: String,
     iconBackgroundColor: Color,
     iconTextColor: Color,
-    onClick: () -> Unit,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val themeColors = rememberThemeColors()
     var lastClickTime by remember { mutableLongStateOf(0L) }
     
     Row(
@@ -54,16 +49,14 @@ fun PasswordListItem(
             .fillMaxWidth()
             .height(72.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .border(1.dp, Border, RoundedCornerShape(12.dp))
+            .background(themeColors.surface)
+            .border(1.dp, themeColors.border, RoundedCornerShape(12.dp))
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        // 双击检测
                         val currentTime = System.currentTimeMillis()
                         if (currentTime - lastClickTime < 300) {
-                            // 双击 - 复制密码
-                            copyToClipboard(context, password)
+                            copyToClipboard(context, password, themeColors)
                         }
                         lastClickTime = currentTime
                     }
@@ -72,7 +65,6 @@ fun PasswordListItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon (Clickable to edit)
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -86,23 +78,20 @@ fun PasswordListItem(
         ) {
             Text(
                 text = iconText,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W600
-                ),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
                 color = iconTextColor
             )
         }
         
         Spacer(modifier = Modifier.width(12.dp))
         
-        // Details (Double-click to copy)
         Column(
             modifier = Modifier
                 .weight(1f)
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = {
-                            copyToClipboard(context, password)
+                            copyToClipboard(context, password, themeColors)
                         }
                     )
                 },
@@ -110,23 +99,20 @@ fun PasswordListItem(
         ) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TextPrimary,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                color = themeColors.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = email,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = themeColors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
         
-        // Chevron (Click to edit)
         Box(
             modifier = Modifier
                 .size(32.dp)
@@ -140,29 +126,23 @@ fun PasswordListItem(
             Icon(
                 imageVector = Icons.Outlined.ChevronRight,
                 contentDescription = "更多",
-                tint = TabInactive,
+                tint = themeColors.tabInactive,
                 modifier = Modifier.size(20.dp)
             )
         }
     }
 }
 
-/**
- * 复制文本到剪贴板并显示 Toast
- */
-private fun copyToClipboard(context: Context, text: String) {
+private fun copyToClipboard(context: Context, text: String, themeColors: ThemeColors) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("密码", text)
+    val clip = ClipData.newPlainText("Password", text)
     clipboard.setPrimaryClip(clip)
     
     Handler(Looper.getMainLooper()).post {
-        Toast.makeText(context, "密码已复制", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, if (themeColors.isDark) "Password copied" else "密码已复制", Toast.LENGTH_SHORT).show()
     }
 }
 
-/**
- * 简单的密码列表项（用于纯显示，无复制功能）
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SimplePasswordListItem(
@@ -174,13 +154,15 @@ fun SimplePasswordListItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val themeColors = rememberThemeColors()
+    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(72.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .border(1.dp, Border, RoundedCornerShape(12.dp))
+            .background(themeColors.surface)
+            .border(1.dp, themeColors.border, RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {}
@@ -188,7 +170,6 @@ fun SimplePasswordListItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -198,33 +179,28 @@ fun SimplePasswordListItem(
         ) {
             Text(
                 text = iconText,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W600
-                ),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
                 color = iconTextColor
             )
         }
         
         Spacer(modifier = Modifier.width(12.dp))
         
-        // Details
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TextPrimary,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
+                color = themeColors.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = email,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = themeColors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -233,7 +209,7 @@ fun SimplePasswordListItem(
         Icon(
             imageVector = Icons.Outlined.ChevronRight,
             contentDescription = "更多",
-            tint = TabInactive,
+            tint = themeColors.tabInactive,
             modifier = Modifier.size(20.dp)
         )
     }

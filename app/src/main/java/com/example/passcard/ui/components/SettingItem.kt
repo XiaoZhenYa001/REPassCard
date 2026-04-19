@@ -30,15 +30,14 @@ fun SettingItem(
     modifier: Modifier = Modifier,
     trailingText: String? = null,
     showChevron: Boolean = true,
-    onPositioned: ((offset: IntOffset, size: IntSize) -> Unit)? = null
+    onPositioned: ((offset: IntOffset, size: IntSize) -> Unit)? = null,
+    colors: ThemeColors = rememberThemeColors()
 ) {
-    var rowSize by remember { mutableStateOf(IntSize.Zero) }
-    
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
+            .background(colors.surface)
             .then(
                 if (onPositioned != null) {
                     Modifier.onGloballyPositioned { coordinates ->
@@ -58,37 +57,29 @@ fun SettingItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = TextPrimary,
+            tint = colors.onBackground,
             modifier = Modifier.size(20.dp)
         )
-        
         Spacer(modifier = Modifier.width(16.dp))
-        
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.W600
-            ),
-            color = TextPrimary,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+            color = colors.onBackground,
             modifier = Modifier.weight(1f)
         )
-        
         if (trailingText != null) {
             Text(
                 text = trailingText,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontWeight = FontWeight.W500
-                ),
-                color = OnSurfaceVariant
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.W500),
+                color = colors.onSurfaceVariant
             )
             Spacer(modifier = Modifier.width(8.dp))
         }
-        
         if (showChevron) {
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowRight,
                 contentDescription = "More",
-                tint = TabInactive,
+                tint = colors.tabInactive,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -101,13 +92,14 @@ fun SettingToggleItem(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    colors: ThemeColors = rememberThemeColors()
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
+            .background(colors.surface)
             .clickable { onCheckedChange(!checked) }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -115,28 +107,22 @@ fun SettingToggleItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = TextPrimary,
+            tint = colors.onBackground,
             modifier = Modifier.size(20.dp)
         )
-        
         Spacer(modifier = Modifier.width(16.dp))
-        
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.W600
-            ),
-            color = TextPrimary,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+            color = colors.onBackground,
             modifier = Modifier.weight(1f)
         )
-        
-        // Toggle Switch
         Box(
             modifier = Modifier
                 .width(44.dp)
                 .height(24.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (checked) Color.Black else OnSurfaceVariant.copy(alpha = 0.3f))
+                .background(if (checked) colors.primary else colors.onSurfaceVariant.copy(alpha = 0.3f))
                 .padding(2.dp),
             contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
         ) {
@@ -155,51 +141,44 @@ fun ProfileCard(
     userName: String,
     userEmail: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    colors: ThemeColors = rememberThemeColors()
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Surface)
+            .background(colors.surface)
             .clickable { onClick() }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar placeholder
         Box(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(OnSurfaceVariant.copy(alpha = 0.2f))
-        ) {
-            // TODO: Add user avatar image
-        }
-        
+                .background(colors.onSurfaceVariant.copy(alpha = 0.2f))
+        ) {}
         Spacer(modifier = Modifier.width(16.dp))
-        
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = userName,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TextPrimary
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+                color = colors.onBackground
             )
             Text(
                 text = userEmail,
                 style = MaterialTheme.typography.bodySmall,
-                color = OnSurfaceVariant
+                color = colors.onSurfaceVariant
             )
         }
-        
         Icon(
             imageVector = Icons.Outlined.KeyboardArrowRight,
             contentDescription = "More",
-            tint = TabInactive,
+            tint = colors.tabInactive,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -208,7 +187,8 @@ fun ProfileCard(
 @Composable
 fun SectionTitle(
     title: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    colors: ThemeColors = rememberThemeColors()
 ) {
     Text(
         text = title,
@@ -217,7 +197,7 @@ fun SectionTitle(
             fontWeight = FontWeight.W800,
             letterSpacing = (-0.5).sp
         ),
-        color = TextPrimary,
+        color = colors.onBackground,
         modifier = modifier
     )
 }
