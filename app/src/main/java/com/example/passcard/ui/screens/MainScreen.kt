@@ -396,8 +396,6 @@ private fun SecurityContent(currentLanguage: AppLanguage, themeColors: ThemeColo
             Text(text = "9:41", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
         }
         Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(16.dp))
             Text(text = if (currentLanguage == AppLanguage.CHINESE) "安全中心" else "Security Center", style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
         }
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {

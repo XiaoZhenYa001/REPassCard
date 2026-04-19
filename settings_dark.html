@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置（深色模式）</title>
+    <style>
+        :root {
+            --primary-color: #3b82f6;
+            --bg-color: #121212;
+            --text-color: #e5e7eb;
+            --card-bg: #1e1e1e;
+            --border-radius: 12px;
+            --border-color: #374151;
+            --text-heading: #f9fafb;
+            --text-muted: #9ca3af;
+            --danger-color: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 24px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .header svg {
+            margin-right: 16px;
+            cursor: pointer;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: var(--text-heading);
+        }
+
+        .settings-group {
+            margin-bottom: 24px;
+        }
+
+        .group-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 12px;
+            margin-left: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .settings-item:active {
+            background-color: #2d3748;
+        }
+
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .item-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .item-text h3 {
+            margin: 0 0 4px 0;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-heading);
+        }
+
+        .item-text p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .danger-text h3 {
+            color: var(--danger-color);
+        }
+
+        .item-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+        }
+
+        /* 切换开关 (Switch) 样式 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #374151;
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary-color);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .chevron svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .version-info {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-top: 16px;
+            margin-bottom: 32px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        <h1>设置</h1>
+    </div>
+
+    <!-- 安全与验证 -->
+    <div class="settings-group">
+        <div class="group-title">安全与验证</div>
+        <div class="settings-card">
+            <div class="settings-item">
+                <div class="item-left">
+                    <div class="item-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <div class="item-text">
+                        <h3>修改主密码</h3>
+                        <p>更新您的核心访问凭证</p>
+                    </div>
+                </div>
+                <div class="item-right chevron">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </div>
+            </div>
+            
+            <div class="settings-item">
+                <div class="item-left">
+                    <div class="item-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"></path></svg>
+                    </div>
+                    <div class="item-text">
+                        <h3>生物识别解锁</h3>
+                        <p>使用指纹或面部识别快速解锁</p>
+                    </div>
+                </div>
+                <div class="item-right">
+                    <label class="switch">
+                        <input type="checkbox" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-item">
+                <div class="item-left">
+                    <div class="item-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="item-text">
+                        <h3>自动锁定时间</h3>
+                        <p>离开应用时的锁定策略</p>
+                    </div>
+                </div>
+                <div class="item-right">
+                    <span>离开立刻</span>
+                    <div class="chevron">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据与同步 -->
+    <div class="settings-group">
+        <div class="group-title">数据与管理</div>
+        <div class="settings-card">
+            <div class="settings-item">
+                <div class="item-left">
+                    <div class="item-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    </div>
+                    <div class="item-text">
+                        <h3>云端同步</h3>
+                        <p>安全备份至云端服务器</p>
+                    </div>
+                </div>
+                <div class="item-right chevron">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </div>
+            </div>
+            <div class="settings-item">
+                <div class="item-left">
+                    <div class="item-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    </div>
+                    <div class="item-text">
+                        <h3>导出数据</h3>
+                        <p>导出为加密文件或CSV</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 外观与系统 -->
+    <div class="settings-group">
+        <div class="group-title">外观</div>
+        <div class="settings-card">
+            <div class="settings-item">
+                <div class="item-left">
+                    <div class="item-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </div>
+                    <div class="item-text">
+                        <h3>深色模式</h3>
+                    </div>
+                </div>
+                <div class="item-right">
+                    <label class="switch">
+                        <input type="checkbox" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="version-info">
+        PassCard 密码金库 v1.0.0 <br>
+        端到端加密保护
+    </div>
+
+</body>
+</html>

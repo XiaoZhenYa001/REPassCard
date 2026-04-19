@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>隐私条款（深色模式）</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #e5e7eb;
+            --text-heading: #f9fafb;
+            --text-muted: #9ca3af;
+            --primary-color: #3b82f6;
+            --card-bg: #1e1e1e;
+            --border-color: #374151;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 24px;
+            line-height: 1.6;
+            box-sizing: border-box;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            padding: 8px 0;
+            z-index: 10;
+        }
+        
+        .header svg {
+            margin-right: 16px;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            margin: 0;
+            color: var(--text-heading);
+        }
+
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            font-size: 18px;
+            color: var(--primary-color);
+            margin-top: 32px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            font-size: 15px;
+        }
+
+        .last-updated {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        .highlight-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 24px 0;
+        }
+
+        .highlight-card h3 {
+            margin-top: 0;
+            font-size: 16px;
+            color: var(--text-heading);
+        }
+
+        ul {
+            padding-left: 20px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+        <h1>隐私政策</h1>
+    </div>
+
+    <div class="content">
+        <div class="last-updated">最后更新日期：2026年1月10日</div>
+
+        <p>PassCard（以下简称“我们”）非常重视您的隐私。本隐私政策旨在说明我们如何处理您的信息，但在开始之前，有一个核心原则：</p>
+
+        <div class="highlight-card">
+            <h3>零知识加密原则</h3>
+            <p>我们采用端到端加密技术。您的主密码和库数据在您的设备本地加密。我们<b>无法</b>查看您的密码，也<b>无法</b>在您忘记主密码时帮您找回数据。</p>
+        </div>
+
+        <h2>1. 信息收集</h2>
+        <p>我们仅收集维持应用运行所必需的最少信息：</p>
+        <ul>
+            <li><b>账户信息：</b>如果您开启云同步，我们需要存储您的加密后的库数据及同步令牌。</li>
+            <li><b>设备信息：</b>用于安全审计的设备名称和型号。</li>
+        </ul>
+
+        <h2>2. 信息使用</h2>
+        <p>我们不会将您的个人信息出售给第三方。所有数据仅用于提供密码管理服务及多端同步。您的生物识别数据（指纹/面部）仅存储在系统安全隔区中，应用无法直接获取。</p>
+
+        <h2>3. 数据安全</h2>
+        <p>您的所有数据均使用 AES-256 位加密。在传输过程中，我们使用 TLS/SSL 协议保护您的数据不被截获。</p>
+
+        <h2>4. 您的权利</h2>
+        <p>您可以随时删除您的云端备份，或从设备中完全卸载应用以移除个人数据。</p>
+        
+        <h2>5. 联系我们</h2>
+        <p>如果您对隐私政策有任何疑问，请通过 privacy@passcard.com 与我们联系。</p>
+    </div>
+</body>
+</html>
