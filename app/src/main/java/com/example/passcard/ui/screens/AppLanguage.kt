@@ -185,13 +185,13 @@ object AppStrings {
     }
 
     @Composable
-    fun addLogin(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
+    fun addPassword(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
         AppLanguage.CHINESE -> "添加密码"
         AppLanguage.ENGLISH -> "Add Password"
     }
 
     @Composable
-    fun editLogin(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
+    fun editPassword(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
         AppLanguage.CHINESE -> "编辑密码"
         AppLanguage.ENGLISH -> "Edit Password"
     }
