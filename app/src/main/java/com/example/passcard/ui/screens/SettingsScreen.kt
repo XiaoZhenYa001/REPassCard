@@ -12,12 +12,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
 
@@ -29,6 +25,7 @@ data class SettingsUiState(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun SettingsScreen(
     onNavigateToProfile: () -> Unit,
@@ -43,156 +40,113 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     var uiState by remember { mutableStateOf(SettingsUiState()) }
+    val themeColors = LocalThemeColors.current
     
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Background)
+            .statusBarsPadding()
+            .background(themeColors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
+        Text(
+            text = "设置",
+            style = MaterialTheme.typography.displayLarge,
+            color = themeColors.textPrimary
+        )
+
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Status Bar Area
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(47.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "9:41",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.W600
-                    ),
-                    color = TextPrimary
-                )
-            }
-            
-            // Scroll Content
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(32.dp)
-            ) {
-                // Header
-                Text(
-                    text = "设置",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = TextPrimary
-                )
-                
-                // Account Section
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SectionTitle(title = "账户")
-                    
-                    ProfileCard(
-                        userName = uiState.userName,
-                        userEmail = uiState.userEmail,
-                        onClick = onNavigateToProfile
-                    )
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.Shield,
-                        label = "主密码",
-                        onClick = onNavigateToMasterPassword
-                    )
-                }
-                
-                // App Settings Section
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SectionTitle(title = "应用设置")
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.DarkMode,
-                        label = "主题外观",
-                        trailingText = uiState.theme,
-                        onClick = onNavigateToTheme
-                    )
-                    
-                    SettingToggleItem(
-                        icon = Icons.Outlined.VolumeUp,
-                        label = "声音反馈",
-                        checked = uiState.soundEnabled,
-                        onCheckedChange = { uiState = uiState.copy(soundEnabled = it) }
-                    )
-                }
-                
-                // Data Management Section
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SectionTitle(title = "数据管理")
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.Upload,
-                        label = "导出密码",
-                        onClick = onNavigateToExport
-                    )
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.Download,
-                        label = "导入密码",
-                        onClick = onNavigateToImport
-                    )
-                }
-                
-                // More Section
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SectionTitle(title = "更多")
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.HelpOutline,
-                        label = "使用帮助",
-                        onClick = onNavigateToHelp
-                    )
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.Lock,
-                        label = "隐私条款",
-                        onClick = onNavigateToPrivacy
-                    )
-                    
-                    SettingItem(
-                        icon = Icons.Outlined.Info,
-                        label = "关于我们",
-                        onClick = onNavigateToAbout
-                    )
-                }
-            }
+            SectionTitle(title = "账户", colors = themeColors)
+
+            ProfileCard(
+                userName = uiState.userName,
+                userEmail = uiState.userEmail,
+                onClick = onNavigateToProfile,
+                colors = themeColors
+            )
+
+            SettingItem(
+                icon = Icons.Outlined.Shield,
+                label = "主密码",
+                onClick = onNavigateToMasterPassword,
+                colors = themeColors
+            )
         }
-        
-        // Bottom Tab Bar
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-                .zIndex(1f)
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TabBar(
-                selectedTab = TabItem.SETTINGS,
-                onTabSelected = { /* Handle tab selection */ },
-                onAddClick = { /* Handle add */ },
-                modifier = Modifier.shadow(
-                    elevation = 12.dp,
-                    shape = RoundedCornerShape(36.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.1f),
-                    spotColor = Color.Black.copy(alpha = 0.1f)
-                )
+            SectionTitle(title = "应用设置", colors = themeColors)
+
+            SettingItem(
+                icon = Icons.Outlined.DarkMode,
+                label = "主题外观",
+                trailingText = uiState.theme,
+                onClick = onNavigateToTheme,
+                colors = themeColors
+            )
+
+            SettingToggleItem(
+                icon = Icons.Outlined.VolumeUp,
+                label = "声音反馈",
+                checked = uiState.soundEnabled,
+                onCheckedChange = { uiState = uiState.copy(soundEnabled = it) },
+                colors = themeColors
+            )
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionTitle(title = "数据管理", colors = themeColors)
+
+            SettingItem(
+                icon = Icons.Outlined.Upload,
+                label = "导出密码",
+                onClick = onNavigateToExport,
+                colors = themeColors
+            )
+
+            SettingItem(
+                icon = Icons.Outlined.Download,
+                label = "导入密码",
+                onClick = onNavigateToImport,
+                colors = themeColors
+            )
+        }
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SectionTitle(title = "更多", colors = themeColors)
+
+            SettingItem(
+                icon = Icons.Outlined.HelpOutline,
+                label = "使用帮助",
+                onClick = onNavigateToHelp,
+                colors = themeColors
+            )
+
+            SettingItem(
+                icon = Icons.Outlined.Lock,
+                label = "隐私条款",
+                onClick = onNavigateToPrivacy,
+                colors = themeColors
+            )
+
+            SettingItem(
+                icon = Icons.Outlined.Info,
+                label = "关于我们",
+                onClick = onNavigateToAbout,
+                colors = themeColors
             )
         }
     }

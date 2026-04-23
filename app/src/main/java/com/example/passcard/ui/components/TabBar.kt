@@ -1,8 +1,15 @@
 package com.example.passcard.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -19,8 +26,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,13 +47,27 @@ fun TabBar(
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val themeColors = rememberThemeColors()
-    val bgColor = if (themeColors.isDark) Color(0xFF1A1A1A) else Color.White
+    val themeColors = LocalThemeColors.current
+    val haptic = LocalHapticFeedback.current
+    
+    // 毛玻璃背景色 — 半透明
+    val bgColor = if (themeColors.isDark) {
+        Color(0xFF1A1A1A).copy(alpha = 0.85f)
+    } else {
+        Color.White.copy(alpha = 0.85f)
+    }
     
     Row(
         modifier = modifier
             .width(345.dp)
             .height(72.dp)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(36.dp),
+                ambientColor = Color.Black.copy(alpha = 0.05f),
+                spotColor = Color.Black.copy(alpha = 0.08f)
+            )
             .clip(RoundedCornerShape(36.dp))
             .background(bgColor)
             .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -49,41 +75,51 @@ fun TabBar(
     ) {
         TabButton(
             selected = selectedTab == TabItem.HOME,
-            onClick = { onTabSelected(TabItem.HOME) },
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onTabSelected(TabItem.HOME)
+            },
             icon = if (selectedTab == TabItem.HOME) Icons.Filled.Home else Icons.Outlined.Home,
             label = "首页",
-            colors = themeColors,
             modifier = Modifier.weight(1f)
         )
         TabButton(
             selected = selectedTab == TabItem.SECURITY,
-            onClick = { onTabSelected(TabItem.SECURITY) },
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onTabSelected(TabItem.SECURITY)
+            },
             icon = if (selectedTab == TabItem.SECURITY) Icons.Filled.Shield else Icons.Outlined.Shield,
             label = "安全",
-            colors = themeColors,
             modifier = Modifier.weight(1f)
         )
-        Box(
-            modifier = Modifier.width(64.dp).height(54.dp).clip(RoundedCornerShape(27.dp))
-                .background(Color.Black).clickable { onAddClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(imageVector = Icons.Filled.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(28.dp))
-        }
+        
+        // 中间 + 按钮 — 带缩放动画
+        AddButton(
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onAddClick()
+            }
+        )
+        
         TabButton(
             selected = selectedTab == TabItem.CLOUD,
-            onClick = { onTabSelected(TabItem.CLOUD) },
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onTabSelected(TabItem.CLOUD)
+            },
             icon = if (selectedTab == TabItem.CLOUD) Icons.Filled.Cloud else Icons.Outlined.Cloud,
             label = "加密",
-            colors = themeColors,
             modifier = Modifier.weight(1f)
         )
         TabButton(
             selected = selectedTab == TabItem.SETTINGS,
-            onClick = { onTabSelected(TabItem.SETTINGS) },
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onTabSelected(TabItem.SETTINGS)
+            },
             icon = if (selectedTab == TabItem.SETTINGS) Icons.Filled.Settings else Icons.Outlined.Settings,
             label = "设置",
-            colors = themeColors,
             modifier = Modifier.weight(1f)
         )
     }
@@ -95,14 +131,40 @@ private fun TabButton(
     onClick: () -> Unit,
     icon: ImageVector,
     label: String,
-    colors: ThemeColors,
     modifier: Modifier = Modifier
 ) {
-    val labelColor = if (selected) colors.onBackground else colors.tabInactive
+    val themeColors = LocalThemeColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    // 缩放动画
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.9f else 1f,
+        animationSpec = tween(durationMillis = 100),
+        label = "tabScale"
+    )
+    
+    // 选中项颜色动画
+    val labelColor by animateColorAsState(
+        targetValue = if (selected) themeColors.onBackground else themeColors.tabInactive,
+        animationSpec = tween(durationMillis = 200),
+        label = "tabLabelColor"
+    )
+    
+    // 指示器宽度动画
+    val indicatorWidth by animateDpAsState(
+        targetValue = if (selected) 16.dp else 0.dp,
+        animationSpec = tween(durationMillis = 200),
+        label = "indicatorWidth"
+    )
     
     Column(
-        modifier = modifier.fillMaxHeight().clip(RoundedCornerShape(26.dp))
-            .clickable { onClick() }.padding(vertical = 4.dp),
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(26.dp))
+            .clickable(interactionSource = interactionSource, indication = null) { onClick() }
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -118,6 +180,49 @@ private fun TabButton(
             fontSize = 10.sp,
             fontWeight = FontWeight.W500,
             color = labelColor
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        // 选中项指示器圆点
+        Box(
+            modifier = Modifier
+                .width(indicatorWidth)
+                .height(3.dp)
+                .clip(CircleShape)
+                .background(if (selected) themeColors.primary else Color.Transparent)
+        )
+    }
+}
+
+@Composable
+private fun AddButton(
+    onClick: () -> Unit
+) {
+    val themeColors = LocalThemeColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    // 缩放动画
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.85f else 1f,
+        animationSpec = tween(durationMillis = 100),
+        label = "addScale"
+    )
+    
+    Box(
+        modifier = Modifier
+            .width(64.dp)
+            .height(54.dp)
+            .clip(RoundedCornerShape(27.dp))
+            .background(themeColors.primary)
+            .clickable(interactionSource = interactionSource, indication = null) { onClick() }
+            .graphicsLayer { scaleX = scale; scaleY = scale },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = "Add",
+            tint = Color.White,
+            modifier = Modifier.size(28.dp)
         )
     }
 }
