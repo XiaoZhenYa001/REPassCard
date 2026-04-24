@@ -32,6 +32,7 @@ fun ImportPreviewScreen(
     selectedIds: Set<String>,
     issues: List<ImportIssue>,
     receipt: ImportReceiptUi?,
+    currentLanguage: AppLanguage,
     onToggleSelected: (id: String, selected: Boolean) -> Unit,
     onToggleSelectAll: (Boolean) -> Unit,
     onConfirm: () -> Unit,
@@ -44,6 +45,14 @@ fun ImportPreviewScreen(
     var revealedIds by remember(entries) { mutableStateOf(emptySet<String>()) }
     val selectedCount = selectedIds.size
     val duplicateCount = entries.count { it.isDuplicate }
+    val titleText = if (currentLanguage == AppLanguage.CHINESE) "导入预览" else "Import Preview"
+    val importText = if (currentLanguage == AppLanguage.CHINESE) "导入" else "Import"
+    val totalText = if (currentLanguage == AppLanguage.CHINESE) "总数" else "Total"
+    val selectedText = if (currentLanguage == AppLanguage.CHINESE) "已选" else "Selected"
+    val issuesText = if (currentLanguage == AppLanguage.CHINESE) "异常" else "Issues"
+    val duplicateText = if (currentLanguage == AppLanguage.CHINESE) "重复" else "Dup"
+    val selectAllText = if (currentLanguage == AppLanguage.CHINESE) "全选" else "Select All"
+    val emptyText = if (currentLanguage == AppLanguage.CHINESE) "当前没有可导入记录，请重新选择 CSV 文件。" else "No importable records found. Please pick another CSV file."
 
     Column(
         modifier = modifier
@@ -77,7 +86,7 @@ fun ImportPreviewScreen(
         ) {
             Icon(
                 imageVector = Icons.Outlined.Close,
-                contentDescription = "Close",
+                contentDescription = if (currentLanguage == AppLanguage.CHINESE) "关闭" else "Close",
                 tint = TextPrimary,
                 modifier = Modifier
                     .size(24.dp)
@@ -85,21 +94,25 @@ fun ImportPreviewScreen(
             )
             
             Text(
-                text = "Import Preview",
+                text = titleText,
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = FontWeight.W700
                 ),
                 color = TextPrimary
             )
-            
-            Text(
-                text = "Import",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = if (selectedCount > 0) Primary else OnSurfaceVariant,
-                modifier = Modifier.clickable(enabled = selectedCount > 0) { onConfirm() }
-            )
+
+            Button(
+                onClick = onConfirm,
+                enabled = selectedCount > 0,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+            ) {
+                Text(
+                    text = "$importText ($selectedCount)",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700)
+                )
+            }
         }
         
         // Summary Card
@@ -119,19 +132,19 @@ fun ImportPreviewScreen(
             ) {
                 StatColumn(
                     value = entries.size.toString(),
-                    label = "Total"
+                    label = totalText
                 )
                 StatColumn(
                     value = selectedCount.toString(),
-                    label = "Selected"
+                    label = selectedText
                 )
                 StatColumn(
                     value = issues.size.toString(),
-                    label = "Issues"
+                    label = issuesText
                 )
                 StatColumn(
                     value = duplicateCount.toString(),
-                    label = "Dup"
+                    label = duplicateText
                 )
             }
         }
@@ -153,7 +166,7 @@ fun ImportPreviewScreen(
                     onCheckedChange = { checked -> onToggleSelectAll(checked) }
                 )
                 Text(
-                    text = "Select All",
+                    text = selectAllText,
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
@@ -183,7 +196,7 @@ fun ImportPreviewScreen(
                             .padding(20.dp)
                     ) {
                         Text(
-                            text = "当前没有可导入记录，请重新选择 CSV 文件。",
+                            text = emptyText,
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
                         )
@@ -195,6 +208,7 @@ fun ImportPreviewScreen(
                     entry = entry,
                     selected = entry.id in selectedIds,
                     passwordVisible = entry.id in revealedIds,
+                    currentLanguage = currentLanguage,
                     onToggleSelected = { checked -> onToggleSelected(entry.id, checked) },
                     onTogglePassword = {
                         revealedIds = if (entry.id in revealedIds) {
@@ -215,6 +229,7 @@ fun ImportPreviewScreen(
             receipt?.let {
                 ImportReceiptCard(
                     receipt = it,
+                    currentLanguage = currentLanguage,
                     onDismiss = onDismissReceipt,
                     onPrimaryAction = onPrimaryReceiptAction,
                     onSecondaryAction = onSecondaryReceiptAction,
@@ -254,16 +269,21 @@ private fun ImportEntryItem(
     entry: ImportEntry,
     selected: Boolean,
     passwordVisible: Boolean,
+    currentLanguage: AppLanguage,
     onToggleSelected: (Boolean) -> Unit,
     onTogglePassword: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val rowContainerColor = if (selected) Primary.copy(alpha = 0.07f) else Color.White
+    val rowBorderColor = if (selected) Primary.copy(alpha = 0.35f) else Border
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .border(1.dp, Border, RoundedCornerShape(12.dp))
+            .background(rowContainerColor)
+            .border(1.dp, rowBorderColor, RoundedCornerShape(12.dp))
+            .clickable { onToggleSelected(!selected) }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -344,7 +364,7 @@ private fun ImportEntryItem(
                 )
                 Icon(
                     imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                    contentDescription = "Toggle password",
+                    contentDescription = if (currentLanguage == AppLanguage.CHINESE) "切换密码显示" else "Toggle password visibility",
                     tint = OnSurfaceVariant,
                     modifier = Modifier
                         .size(16.dp)
@@ -376,14 +396,14 @@ private fun ImportEntryItem(
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "重复记录",
+                        text = if (currentLanguage == AppLanguage.CHINESE) "重复记录" else "Duplicate",
                         style = MaterialTheme.typography.labelSmall,
                         color = Warning
                     )
                 }
             }
             Text(
-                text = "Row ${entry.sourceRow}",
+                text = if (currentLanguage == AppLanguage.CHINESE) "第 ${entry.sourceRow} 行" else "Row ${entry.sourceRow}",
                 style = MaterialTheme.typography.labelSmall,
                 color = OnSurfaceVariant
             )
@@ -412,6 +432,7 @@ private fun ImportEntryItem(
 @Composable
 private fun ImportReceiptCard(
     receipt: ImportReceiptUi,
+    currentLanguage: AppLanguage,
     onDismiss: () -> Unit,
     onPrimaryAction: () -> Unit,
     onSecondaryAction: () -> Unit,
@@ -484,7 +505,7 @@ private fun ImportReceiptCard(
                 }
                 Icon(
                     imageVector = Icons.Outlined.Close,
-                    contentDescription = "Dismiss",
+                    contentDescription = if (currentLanguage == AppLanguage.CHINESE) "关闭" else "Dismiss",
                     tint = TextSecondary,
                     modifier = Modifier
                         .size(20.dp)
@@ -502,7 +523,7 @@ private fun ImportReceiptCard(
             ) {
                 ReceiptMetric(value = receipt.primaryValue, label = receipt.primaryLabel)
                 ReceiptMetric(value = receipt.secondaryValue, label = receipt.secondaryLabel)
-                ReceiptMetric(value = receipt.durationText, label = "耗时")
+                ReceiptMetric(value = receipt.durationText, label = if (currentLanguage == AppLanguage.CHINESE) "耗时" else "Duration")
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

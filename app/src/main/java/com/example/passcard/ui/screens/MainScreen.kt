@@ -181,13 +181,13 @@ fun MainContainer(
         )
     }
 
-    val commitSelectedImports = {
+    val commitSelectedImports: (Boolean) -> Unit = { closeAfterSuccess ->
         val startedAt = System.currentTimeMillis()
         val selectedEntries = uiState.importEntries.filter { it.id in uiState.importSelectedIds }
         if (selectedEntries.isEmpty()) {
             uiState = uiState.copy(
                 showImportReceipt = true,
-                importReceipt = buildNoSelectionReceipt()
+                importReceipt = buildNoSelectionReceipt(displayedLanguage)
             )
         } else {
             val existingKeys = uiState.passwords
@@ -228,13 +228,18 @@ fun MainContainer(
                 duplicateSkipped = duplicateSkipped,
                 parseIssueCount = uiState.importIssues.size,
                 selectedCount = selectedEntries.size,
-                durationMillis = System.currentTimeMillis() - startedAt
+                durationMillis = System.currentTimeMillis() - startedAt,
+                language = displayedLanguage
             )
 
-            uiState = uiState.copy(
-                importReceipt = receipt,
-                showImportReceipt = true
-            )
+            if (toInsert.isNotEmpty() && closeAfterSuccess) {
+                closeImportPreview()
+            } else {
+                uiState = uiState.copy(
+                    importReceipt = receipt,
+                    showImportReceipt = true
+                )
+            }
         }
     }
 
@@ -281,7 +286,8 @@ fun MainContainer(
                         parseResult = parsed,
                         duplicateCount = entries.count { it.isDuplicate },
                         fileName = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "CSV",
-                        durationMillis = System.currentTimeMillis() - startedAt
+                        durationMillis = System.currentTimeMillis() - startedAt,
+                        language = displayedLanguage
                     ),
                     showImportReceipt = true
                 )
@@ -298,7 +304,10 @@ fun MainContainer(
                             rawRow = ""
                         )
                     ),
-                    importReceipt = buildParseFailureReceipt(error.message ?: "无法解析 CSV 文件"),
+                    importReceipt = buildParseFailureReceipt(
+                        reason = error.message ?: "无法解析 CSV 文件",
+                        language = displayedLanguage
+                    ),
                     showImportReceipt = true
                 )
             }
@@ -307,7 +316,7 @@ fun MainContainer(
 
     val onReceiptAction: (ImportReceiptActionType?) -> Unit = { action ->
         when (action) {
-            ImportReceiptActionType.START_IMPORT -> commitSelectedImports()
+            ImportReceiptActionType.START_IMPORT -> commitSelectedImports(true)
             ImportReceiptActionType.PICK_FILE -> {
                 closeImportPreview()
                 importFilePickerLauncher.launch(importMimeTypes)
@@ -355,6 +364,7 @@ fun MainContainer(
                     selectedIds = uiState.importSelectedIds,
                     issues = uiState.importIssues,
                     receipt = if (uiState.showImportReceipt) uiState.importReceipt else null,
+                    currentLanguage = displayedLanguage,
                     onToggleSelected = { id, selected ->
                         uiState = uiState.copy(
                             importSelectedIds = if (selected) {
@@ -370,7 +380,7 @@ fun MainContainer(
                             importSelectedIds = if (checked) selectableIds else emptySet()
                         )
                     },
-                    onConfirm = { commitSelectedImports() },
+                    onConfirm = { commitSelectedImports(true) },
                     onCancel = { closeImportPreview() },
                     onDismissReceipt = { uiState = uiState.copy(showImportReceipt = false) },
                     onPrimaryReceiptAction = { onReceiptAction(uiState.importReceipt?.primaryAction) },
@@ -591,8 +601,10 @@ private fun buildParseReceipt(
     parseResult: ImportParseResult,
     duplicateCount: Int,
     fileName: String,
-    durationMillis: Long
+    durationMillis: Long,
+    language: AppLanguage
 ): ImportReceiptUi {
+    val isZh = language == AppLanguage.CHINESE
     val validCount = parseResult.entries.size
     val issueCount = parseResult.issues.size
     val hasRisk = issueCount > 0 || duplicateCount > 0
@@ -605,18 +617,26 @@ private fun buildParseReceipt(
     val feed = mutableListOf<ImportReceiptFeedItem>()
     feed.add(
         ImportReceiptFeedItem(
-            title = "来源文件",
-            description = "已读取 $fileName，分隔符识别为 '${parseResult.detectedDelimiter}'",
-            tag = "${parseResult.totalRows} 行",
+            title = if (isZh) "来源文件" else "Source File",
+            description = if (isZh) {
+                "已读取 $fileName，分隔符识别为 '${parseResult.detectedDelimiter}'"
+            } else {
+                "Loaded $fileName. Detected delimiter '${parseResult.detectedDelimiter}'."
+            },
+            tag = if (isZh) "${parseResult.totalRows} 行" else "${parseResult.totalRows} rows",
             tone = ImportReceiptFeedTone.INFO
         )
     )
     if (duplicateCount > 0) {
         feed.add(
             ImportReceiptFeedItem(
-                title = "发现重复项",
-                description = "检测到 $duplicateCount 条与现有或本批次重复，默认不会自动覆盖。",
-                tag = "重复",
+                title = if (isZh) "发现重复项" else "Duplicates Found",
+                description = if (isZh) {
+                    "检测到 $duplicateCount 条与现有或本批次重复，默认不会自动覆盖。"
+                } else {
+                    "$duplicateCount records are duplicated with existing or current batch; they will not be overwritten by default."
+                },
+                tag = if (isZh) "重复" else "duplicate",
                 tone = ImportReceiptFeedTone.WARNING
             )
         )
@@ -624,9 +644,13 @@ private fun buildParseReceipt(
     if (issueCount > 0) {
         feed.add(
             ImportReceiptFeedItem(
-                title = "发现格式问题",
-                description = "有 $issueCount 行格式不完整，已标记到异常列表。",
-                tag = "待修复",
+                title = if (isZh) "发现格式问题" else "Format Issues",
+                description = if (isZh) {
+                    "有 $issueCount 行格式不完整，已标记到异常列表。"
+                } else {
+                    "$issueCount rows are incomplete and have been marked as issues."
+                },
+                tag = if (isZh) "待修复" else "fix",
                 tone = ImportReceiptFeedTone.ERROR
             )
         )
@@ -634,9 +658,9 @@ private fun buildParseReceipt(
     if (!hasRisk && validCount > 0) {
         feed.add(
             ImportReceiptFeedItem(
-                title = "解析完成",
-                description = "字段校验通过，可以开始导入。",
-                tag = "就绪",
+                title = if (isZh) "解析完成" else "Ready",
+                description = if (isZh) "字段校验通过，可以开始导入。" else "Validation passed. Ready to import.",
+                tag = if (isZh) "就绪" else "ready",
                 tone = ImportReceiptFeedTone.SUCCESS
             )
         )
@@ -652,31 +676,31 @@ private fun buildParseReceipt(
 
     when (level) {
         ImportReceiptLevel.SUCCESS -> {
-            statusLabel = "全部就绪"
-            title = "$validCount 条记录可直接导入"
-            description = "没有发现重复或格式异常。"
+            statusLabel = if (isZh) "全部就绪" else "All Set"
+            title = if (isZh) "$validCount 条记录可直接导入" else "$validCount records are ready to import"
+            description = if (isZh) "没有发现重复或格式异常。" else "No duplicates or format errors found."
             primaryAction = ImportReceiptActionType.START_IMPORT
-            primaryActionText = "开始导入"
+            primaryActionText = if (isZh) "开始导入" else "Import Now"
             secondaryAction = ImportReceiptActionType.CLOSE_PREVIEW
-            secondaryActionText = "稍后处理"
+            secondaryActionText = if (isZh) "稍后处理" else "Later"
         }
         ImportReceiptLevel.WARNING -> {
-            statusLabel = "部分待处理"
-            title = "$validCount 条可导入，存在风险项"
-            description = "建议先查看异常和重复记录，再执行导入。"
+            statusLabel = if (isZh) "部分待处理" else "Needs Attention"
+            title = if (isZh) "$validCount 条可导入，存在风险项" else "$validCount importable records with potential risks"
+            description = if (isZh) "建议先查看异常和重复记录，再执行导入。" else "Review duplicates/issues before importing."
             primaryAction = ImportReceiptActionType.START_IMPORT
-            primaryActionText = "仅导入可用项"
+            primaryActionText = if (isZh) "仅导入可用项" else "Import Valid Only"
             secondaryAction = ImportReceiptActionType.SHOW_ISSUES
-            secondaryActionText = "查看明细"
+            secondaryActionText = if (isZh) "查看明细" else "View Details"
         }
         ImportReceiptLevel.ERROR -> {
-            statusLabel = "导入失败"
-            title = "当前文件无法完成导入"
-            description = "请修复编码或字段格式后重试。"
+            statusLabel = if (isZh) "导入失败" else "Import Failed"
+            title = if (isZh) "当前文件无法完成导入" else "Cannot import this file"
+            description = if (isZh) "请修复编码或字段格式后重试。" else "Fix encoding or field format, then retry."
             primaryAction = ImportReceiptActionType.PICK_FILE
-            primaryActionText = "重新选择文件"
+            primaryActionText = if (isZh) "重新选择文件" else "Pick Another File"
             secondaryAction = ImportReceiptActionType.SHOW_ISSUES
-            secondaryActionText = "查看原因"
+            secondaryActionText = if (isZh) "查看原因" else "See Why"
         }
     }
 
@@ -686,9 +710,9 @@ private fun buildParseReceipt(
         title = title,
         description = description,
         primaryValue = validCount.toString(),
-        primaryLabel = "可导入",
+        primaryLabel = if (isZh) "可导入" else "Importable",
         secondaryValue = (issueCount + duplicateCount).toString(),
-        secondaryLabel = "待处理",
+        secondaryLabel = if (isZh) "待处理" else "Pending",
         durationText = formatImportDuration(durationMillis),
         primaryActionText = primaryActionText,
         secondaryActionText = secondaryActionText,
@@ -698,52 +722,62 @@ private fun buildParseReceipt(
     )
 }
 
-private fun buildParseFailureReceipt(reason: String): ImportReceiptUi {
+private fun buildParseFailureReceipt(reason: String, language: AppLanguage): ImportReceiptUi {
+    val isZh = language == AppLanguage.CHINESE
     return ImportReceiptUi(
         level = ImportReceiptLevel.ERROR,
-        statusLabel = "导入失败",
-        title = "无法解析当前文件",
+        statusLabel = if (isZh) "导入失败" else "Import Failed",
+        title = if (isZh) "无法解析当前文件" else "Failed to parse file",
         description = reason,
         primaryValue = "0",
-        primaryLabel = "可导入",
+        primaryLabel = if (isZh) "可导入" else "Importable",
         secondaryValue = "-",
-        secondaryLabel = "待处理",
+        secondaryLabel = if (isZh) "待处理" else "Pending",
         durationText = "0.0s",
-        primaryActionText = "重新选择文件",
-        secondaryActionText = "查看原因",
+        primaryActionText = if (isZh) "重新选择文件" else "Pick Another File",
+        secondaryActionText = if (isZh) "查看原因" else "See Why",
         primaryAction = ImportReceiptActionType.PICK_FILE,
         secondaryAction = ImportReceiptActionType.SHOW_ISSUES,
         feedItems = listOf(
             ImportReceiptFeedItem(
-                title = "建议",
-                description = "请确认文件为 UTF-8 编码并包含服务、用户名、密码等字段。",
-                tag = "修复",
+                title = if (isZh) "建议" else "Suggestion",
+                description = if (isZh) {
+                    "请确认文件为 UTF-8 编码并包含服务、用户名、密码等字段。"
+                } else {
+                    "Make sure the file is UTF-8 encoded and includes service, username, and password fields."
+                },
+                tag = if (isZh) "修复" else "fix",
                 tone = ImportReceiptFeedTone.WARNING
             )
         )
     )
 }
 
-private fun buildNoSelectionReceipt(): ImportReceiptUi {
+private fun buildNoSelectionReceipt(language: AppLanguage): ImportReceiptUi {
+    val isZh = language == AppLanguage.CHINESE
     return ImportReceiptUi(
         level = ImportReceiptLevel.WARNING,
-        statusLabel = "尚未选择",
-        title = "请先勾选至少一条记录",
-        description = "可以逐条选择后再导入，避免误操作。",
+        statusLabel = if (isZh) "尚未选择" else "No Selection",
+        title = if (isZh) "请先勾选至少一条记录" else "Select at least one record",
+        description = if (isZh) "可以逐条选择后再导入，避免误操作。" else "Select specific records before import.",
         primaryValue = "0",
-        primaryLabel = "已选中",
+        primaryLabel = if (isZh) "已选中" else "Selected",
         secondaryValue = "-",
-        secondaryLabel = "待导入",
+        secondaryLabel = if (isZh) "待导入" else "To Import",
         durationText = "0.0s",
-        primaryActionText = "查看列表",
-        secondaryActionText = "关闭",
+        primaryActionText = if (isZh) "查看列表" else "Back to List",
+        secondaryActionText = if (isZh) "关闭" else "Close",
         primaryAction = ImportReceiptActionType.SHOW_ISSUES,
         secondaryAction = ImportReceiptActionType.CLOSE_PREVIEW,
         feedItems = listOf(
             ImportReceiptFeedItem(
-                title = "提示",
-                description = "支持全选或取消选择，也可仅导入需要的条目。",
-                tag = "操作建议",
+                title = if (isZh) "提示" else "Tip",
+                description = if (isZh) {
+                    "支持全选或取消选择，也可仅导入需要的条目。"
+                } else {
+                    "Use select all, unselect all, or only import what you need."
+                },
+                tag = if (isZh) "操作建议" else "hint",
                 tone = ImportReceiptFeedTone.INFO
             )
         )
@@ -755,8 +789,10 @@ private fun buildImportDoneReceipt(
     duplicateSkipped: Int,
     parseIssueCount: Int,
     selectedCount: Int,
-    durationMillis: Long
+    durationMillis: Long,
+    language: AppLanguage
 ): ImportReceiptUi {
+    val isZh = language == AppLanguage.CHINESE
     val unresolved = duplicateSkipped + parseIssueCount
     val level = when {
         importedCount == 0 -> ImportReceiptLevel.ERROR
@@ -767,8 +803,12 @@ private fun buildImportDoneReceipt(
     val feed = mutableListOf<ImportReceiptFeedItem>()
     feed.add(
         ImportReceiptFeedItem(
-            title = "导入结果",
-            description = "本次选择 $selectedCount 条，成功写入 $importedCount 条。",
+            title = if (isZh) "导入结果" else "Import Result",
+            description = if (isZh) {
+                "本次选择 $selectedCount 条，成功写入 $importedCount 条。"
+            } else {
+                "$importedCount out of $selectedCount selected records were imported."
+            },
             tag = "$importedCount/$selectedCount",
             tone = if (importedCount > 0) ImportReceiptFeedTone.SUCCESS else ImportReceiptFeedTone.ERROR
         )
@@ -776,9 +816,13 @@ private fun buildImportDoneReceipt(
     if (duplicateSkipped > 0) {
         feed.add(
             ImportReceiptFeedItem(
-                title = "重复项已跳过",
-                description = "为避免覆盖，自动跳过 $duplicateSkipped 条重复记录。",
-                tag = "跳过",
+                title = if (isZh) "重复项已跳过" else "Duplicates Skipped",
+                description = if (isZh) {
+                    "为避免覆盖，自动跳过 $duplicateSkipped 条重复记录。"
+                } else {
+                    "$duplicateSkipped duplicates were skipped to avoid overwrite."
+                },
+                tag = if (isZh) "跳过" else "skip",
                 tone = ImportReceiptFeedTone.WARNING
             )
         )
@@ -786,34 +830,60 @@ private fun buildImportDoneReceipt(
     if (parseIssueCount > 0) {
         feed.add(
             ImportReceiptFeedItem(
-                title = "存在异常行",
-                description = "$parseIssueCount 行未通过格式校验，建议修复后重新导入。",
-                tag = "异常",
+                title = if (isZh) "存在异常行" else "Invalid Rows",
+                description = if (isZh) {
+                    "$parseIssueCount 行未通过格式校验，建议修复后重新导入。"
+                } else {
+                    "$parseIssueCount rows failed validation. Please fix and retry."
+                },
+                tag = if (isZh) "异常" else "invalid",
                 tone = ImportReceiptFeedTone.ERROR
             )
         )
     }
     feed.add(
         ImportReceiptFeedItem(
-            title = "安全建议",
-            description = "为避免明文泄露，请尽快删除源 CSV 文件。",
-            tag = "重要",
+            title = if (isZh) "安全建议" else "Security Advice",
+            description = if (isZh) {
+                "为避免明文泄露，请尽快删除源 CSV 文件。"
+            } else {
+                "Delete the source CSV file as soon as possible to reduce plaintext exposure."
+            },
+            tag = if (isZh) "重要" else "important",
             tone = ImportReceiptFeedTone.INFO
         )
     )
 
     return ImportReceiptUi(
         level = level,
-        statusLabel = if (level == ImportReceiptLevel.SUCCESS) "导入完成" else if (level == ImportReceiptLevel.WARNING) "导入部分完成" else "未导入成功",
-        title = if (level == ImportReceiptLevel.ERROR) "本次没有导入成功" else "$importedCount 条密码已写入保险库",
-        description = if (level == ImportReceiptLevel.ERROR) "请检查异常项后重试。" else "你可以继续处理剩余异常或直接返回。",
+        statusLabel = if (level == ImportReceiptLevel.SUCCESS) {
+            if (isZh) "导入完成" else "Import Completed"
+        } else if (level == ImportReceiptLevel.WARNING) {
+            if (isZh) "导入部分完成" else "Partially Completed"
+        } else {
+            if (isZh) "未导入成功" else "Import Not Completed"
+        },
+        title = if (level == ImportReceiptLevel.ERROR) {
+            if (isZh) "本次没有导入成功" else "No records imported this time"
+        } else {
+            if (isZh) "$importedCount 条密码已写入保险库" else "$importedCount passwords imported into vault"
+        },
+        description = if (level == ImportReceiptLevel.ERROR) {
+            if (isZh) "请检查异常项后重试。" else "Please review issues and retry."
+        } else {
+            if (isZh) "你可以继续处理剩余异常或直接返回。" else "You can review remaining issues or return now."
+        },
         primaryValue = importedCount.toString(),
-        primaryLabel = "成功导入",
+        primaryLabel = if (isZh) "成功导入" else "Imported",
         secondaryValue = unresolved.toString(),
-        secondaryLabel = "待处理",
+        secondaryLabel = if (isZh) "待处理" else "Pending",
         durationText = formatImportDuration(durationMillis),
-        primaryActionText = if (level == ImportReceiptLevel.ERROR) "重新选择文件" else "完成",
-        secondaryActionText = "查看明细",
+        primaryActionText = if (level == ImportReceiptLevel.ERROR) {
+            if (isZh) "重新选择文件" else "Pick Another File"
+        } else {
+            if (isZh) "完成" else "Done"
+        },
+        secondaryActionText = if (isZh) "查看明细" else "View Details",
         primaryAction = if (level == ImportReceiptLevel.ERROR) ImportReceiptActionType.PICK_FILE else ImportReceiptActionType.CLOSE_PREVIEW,
         secondaryAction = ImportReceiptActionType.SHOW_ISSUES,
         feedItems = feed
