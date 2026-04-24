@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -56,6 +55,7 @@ data class MainUiState(
 fun MainScreen(
     preferencesManager: PreferencesManager? = null,
     onThemeChanged: (() -> Unit)? = null,
+    currentTheme: String = "LIGHT",
     languageKey: String = "CHINESE",
     passwords: List<PasswordItem> = emptyList(),
     onSavePassword: ((PasswordItem) -> Unit)? = null,
@@ -65,6 +65,7 @@ fun MainScreen(
     MainContainer(
         preferencesManager = preferencesManager,
         onThemeChanged = onThemeChanged,
+        currentTheme = currentTheme,
         languageKey = languageKey,
         passwords = passwords,
         onSavePassword = onSavePassword,
@@ -77,6 +78,7 @@ fun MainScreen(
 fun MainContainer(
     preferencesManager: PreferencesManager? = null,
     onThemeChanged: (() -> Unit)? = null,
+    currentTheme: String = "LIGHT",
     languageKey: String = "CHINESE",
     passwords: List<PasswordItem> = emptyList(),
     onSavePassword: ((PasswordItem) -> Unit)? = null,
@@ -86,14 +88,7 @@ fun MainContainer(
     val currentLanguage = remember(languageKey) {
         if (languageKey == "ENGLISH") AppLanguage.ENGLISH else AppLanguage.CHINESE
     }
-
-    val currentTheme = preferencesManager?.theme ?: "LIGHT"
-    val isDarkTheme = when (currentTheme) {
-        "DARK" -> true
-        "SYSTEM" -> isSystemInDarkTheme()
-        else -> false
-    }
-    val themeColors = remember(isDarkTheme) { buildThemeColors(isDarkTheme) }
+    val themeColors = LocalThemeColors.current
     
     var uiState by remember { mutableStateOf(MainUiState(passwords = passwords)) }
     
@@ -101,8 +96,7 @@ fun MainContainer(
     LaunchedEffect(passwords) {
         uiState = uiState.copy(passwords = passwords)
     }
-    CompositionLocalProvider(LocalThemeColors provides themeColors) {
-        val context = LocalContext.current
+    val context = LocalContext.current
 
         // 计算字符串（非 Composable）
         val welcomeText = if (currentLanguage == AppLanguage.CHINESE) "欢迎回来" else "Welcome Back"
@@ -126,10 +120,10 @@ fun MainContainer(
             ?: (if (currentLanguage == AppLanguage.CHINESE) "浅色" else "Light")
         val currentLanguageLabel = languageOptions.find { it.value == languageKey }?.label ?: "中文"
 
-        val importFilePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.OpenDocument()) { _: Uri? -> }
-        val shareLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) { }
+    val importFilePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.OpenDocument()) { _: Uri? -> }
+    val shareLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) { }
 
-        when {
+    when {
             uiState.showEditScreen -> {
                 val currentPassword = uiState.passwords.find { it.id == uiState.editPasswordId }
                 EditScreen(
@@ -210,11 +204,10 @@ fun MainContainer(
                                 onCategorySelected = { uiState = uiState.copy(selectedCategory = it) },
                                 onSearchQueryChange = { uiState = uiState.copy(searchQuery = it) },
                                 onNavigateToAllPasswords = { uiState = uiState.copy(showAllPasswords = true) },
-                                onPasswordClick = { id -> uiState = uiState.copy(showEditScreen = true, editPasswordId = id) },
-                                themeColors = themeColors
+                                onPasswordClick = { id -> uiState = uiState.copy(showEditScreen = true, editPasswordId = id) }
                             )
 
-                            TabItem.SECURITY -> SecurityContent(currentLanguage, themeColors)
+                            TabItem.SECURITY -> SecurityContent(currentLanguage)
 
                             TabItem.SETTINGS -> SettingsContent(
                                 currentLanguage = currentLanguage,
@@ -282,7 +275,6 @@ fun MainContainer(
                                     onThemeChanged?.invoke()
                                 },
                                 currentLanguageLabel = currentLanguageLabel,
-                                themeColors = themeColors,
                                 onNavigateToHelp = { uiState = uiState.copy(showHelp = true) },
                                 onNavigateToPrivacy = { uiState = uiState.copy(showPrivacy = true) },
                                 onNavigateToAbout = { uiState = uiState.copy(showAbout = true) }
@@ -338,7 +330,6 @@ fun MainContainer(
                 }
             }
         }
-    }
 }
 
 @Composable
@@ -356,9 +347,10 @@ private fun HomeContent(
     onCategorySelected: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onNavigateToAllPasswords: () -> Unit,
-    onPasswordClick: (String) -> Unit,
-    themeColors: ThemeColors
+    onPasswordClick: (String) -> Unit
 ) {
+    val themeColors = LocalThemeColors.current
+
     val categories = if (currentLanguage == AppLanguage.CHINESE)
         listOf("全部", "社交媒体", "工作", "金融", "购物", "娱乐", "AI")
     else
@@ -397,7 +389,7 @@ private fun HomeContent(
             ) {
                 Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(20.dp))
-                        .background(if (themeColors.isDark) Color(0xFF333) else Color.White), contentAlignment = Alignment.Center) {
+                        .background(themeColors.iconBackground), contentAlignment = Alignment.Center) {
                         Text(text = "🔑", style = MaterialTheme.typography.bodyLarge)
                     }
                     Text(text = pwdCountText, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
@@ -409,10 +401,10 @@ private fun HomeContent(
             ) {
                 Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+                        .background(OnPrimary.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
                         Text(text = "🛡️", style = MaterialTheme.typography.bodyLarge)
                     }
-                    Text(text = secScoreText, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600), color = Color.White)
+                    Text(text = secScoreText, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600), color = OnPrimary)
                 }
             }
         }
@@ -442,7 +434,9 @@ private fun HomeContent(
 }
 
 @Composable
-private fun SecurityContent(currentLanguage: AppLanguage, themeColors: ThemeColors) {
+private fun SecurityContent(currentLanguage: AppLanguage) {
+    val themeColors = LocalThemeColors.current
+
     val scoreDesc = if (currentLanguage == AppLanguage.CHINESE) "您的密码健康状况良好，但有几项需要修复。" else "Your password health is good, but some items need attention."
     val totalLabel = if (currentLanguage == AppLanguage.CHINESE) "密码总数" else "Total Passwords"
     val weakLabel = if (currentLanguage == AppLanguage.CHINESE) "弱密码" else "Weak Passwords"
@@ -505,11 +499,12 @@ private fun SettingsContent(
     currentLanguageValue: String,
     onLanguageSelected: (DropdownOption) -> Unit,
     currentLanguageLabel: String,
-    themeColors: ThemeColors,
     onNavigateToHelp: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
     onNavigateToAbout: () -> Unit
 ) {
+    val themeColors = LocalThemeColors.current
+
     var themeItemOffset by remember { mutableStateOf(IntOffset.Zero) }
     var themeItemSize by remember { mutableStateOf(IntSize.Zero) }
     var languageItemOffset by remember { mutableStateOf(IntOffset.Zero) }

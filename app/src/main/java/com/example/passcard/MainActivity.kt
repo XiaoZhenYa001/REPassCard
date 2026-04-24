@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -27,15 +29,20 @@ class MainActivity : ComponentActivity() {
         preferencesManager = PreferencesManager(this)
         
         setContent {
-            val savedTheme = preferencesManager.theme
-            val isDarkTheme = when (savedTheme) {
+            var themeMode by remember { mutableStateOf(preferencesManager.theme) }
+            var languageKey by remember { mutableStateOf(preferencesManager.language) }
+
+            val isDarkTheme = when (themeMode) {
                 "DARK" -> true
                 "LIGHT" -> false
                 "SYSTEM" -> isSystemInDarkTheme()
                 else -> false
             }
-            
-            val languageKey by remember { mutableStateOf(preferencesManager.language) }
+
+            val refreshPreferencesState = {
+                themeMode = preferencesManager.theme
+                languageKey = preferencesManager.language
+            }
             
             val viewModel: MainViewModel = viewModel()
             val passwords by viewModel.passwords.collectAsState()
@@ -45,14 +52,21 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen(
-                        preferencesManager = preferencesManager,
-                        onThemeChanged = { recreate() },
-                        languageKey = languageKey,
-                        passwords = passwords,
-                        onSavePassword = { item -> viewModel.addPassword(item) },
-                        onDeletePassword = { id -> viewModel.deletePasswordById(id) }
-                    )
+                    Crossfade(
+                        targetState = languageKey,
+                        animationSpec = tween(durationMillis = 300),
+                        label = "language_switch"
+                    ) { animatedLanguageKey ->
+                        MainScreen(
+                            preferencesManager = preferencesManager,
+                            currentTheme = themeMode,
+                            onThemeChanged = refreshPreferencesState,
+                            languageKey = animatedLanguageKey,
+                            passwords = passwords,
+                            onSavePassword = { item -> viewModel.addPassword(item) },
+                            onDeletePassword = { id -> viewModel.deletePasswordById(id) }
+                        )
+                    }
                 }
             }
         }
