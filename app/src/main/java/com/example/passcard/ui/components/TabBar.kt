@@ -1,6 +1,7 @@
 package com.example.passcard.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -9,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -49,15 +49,17 @@ fun TabBar(
 ) {
     val themeColors = LocalThemeColors.current
     val haptic = LocalHapticFeedback.current
-    
-    // 毛玻璃背景色 — 半透明
-    val bgColor = if (themeColors.isDark) {
-        Color(0xFF1A1A1A).copy(alpha = 0.85f)
+
+    val bgColor = themeColors.surface.copy(alpha = 0.88f)
+    val indicatorColor = if (themeColors.isDark) {
+        Color.White.copy(alpha = 0.12f)
     } else {
-        Color.White.copy(alpha = 0.85f)
+        Color.Black.copy(alpha = 0.06f)
     }
-    
-    Row(
+    val horizontalPadding = 8.dp
+    val addButtonWidth = 64.dp
+
+    BoxWithConstraints(
         modifier = modifier
             .width(345.dp)
             .height(72.dp)
@@ -70,58 +72,84 @@ fun TabBar(
             )
             .clip(RoundedCornerShape(36.dp))
             .background(bgColor)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        TabButton(
-            selected = selectedTab == TabItem.HOME,
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onTabSelected(TabItem.HOME)
-            },
-            icon = if (selectedTab == TabItem.HOME) Icons.Filled.Home else Icons.Outlined.Home,
-            label = "首页",
-            modifier = Modifier.weight(1f)
+        val tabSlotWidth = (maxWidth - horizontalPadding * 2 - addButtonWidth) / 4
+        val targetIndicatorOffset = when (selectedTab) {
+            TabItem.HOME -> 0.dp
+            TabItem.SECURITY -> tabSlotWidth
+            TabItem.CLOUD -> tabSlotWidth * 2 + addButtonWidth
+            TabItem.SETTINGS -> tabSlotWidth * 3 + addButtonWidth
+        }
+        val indicatorOffset by animateDpAsState(
+            targetValue = targetIndicatorOffset,
+            animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+            label = "tabCapsuleOffset"
         )
-        TabButton(
-            selected = selectedTab == TabItem.SECURITY,
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onTabSelected(TabItem.SECURITY)
-            },
-            icon = if (selectedTab == TabItem.SECURITY) Icons.Filled.Shield else Icons.Outlined.Shield,
-            label = "安全",
-            modifier = Modifier.weight(1f)
+
+        Box(
+            modifier = Modifier
+                .offset(x = horizontalPadding + indicatorOffset, y = 8.dp)
+                .width(tabSlotWidth)
+                .height(56.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(indicatorColor)
         )
-        
-        // 中间 + 按钮 — 带缩放动画
-        AddButton(
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onAddClick()
-            }
-        )
-        
-        TabButton(
-            selected = selectedTab == TabItem.CLOUD,
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onTabSelected(TabItem.CLOUD)
-            },
-            icon = if (selectedTab == TabItem.CLOUD) Icons.Filled.Cloud else Icons.Outlined.Cloud,
-            label = "加密",
-            modifier = Modifier.weight(1f)
-        )
-        TabButton(
-            selected = selectedTab == TabItem.SETTINGS,
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onTabSelected(TabItem.SETTINGS)
-            },
-            icon = if (selectedTab == TabItem.SETTINGS) Icons.Filled.Settings else Icons.Outlined.Settings,
-            label = "设置",
-            modifier = Modifier.weight(1f)
-        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = horizontalPadding, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TabButton(
+                selected = selectedTab == TabItem.HOME,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTabSelected(TabItem.HOME)
+                },
+                icon = if (selectedTab == TabItem.HOME) Icons.Filled.Home else Icons.Outlined.Home,
+                label = "首页",
+                modifier = Modifier.weight(1f)
+            )
+            TabButton(
+                selected = selectedTab == TabItem.SECURITY,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTabSelected(TabItem.SECURITY)
+                },
+                icon = if (selectedTab == TabItem.SECURITY) Icons.Filled.Shield else Icons.Outlined.Shield,
+                label = "安全",
+                modifier = Modifier.weight(1f)
+            )
+
+            AddButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onAddClick()
+                }
+            )
+
+            TabButton(
+                selected = selectedTab == TabItem.CLOUD,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTabSelected(TabItem.CLOUD)
+                },
+                icon = if (selectedTab == TabItem.CLOUD) Icons.Filled.Cloud else Icons.Outlined.Cloud,
+                label = "加密",
+                modifier = Modifier.weight(1f)
+            )
+            TabButton(
+                selected = selectedTab == TabItem.SETTINGS,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onTabSelected(TabItem.SETTINGS)
+                },
+                icon = if (selectedTab == TabItem.SETTINGS) Icons.Filled.Settings else Icons.Outlined.Settings,
+                label = "设置",
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -151,13 +179,6 @@ private fun TabButton(
         label = "tabLabelColor"
     )
     
-    // 指示器宽度动画
-    val indicatorWidth by animateDpAsState(
-        targetValue = if (selected) 16.dp else 0.dp,
-        animationSpec = tween(durationMillis = 200),
-        label = "indicatorWidth"
-    )
-    
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -180,15 +201,6 @@ private fun TabButton(
             fontSize = 10.sp,
             fontWeight = FontWeight.W500,
             color = labelColor
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        // 选中项指示器圆点
-        Box(
-            modifier = Modifier
-                .width(indicatorWidth)
-                .height(3.dp)
-                .clip(CircleShape)
-                .background(if (selected) themeColors.primary else Color.Transparent)
         )
     }
 }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -93,7 +95,7 @@ fun SettingsScreen(
             )
 
             SettingToggleItem(
-                icon = Icons.Outlined.VolumeUp,
+                icon = Icons.AutoMirrored.Outlined.VolumeUp,
                 label = "声音反馈",
                 checked = uiState.soundEnabled,
                 onCheckedChange = { uiState = uiState.copy(soundEnabled = it) },
@@ -129,7 +131,7 @@ fun SettingsScreen(
             SectionTitle(title = "更多", colors = themeColors)
 
             SettingItem(
-                icon = Icons.Outlined.HelpOutline,
+                icon = Icons.AutoMirrored.Outlined.HelpOutline,
                 label = "使用帮助",
                 onClick = onNavigateToHelp,
                 colors = themeColors

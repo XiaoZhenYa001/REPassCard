@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,18 +13,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.CsvExporter
@@ -88,6 +95,24 @@ fun MainContainer(
     val currentLanguage = remember(languageKey) {
         if (languageKey == "ENGLISH") AppLanguage.ENGLISH else AppLanguage.CHINESE
     }
+    var displayedLanguage by remember { mutableStateOf(currentLanguage) }
+    var contentVisible by remember { mutableStateOf(true) }
+
+    LaunchedEffect(currentLanguage) {
+        if (displayedLanguage != currentLanguage) {
+            contentVisible = false
+            delay(120)
+            displayedLanguage = currentLanguage
+            contentVisible = true
+        }
+    }
+
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (contentVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "language_content_alpha"
+    )
+
     val themeColors = LocalThemeColors.current
     
     var uiState by remember { mutableStateOf(MainUiState(passwords = passwords)) }
@@ -99,17 +124,17 @@ fun MainContainer(
     val context = LocalContext.current
 
         // 计算字符串（非 Composable）
-        val welcomeText = if (currentLanguage == AppLanguage.CHINESE) "欢迎回来" else "Welcome Back"
-        val searchPlaceholder = if (currentLanguage == AppLanguage.CHINESE) "搜索密码..." else "Search passwords..."
-        val pwdCountText = if (currentLanguage == AppLanguage.CHINESE) "${uiState.passwords.size} 个密码" else "${uiState.passwords.size} Passwords"
-        val secScoreText = if (currentLanguage == AppLanguage.CHINESE) "98% 安全" else "98% Secure"
-        val recentText = if (currentLanguage == AppLanguage.CHINESE) "最近登录" else "Recent Logins"
-        val viewAllText = if (currentLanguage == AppLanguage.CHINESE) "查看全部" else "View All"
+        val welcomeText = if (displayedLanguage == AppLanguage.CHINESE) "欢迎回来" else "Welcome Back"
+        val searchPlaceholder = if (displayedLanguage == AppLanguage.CHINESE) "搜索密码..." else "Search passwords..."
+        val pwdCountText = if (displayedLanguage == AppLanguage.CHINESE) "${uiState.passwords.size} 个密码" else "${uiState.passwords.size} Passwords"
+        val secScoreText = if (displayedLanguage == AppLanguage.CHINESE) "98% 安全" else "98% Secure"
+        val recentText = if (displayedLanguage == AppLanguage.CHINESE) "最近登录" else "Recent Logins"
+        val viewAllText = if (displayedLanguage == AppLanguage.CHINESE) "查看全部" else "View All"
 
         val themeOptions = listOf(
-            DropdownOption(if (currentLanguage == AppLanguage.CHINESE) "浅色" else "Light", "LIGHT"),
-            DropdownOption(if (currentLanguage == AppLanguage.CHINESE) "深色" else "Dark", "DARK"),
-            DropdownOption(if (currentLanguage == AppLanguage.CHINESE) "跟随系统" else "System", "SYSTEM")
+            DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "浅色" else "Light", "LIGHT"),
+            DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "深色" else "Dark", "DARK"),
+            DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "跟随系统" else "System", "SYSTEM")
         )
         val languageOptions = listOf(
             DropdownOption("中文", "CHINESE"),
@@ -117,7 +142,7 @@ fun MainContainer(
         )
 
         val currentThemeLabel = themeOptions.find { it.value == currentTheme }?.label
-            ?: (if (currentLanguage == AppLanguage.CHINESE) "浅色" else "Light")
+            ?: (if (displayedLanguage == AppLanguage.CHINESE) "浅色" else "Light")
         val currentLanguageLabel = languageOptions.find { it.value == languageKey }?.label ?: "中文"
 
     val importFilePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.OpenDocument()) { _: Uri? -> }
@@ -125,25 +150,27 @@ fun MainContainer(
 
     when {
             uiState.showEditScreen -> {
-                val currentPassword = uiState.passwords.find { it.id == uiState.editPasswordId }
-                EditScreen(
-                    password = currentPassword,
-                    currentLanguage = currentLanguage,
-                    onBack = { uiState = uiState.copy(showEditScreen = false, editPasswordId = null) },
-                    onSave = { updatedPassword ->
-                        val itemToSave = if (uiState.editPasswordId == null) {
-                            updatedPassword.copy(id = System.currentTimeMillis().toString())
-                        } else {
-                            updatedPassword
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    val currentPassword = uiState.passwords.find { it.id == uiState.editPasswordId }
+                    EditScreen(
+                        password = currentPassword,
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(showEditScreen = false, editPasswordId = null) },
+                        onSave = { updatedPassword ->
+                            val itemToSave = if (uiState.editPasswordId == null) {
+                                updatedPassword.copy(id = System.currentTimeMillis().toString())
+                            } else {
+                                updatedPassword
+                            }
+                            onSavePassword?.invoke(itemToSave)
+                            uiState = uiState.copy(showEditScreen = false, editPasswordId = null)
+                        },
+                        onDelete = {
+                            uiState.editPasswordId?.let { onDeletePassword?.invoke(it) }
+                            uiState = uiState.copy(showEditScreen = false, editPasswordId = null)
                         }
-                        onSavePassword?.invoke(itemToSave)
-                        uiState = uiState.copy(showEditScreen = false, editPasswordId = null)
-                    },
-                    onDelete = {
-                        uiState.editPasswordId?.let { onDeletePassword?.invoke(it) }
-                        uiState = uiState.copy(showEditScreen = false, editPasswordId = null)
-                    }
-                )
+                    )
+                }
             }
 
             uiState.showImportPreview -> {
@@ -155,17 +182,19 @@ fun MainContainer(
             }
 
             uiState.showAllPasswords -> {
-                AllPasswordsScreen(
-                    currentLanguage = currentLanguage,
-                    onBack = { uiState = uiState.copy(showAllPasswords = false) },
-                    passwords = uiState.passwords,
-                    onPasswordClick = { id -> uiState = uiState.copy(showAllPasswords = false, showEditScreen = true, editPasswordId = id) }
-                )
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    AllPasswordsScreen(
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(showAllPasswords = false) },
+                        passwords = uiState.passwords,
+                        onPasswordClick = { id -> uiState = uiState.copy(showAllPasswords = false, showEditScreen = true, editPasswordId = id) }
+                    )
+                }
             }
 
             else -> {
                 Scaffold(
-                    modifier = modifier.fillMaxSize(),
+                    modifier = modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha },
                     containerColor = themeColors.background,
                     bottomBar = {
                         Box(
@@ -194,7 +223,7 @@ fun MainContainer(
                                 passwords = uiState.passwords,
                                 selectedCategory = uiState.selectedCategory,
                                 searchQuery = uiState.searchQuery,
-                                currentLanguage = currentLanguage,
+                                currentLanguage = displayedLanguage,
                                 welcomeText = welcomeText,
                                 searchPlaceholder = searchPlaceholder,
                                 pwdCountText = pwdCountText,
@@ -207,10 +236,10 @@ fun MainContainer(
                                 onPasswordClick = { id -> uiState = uiState.copy(showEditScreen = true, editPasswordId = id) }
                             )
 
-                            TabItem.SECURITY -> SecurityContent(currentLanguage)
+                            TabItem.SECURITY -> SecurityContent(displayedLanguage)
 
                             TabItem.SETTINGS -> SettingsContent(
-                                currentLanguage = currentLanguage,
+                                currentLanguage = displayedLanguage,
                                 onNavigateToImport = {
                                     importFilePickerLauncher.launch(
                                         arrayOf(
@@ -280,17 +309,17 @@ fun MainContainer(
                                 onNavigateToAbout = { uiState = uiState.copy(showAbout = true) }
                             )
 
-                            TabItem.CLOUD -> CloudSyncContent(currentLanguage, themeColors)
+                            TabItem.CLOUD -> CloudSyncContent(displayedLanguage, themeColors)
                         }
 
                         if (uiState.showHelp) {
-                            HelpContent(currentLanguage = currentLanguage, onBack = { uiState = uiState.copy(showHelp = false) })
+                            HelpContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showHelp = false) })
                         }
                         if (uiState.showPrivacy) {
-                            PrivacyContent(currentLanguage = currentLanguage, onBack = { uiState = uiState.copy(showPrivacy = false) })
+                            PrivacyContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showPrivacy = false) })
                         }
                         if (uiState.showAbout) {
-                            AboutContent(currentLanguage = currentLanguage, onBack = { uiState = uiState.copy(showAbout = false) })
+                            AboutContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showAbout = false) })
                         }
 
                         if (uiState.showThemeDropdown) {
@@ -544,7 +573,7 @@ private fun SettingsContent(
             SectionTitle(title = appSettingsTitle, colors = themeColors)
             SettingItem(icon = Icons.Outlined.DarkMode, label = themeLabel, trailingText = currentThemeLabel, onClick = { onThemeDropdownToggle(themeItemOffset, themeItemSize) }, onPositioned = { offset, size -> themeItemOffset = offset; themeItemSize = size }, colors = themeColors)
             SettingItem(icon = Icons.Outlined.Language, label = langLabel, trailingText = currentLanguageLabel, onClick = { onLanguageDropdownToggle(languageItemOffset, languageItemSize) }, onPositioned = { offset, size -> languageItemOffset = offset; languageItemSize = size }, colors = themeColors)
-            SettingToggleItem(icon = Icons.Outlined.VolumeUp, label = soundLabel, checked = soundEnabled, onCheckedChange = { soundEnabled = it }, colors = themeColors)
+            SettingToggleItem(icon = Icons.AutoMirrored.Outlined.VolumeUp, label = soundLabel, checked = soundEnabled, onCheckedChange = { soundEnabled = it }, colors = themeColors)
         }
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = dataTitle, colors = themeColors)
@@ -553,7 +582,7 @@ private fun SettingsContent(
         }
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = moreTitle, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.HelpOutline, label = helpLabel, onClick = onNavigateToHelp, colors = themeColors)
+            SettingItem(icon = Icons.AutoMirrored.Outlined.HelpOutline, label = helpLabel, onClick = onNavigateToHelp, colors = themeColors)
             SettingItem(icon = Icons.Outlined.Lock, label = privacyLabel, onClick = onNavigateToPrivacy, colors = themeColors)
             SettingItem(icon = Icons.Outlined.Info, label = aboutLabel, onClick = onNavigateToAbout, colors = themeColors)
         }
@@ -591,7 +620,7 @@ fun HelpContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Modi
     
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
+            Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
             Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
         }
@@ -642,7 +671,7 @@ fun PrivacyContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: M
     
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
+            Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
             Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
         }
@@ -683,7 +712,7 @@ fun AboutContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Mod
     
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
+            Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = themeColors.onBackground, modifier = Modifier.size(24.dp).clickable { onBack() })
             Spacer(modifier = Modifier.width(16.dp))
             Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
         }
