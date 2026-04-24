@@ -29,11 +29,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
+import com.example.passcard.util.CsvImporter
 import com.example.passcard.util.CsvExporter
 import com.example.passcard.util.ExportPasswordEntry
+import com.example.passcard.util.ImportIssue
+import com.example.passcard.util.ImportParseResult
 import com.example.passcard.util.PreferencesManager
 
 data class MainUiState(
@@ -42,6 +48,11 @@ data class MainUiState(
     val editPasswordId: String? = null,
     val showImportPreview: Boolean = false,
     val importEntries: List<ImportEntry> = emptyList(),
+    val importSelectedIds: Set<String> = emptySet(),
+    val importIssues: List<ImportIssue> = emptyList(),
+    val importReceipt: ImportReceiptUi? = null,
+    val showImportReceipt: Boolean = false,
+    val isImportBusy: Boolean = false,
     val showAllPasswords: Boolean = false,
     val showHelp: Boolean = false,
     val showPrivacy: Boolean = false,
@@ -66,6 +77,7 @@ fun MainScreen(
     languageKey: String = "CHINESE",
     passwords: List<PasswordItem> = emptyList(),
     onSavePassword: ((PasswordItem) -> Unit)? = null,
+    onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
     onDeletePassword: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -76,6 +88,7 @@ fun MainScreen(
         languageKey = languageKey,
         passwords = passwords,
         onSavePassword = onSavePassword,
+        onImportPasswords = onImportPasswords,
         onDeletePassword = onDeletePassword,
         modifier = modifier
     )
@@ -89,6 +102,7 @@ fun MainContainer(
     languageKey: String = "CHINESE",
     passwords: List<PasswordItem> = emptyList(),
     onSavePassword: ((PasswordItem) -> Unit)? = null,
+    onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
     onDeletePassword: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -144,8 +158,170 @@ fun MainContainer(
         val currentThemeLabel = themeOptions.find { it.value == currentTheme }?.label
             ?: (if (displayedLanguage == AppLanguage.CHINESE) "浅色" else "Light")
         val currentLanguageLabel = languageOptions.find { it.value == languageKey }?.label ?: "中文"
+    val scope = rememberCoroutineScope()
+    val importMimeTypes = remember {
+        arrayOf(
+            "text/csv",
+            "text/comma-separated-values",
+            "application/csv",
+            "text/tab-separated-values",
+            "*/*"
+        )
+    }
 
-    val importFilePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.OpenDocument()) { _: Uri? -> }
+    val closeImportPreview = {
+        uiState = uiState.copy(
+            showImportPreview = false,
+            importEntries = emptyList(),
+            importSelectedIds = emptySet(),
+            importIssues = emptyList(),
+            importReceipt = null,
+            showImportReceipt = false,
+            isImportBusy = false
+        )
+    }
+
+    val commitSelectedImports = {
+        val startedAt = System.currentTimeMillis()
+        val selectedEntries = uiState.importEntries.filter { it.id in uiState.importSelectedIds }
+        if (selectedEntries.isEmpty()) {
+            uiState = uiState.copy(
+                showImportReceipt = true,
+                importReceipt = buildNoSelectionReceipt()
+            )
+        } else {
+            val existingKeys = uiState.passwords
+                .map { buildImportKey(it.name, it.username) }
+                .toMutableSet()
+            val toInsert = mutableListOf<PasswordItem>()
+            var duplicateSkipped = 0
+
+            selectedEntries.forEachIndexed { index, entry ->
+                val key = buildImportKey(entry.service, entry.username)
+                if (key in existingKeys) {
+                    duplicateSkipped++
+                } else {
+                    existingKeys.add(key)
+                    toInsert.add(
+                        PasswordItem(
+                            id = "import_${System.currentTimeMillis()}_$index",
+                            name = entry.service,
+                            username = entry.username,
+                            phone = entry.phone,
+                            email = entry.email,
+                            password = entry.password,
+                            category = entry.category,
+                            note = entry.note
+                        )
+                    )
+                }
+            }
+
+            if (onImportPasswords != null) {
+                onImportPasswords.invoke(toInsert)
+            } else {
+                toInsert.forEach { onSavePassword?.invoke(it) }
+            }
+
+            val receipt = buildImportDoneReceipt(
+                importedCount = toInsert.size,
+                duplicateSkipped = duplicateSkipped,
+                parseIssueCount = uiState.importIssues.size,
+                selectedCount = selectedEntries.size,
+                durationMillis = System.currentTimeMillis() - startedAt
+            )
+
+            uiState = uiState.copy(
+                importReceipt = receipt,
+                showImportReceipt = true
+            )
+        }
+    }
+
+    val importFilePickerLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        val passwordSnapshot = uiState.passwords
+        scope.launch {
+            val startedAt = System.currentTimeMillis()
+            uiState = uiState.copy(isImportBusy = true)
+
+            val parseResult = withContext(Dispatchers.IO) {
+                CsvImporter.parseCsv(context, uri)
+            }
+
+            parseResult.onSuccess { parsed ->
+                val existingKeys = passwordSnapshot.map { buildImportKey(it.name, it.username) }.toSet()
+                val importKeys = mutableSetOf<String>()
+                val entries = parsed.entries.mapIndexed { index, entry ->
+                    val key = buildImportKey(entry.service, entry.username)
+                    val duplicated = key in existingKeys || !importKeys.add(key)
+                    ImportEntry(
+                        id = "preview_${System.currentTimeMillis()}_$index",
+                        service = entry.service,
+                        username = entry.username,
+                        phone = entry.phone,
+                        email = entry.email,
+                        password = entry.password,
+                        note = entry.note,
+                        category = entry.category,
+                        sourceRow = entry.sourceRow,
+                        isDuplicate = duplicated
+                    )
+                }
+
+                val selectedIds = entries.filterNot { it.isDuplicate }.map { it.id }.toSet()
+                uiState = uiState.copy(
+                    isImportBusy = false,
+                    showImportPreview = true,
+                    importEntries = entries,
+                    importSelectedIds = selectedIds,
+                    importIssues = parsed.issues,
+                    importReceipt = buildParseReceipt(
+                        parseResult = parsed,
+                        duplicateCount = entries.count { it.isDuplicate },
+                        fileName = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "CSV",
+                        durationMillis = System.currentTimeMillis() - startedAt
+                    ),
+                    showImportReceipt = true
+                )
+            }.onFailure { error ->
+                uiState = uiState.copy(
+                    isImportBusy = false,
+                    showImportPreview = true,
+                    importEntries = emptyList(),
+                    importSelectedIds = emptySet(),
+                    importIssues = listOf(
+                        ImportIssue(
+                            rowNumber = 0,
+                            reason = error.message ?: "无法解析 CSV 文件",
+                            rawRow = ""
+                        )
+                    ),
+                    importReceipt = buildParseFailureReceipt(error.message ?: "无法解析 CSV 文件"),
+                    showImportReceipt = true
+                )
+            }
+        }
+    }
+
+    val onReceiptAction: (ImportReceiptActionType?) -> Unit = { action ->
+        when (action) {
+            ImportReceiptActionType.START_IMPORT -> commitSelectedImports()
+            ImportReceiptActionType.PICK_FILE -> {
+                closeImportPreview()
+                importFilePickerLauncher.launch(importMimeTypes)
+            }
+            ImportReceiptActionType.SHOW_ISSUES -> {
+                uiState = uiState.copy(showImportReceipt = false)
+            }
+            ImportReceiptActionType.CLOSE_PREVIEW -> {
+                closeImportPreview()
+            }
+            null -> Unit
+        }
+    }
+
     val shareLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) { }
 
     when {
@@ -176,8 +352,29 @@ fun MainContainer(
             uiState.showImportPreview -> {
                 ImportPreviewScreen(
                     entries = uiState.importEntries,
-                    onConfirm = { uiState = uiState.copy(showImportPreview = false, importEntries = emptyList()) },
-                    onCancel = { uiState = uiState.copy(showImportPreview = false, importEntries = emptyList()) }
+                    selectedIds = uiState.importSelectedIds,
+                    issues = uiState.importIssues,
+                    receipt = if (uiState.showImportReceipt) uiState.importReceipt else null,
+                    onToggleSelected = { id, selected ->
+                        uiState = uiState.copy(
+                            importSelectedIds = if (selected) {
+                                uiState.importSelectedIds + id
+                            } else {
+                                uiState.importSelectedIds - id
+                            }
+                        )
+                    },
+                    onToggleSelectAll = { checked ->
+                        val selectableIds = uiState.importEntries.map { it.id }.toSet()
+                        uiState = uiState.copy(
+                            importSelectedIds = if (checked) selectableIds else emptySet()
+                        )
+                    },
+                    onConfirm = { commitSelectedImports() },
+                    onCancel = { closeImportPreview() },
+                    onDismissReceipt = { uiState = uiState.copy(showImportReceipt = false) },
+                    onPrimaryReceiptAction = { onReceiptAction(uiState.importReceipt?.primaryAction) },
+                    onSecondaryReceiptAction = { onReceiptAction(uiState.importReceipt?.secondaryAction) }
                 )
             }
 
@@ -241,14 +438,7 @@ fun MainContainer(
                             TabItem.SETTINGS -> SettingsContent(
                                 currentLanguage = displayedLanguage,
                                 onNavigateToImport = {
-                                    importFilePickerLauncher.launch(
-                                        arrayOf(
-                                            "text/csv",
-                                            "text/comma-separated-values",
-                                            "application/csv",
-                                            "*/*"
-                                        )
-                                    )
+                                    importFilePickerLauncher.launch(importMimeTypes)
                                 },
                                 onNavigateToExport = {
                                     val exportData = uiState.passwords.map { p ->
@@ -355,10 +545,279 @@ fun MainContainer(
                                 itemHeight = uiState.languageDropdownSize.height
                             )
                         }
+
+                        if (uiState.isImportBusy) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.25f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = themeColors.surface),
+                                    shape = RoundedCornerShape(20.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.5.dp)
+                                        Text(
+                                            text = if (displayedLanguage == AppLanguage.CHINESE) "正在解析导入文件..." else "Parsing import file...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = themeColors.onBackground
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+}
+
+private fun buildImportKey(service: String, username: String): String {
+    return "${service.trim().lowercase()}|${username.trim().lowercase()}"
+}
+
+private fun formatImportDuration(durationMillis: Long): String {
+    val seconds = durationMillis.coerceAtLeast(1) / 1000.0
+    return String.format("%.1fs", seconds)
+}
+
+private fun buildParseReceipt(
+    parseResult: ImportParseResult,
+    duplicateCount: Int,
+    fileName: String,
+    durationMillis: Long
+): ImportReceiptUi {
+    val validCount = parseResult.entries.size
+    val issueCount = parseResult.issues.size
+    val hasRisk = issueCount > 0 || duplicateCount > 0
+    val level = when {
+        validCount == 0 -> ImportReceiptLevel.ERROR
+        hasRisk -> ImportReceiptLevel.WARNING
+        else -> ImportReceiptLevel.SUCCESS
+    }
+
+    val feed = mutableListOf<ImportReceiptFeedItem>()
+    feed.add(
+        ImportReceiptFeedItem(
+            title = "来源文件",
+            description = "已读取 $fileName，分隔符识别为 '${parseResult.detectedDelimiter}'",
+            tag = "${parseResult.totalRows} 行",
+            tone = ImportReceiptFeedTone.INFO
+        )
+    )
+    if (duplicateCount > 0) {
+        feed.add(
+            ImportReceiptFeedItem(
+                title = "发现重复项",
+                description = "检测到 $duplicateCount 条与现有或本批次重复，默认不会自动覆盖。",
+                tag = "重复",
+                tone = ImportReceiptFeedTone.WARNING
+            )
+        )
+    }
+    if (issueCount > 0) {
+        feed.add(
+            ImportReceiptFeedItem(
+                title = "发现格式问题",
+                description = "有 $issueCount 行格式不完整，已标记到异常列表。",
+                tag = "待修复",
+                tone = ImportReceiptFeedTone.ERROR
+            )
+        )
+    }
+    if (!hasRisk && validCount > 0) {
+        feed.add(
+            ImportReceiptFeedItem(
+                title = "解析完成",
+                description = "字段校验通过，可以开始导入。",
+                tag = "就绪",
+                tone = ImportReceiptFeedTone.SUCCESS
+            )
+        )
+    }
+
+    val statusLabel: String
+    val title: String
+    val description: String
+    val primaryAction: ImportReceiptActionType
+    val primaryActionText: String
+    val secondaryAction: ImportReceiptActionType
+    val secondaryActionText: String
+
+    when (level) {
+        ImportReceiptLevel.SUCCESS -> {
+            statusLabel = "全部就绪"
+            title = "$validCount 条记录可直接导入"
+            description = "没有发现重复或格式异常。"
+            primaryAction = ImportReceiptActionType.START_IMPORT
+            primaryActionText = "开始导入"
+            secondaryAction = ImportReceiptActionType.CLOSE_PREVIEW
+            secondaryActionText = "稍后处理"
+        }
+        ImportReceiptLevel.WARNING -> {
+            statusLabel = "部分待处理"
+            title = "$validCount 条可导入，存在风险项"
+            description = "建议先查看异常和重复记录，再执行导入。"
+            primaryAction = ImportReceiptActionType.START_IMPORT
+            primaryActionText = "仅导入可用项"
+            secondaryAction = ImportReceiptActionType.SHOW_ISSUES
+            secondaryActionText = "查看明细"
+        }
+        ImportReceiptLevel.ERROR -> {
+            statusLabel = "导入失败"
+            title = "当前文件无法完成导入"
+            description = "请修复编码或字段格式后重试。"
+            primaryAction = ImportReceiptActionType.PICK_FILE
+            primaryActionText = "重新选择文件"
+            secondaryAction = ImportReceiptActionType.SHOW_ISSUES
+            secondaryActionText = "查看原因"
+        }
+    }
+
+    return ImportReceiptUi(
+        level = level,
+        statusLabel = statusLabel,
+        title = title,
+        description = description,
+        primaryValue = validCount.toString(),
+        primaryLabel = "可导入",
+        secondaryValue = (issueCount + duplicateCount).toString(),
+        secondaryLabel = "待处理",
+        durationText = formatImportDuration(durationMillis),
+        primaryActionText = primaryActionText,
+        secondaryActionText = secondaryActionText,
+        primaryAction = primaryAction,
+        secondaryAction = secondaryAction,
+        feedItems = feed
+    )
+}
+
+private fun buildParseFailureReceipt(reason: String): ImportReceiptUi {
+    return ImportReceiptUi(
+        level = ImportReceiptLevel.ERROR,
+        statusLabel = "导入失败",
+        title = "无法解析当前文件",
+        description = reason,
+        primaryValue = "0",
+        primaryLabel = "可导入",
+        secondaryValue = "-",
+        secondaryLabel = "待处理",
+        durationText = "0.0s",
+        primaryActionText = "重新选择文件",
+        secondaryActionText = "查看原因",
+        primaryAction = ImportReceiptActionType.PICK_FILE,
+        secondaryAction = ImportReceiptActionType.SHOW_ISSUES,
+        feedItems = listOf(
+            ImportReceiptFeedItem(
+                title = "建议",
+                description = "请确认文件为 UTF-8 编码并包含服务、用户名、密码等字段。",
+                tag = "修复",
+                tone = ImportReceiptFeedTone.WARNING
+            )
+        )
+    )
+}
+
+private fun buildNoSelectionReceipt(): ImportReceiptUi {
+    return ImportReceiptUi(
+        level = ImportReceiptLevel.WARNING,
+        statusLabel = "尚未选择",
+        title = "请先勾选至少一条记录",
+        description = "可以逐条选择后再导入，避免误操作。",
+        primaryValue = "0",
+        primaryLabel = "已选中",
+        secondaryValue = "-",
+        secondaryLabel = "待导入",
+        durationText = "0.0s",
+        primaryActionText = "查看列表",
+        secondaryActionText = "关闭",
+        primaryAction = ImportReceiptActionType.SHOW_ISSUES,
+        secondaryAction = ImportReceiptActionType.CLOSE_PREVIEW,
+        feedItems = listOf(
+            ImportReceiptFeedItem(
+                title = "提示",
+                description = "支持全选或取消选择，也可仅导入需要的条目。",
+                tag = "操作建议",
+                tone = ImportReceiptFeedTone.INFO
+            )
+        )
+    )
+}
+
+private fun buildImportDoneReceipt(
+    importedCount: Int,
+    duplicateSkipped: Int,
+    parseIssueCount: Int,
+    selectedCount: Int,
+    durationMillis: Long
+): ImportReceiptUi {
+    val unresolved = duplicateSkipped + parseIssueCount
+    val level = when {
+        importedCount == 0 -> ImportReceiptLevel.ERROR
+        unresolved > 0 -> ImportReceiptLevel.WARNING
+        else -> ImportReceiptLevel.SUCCESS
+    }
+
+    val feed = mutableListOf<ImportReceiptFeedItem>()
+    feed.add(
+        ImportReceiptFeedItem(
+            title = "导入结果",
+            description = "本次选择 $selectedCount 条，成功写入 $importedCount 条。",
+            tag = "$importedCount/$selectedCount",
+            tone = if (importedCount > 0) ImportReceiptFeedTone.SUCCESS else ImportReceiptFeedTone.ERROR
+        )
+    )
+    if (duplicateSkipped > 0) {
+        feed.add(
+            ImportReceiptFeedItem(
+                title = "重复项已跳过",
+                description = "为避免覆盖，自动跳过 $duplicateSkipped 条重复记录。",
+                tag = "跳过",
+                tone = ImportReceiptFeedTone.WARNING
+            )
+        )
+    }
+    if (parseIssueCount > 0) {
+        feed.add(
+            ImportReceiptFeedItem(
+                title = "存在异常行",
+                description = "$parseIssueCount 行未通过格式校验，建议修复后重新导入。",
+                tag = "异常",
+                tone = ImportReceiptFeedTone.ERROR
+            )
+        )
+    }
+    feed.add(
+        ImportReceiptFeedItem(
+            title = "安全建议",
+            description = "为避免明文泄露，请尽快删除源 CSV 文件。",
+            tag = "重要",
+            tone = ImportReceiptFeedTone.INFO
+        )
+    )
+
+    return ImportReceiptUi(
+        level = level,
+        statusLabel = if (level == ImportReceiptLevel.SUCCESS) "导入完成" else if (level == ImportReceiptLevel.WARNING) "导入部分完成" else "未导入成功",
+        title = if (level == ImportReceiptLevel.ERROR) "本次没有导入成功" else "$importedCount 条密码已写入保险库",
+        description = if (level == ImportReceiptLevel.ERROR) "请检查异常项后重试。" else "你可以继续处理剩余异常或直接返回。",
+        primaryValue = importedCount.toString(),
+        primaryLabel = "成功导入",
+        secondaryValue = unresolved.toString(),
+        secondaryLabel = "待处理",
+        durationText = formatImportDuration(durationMillis),
+        primaryActionText = if (level == ImportReceiptLevel.ERROR) "重新选择文件" else "完成",
+        secondaryActionText = "查看明细",
+        primaryAction = if (level == ImportReceiptLevel.ERROR) ImportReceiptActionType.PICK_FILE else ImportReceiptActionType.CLOSE_PREVIEW,
+        secondaryAction = ImportReceiptActionType.SHOW_ISSUES,
+        feedItems = feed
+    )
 }
 
 @Composable

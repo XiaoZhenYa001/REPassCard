@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
                         languageKey = languageKey,
                         passwords = passwords,
                         onSavePassword = { item -> viewModel.addPassword(item) },
+                        onImportPasswords = { items -> viewModel.importPasswords(items) },
                         onDeletePassword = { id -> viewModel.deletePasswordById(id) }
                     )
                 }
