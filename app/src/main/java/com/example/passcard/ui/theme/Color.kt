@@ -53,7 +53,16 @@ val BorderDark = Color(0xFF333333)
 
 // Tab Bar
 val TabInactive = Color(0xFFA1A1AA)
-val TabInactiveDark = Color(0xFF666666)
+val TabInactiveDark = Color(0xFF71717A)
+
+// Tab Bar - iOS Style Enhanced
+val TabActive = Color(0xFF4F46E5)
+val TabActiveDark = Color(0xFF818CF8)
+val TabBarBackground = Color(0xFFF8F8FA)
+val TabBarBackgroundDark = Color(0xFF1C1C1E)
+val TabBarBorder = Color(0x0A000000)
+val TabBarBorderDark = Color(0x18FFFFFF)
+val AddButtonGradientEnd = Color(0xFF6366F1)
 
 // Additional Colors
 val CardGray = Color(0xFFF3F4F6)
