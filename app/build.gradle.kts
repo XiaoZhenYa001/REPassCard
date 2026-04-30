@@ -97,6 +97,9 @@ dependencies {
     // Material (for legacy views if needed)
     implementation(libs.material)
 
+    // Biometric authentication
+    implementation(libs.biometric)
+
     // Testing - disabled for now
     // testImplementation(libs.junit)
     // androidTestImplementation(libs.ext.junit)

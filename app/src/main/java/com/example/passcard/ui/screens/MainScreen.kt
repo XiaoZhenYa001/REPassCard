@@ -2,6 +2,7 @@ package com.example.passcard.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -231,6 +232,15 @@ fun MainContainer(
                 durationMillis = System.currentTimeMillis() - startedAt,
                 language = displayedLanguage
             )
+
+            if (toInsert.isNotEmpty()) {
+                val successMessage = if (displayedLanguage == AppLanguage.CHINESE) {
+                    "导入成功：${toInsert.size} 条"
+                } else {
+                    "Import successful: ${toInsert.size} items"
+                }
+                Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
+            }
 
             if (toInsert.isNotEmpty() && closeAfterSuccess) {
                 closeImportPreview()
@@ -464,6 +474,12 @@ fun MainContainer(
                                     }
                                     val result = CsvExporter.exportToCsv(context, exportData)
                                     result.onSuccess { uri ->
+                                        val successMessage = if (displayedLanguage == AppLanguage.CHINESE) {
+                                            "导出成功，请选择分享方式"
+                                        } else {
+                                            "Export successful. Choose a share target."
+                                        }
+                                        Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
                                         val shareIntent = CsvExporter.createShareIntent(uri, "passwords_export")
                                         shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
                                     }
