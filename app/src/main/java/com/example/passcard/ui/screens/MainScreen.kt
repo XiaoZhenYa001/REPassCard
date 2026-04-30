@@ -3,6 +3,7 @@ package com.example.passcard.ui.screens
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -71,7 +72,8 @@ data class MainUiState(
     val showLanguageDropdown: Boolean = false,
     val languageDropdownOffset: IntOffset = IntOffset.Zero,
     val languageDropdownSize: IntSize = IntSize.Zero,
-    val showExportFormatPicker: Boolean = false
+    val showExportFormatPicker: Boolean = false,
+    val showMasterPasswordSetup: Boolean = false
 )
 
 @Composable
@@ -361,6 +363,7 @@ fun MainContainer(
 
     when {
             uiState.showEditScreen -> {
+                BackHandler { uiState = uiState.copy(showEditScreen = false, editPasswordId = null) }
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
                     val currentPassword = uiState.passwords.find { it.id == uiState.editPasswordId }
                     EditScreen(
@@ -415,12 +418,46 @@ fun MainContainer(
             }
 
             uiState.showAllPasswords -> {
+                BackHandler { uiState = uiState.copy(showAllPasswords = false) }
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
                     AllPasswordsScreen(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(showAllPasswords = false) },
                         passwords = uiState.passwords,
                         onPasswordClick = { id -> uiState = uiState.copy(showAllPasswords = false, showEditScreen = true, editPasswordId = id) }
+                    )
+                }
+            }
+
+            uiState.showHelp -> {
+                BackHandler { uiState = uiState.copy(showHelp = false) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    HelpContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showHelp = false) })
+                }
+            }
+
+            uiState.showPrivacy -> {
+                BackHandler { uiState = uiState.copy(showPrivacy = false) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    PrivacyContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showPrivacy = false) })
+                }
+            }
+
+            uiState.showAbout -> {
+                BackHandler { uiState = uiState.copy(showAbout = false) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    AboutContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showAbout = false) })
+                }
+            }
+
+            uiState.showMasterPasswordSetup -> {
+                BackHandler { uiState = uiState.copy(showMasterPasswordSetup = false) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    SetupMasterPasswordScreen(
+                        preferencesManager = preferencesManager ?: return,
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(showMasterPasswordSetup = false) },
+                        onPasswordSet = { uiState = uiState.copy(showMasterPasswordSetup = false) }
                     )
                 }
             }
@@ -473,6 +510,7 @@ fun MainContainer(
 
                             TabItem.SETTINGS -> SettingsContent(
                                 currentLanguage = displayedLanguage,
+                                preferencesManager = preferencesManager,
                                 onNavigateToImport = {
                                     importFilePickerLauncher.launch(importMimeTypes)
                                 },
@@ -517,21 +555,14 @@ fun MainContainer(
                                 currentLanguageLabel = currentLanguageLabel,
                                 onNavigateToHelp = { uiState = uiState.copy(showHelp = true) },
                                 onNavigateToPrivacy = { uiState = uiState.copy(showPrivacy = true) },
-                                onNavigateToAbout = { uiState = uiState.copy(showAbout = true) }
+                                onNavigateToAbout = { uiState = uiState.copy(showAbout = true) },
+                                onNavigateToMasterPassword = { uiState = uiState.copy(showMasterPasswordSetup = true) }
                             )
 
                             TabItem.CLOUD -> CloudSyncContent(displayedLanguage, themeColors)
                         }
 
-                        if (uiState.showHelp) {
-                            HelpContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showHelp = false) })
-                        }
-                        if (uiState.showPrivacy) {
-                            PrivacyContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showPrivacy = false) })
-                        }
-                        if (uiState.showAbout) {
-                            AboutContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(showAbout = false) })
-                        }
+
 
                         if (uiState.showThemeDropdown) {
                             DropdownSelectMenu(
@@ -1090,6 +1121,7 @@ private fun SecurityContent(currentLanguage: AppLanguage) {
 @Composable
 private fun SettingsContent(
     currentLanguage: AppLanguage,
+    preferencesManager: PreferencesManager?,
     onNavigateToImport: () -> Unit,
     onNavigateToExport: () -> Unit,
     showThemeDropdown: Boolean,
@@ -1108,9 +1140,11 @@ private fun SettingsContent(
     currentLanguageLabel: String,
     onNavigateToHelp: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
-    onNavigateToAbout: () -> Unit
+    onNavigateToAbout: () -> Unit,
+    onNavigateToMasterPassword: () -> Unit = {}
 ) {
     val themeColors = LocalThemeColors.current
+    val isZh = currentLanguage == AppLanguage.CHINESE
 
     var themeItemOffset by remember { mutableStateOf(IntOffset.Zero) }
     var themeItemSize by remember { mutableStateOf(IntSize.Zero) }
@@ -1118,20 +1152,36 @@ private fun SettingsContent(
     var languageItemSize by remember { mutableStateOf(IntSize.Zero) }
     var soundEnabled by remember { mutableStateOf(true) }
     
-    val settingsTitle = if (currentLanguage == AppLanguage.CHINESE) "设置" else "Settings"
-    val accountTitle = if (currentLanguage == AppLanguage.CHINESE) "账户" else "Account"
-    val appSettingsTitle = if (currentLanguage == AppLanguage.CHINESE) "应用设置" else "App Settings"
-    val masterPwdLabel = if (currentLanguage == AppLanguage.CHINESE) "主密码" else "Master Password"
-    val themeLabel = if (currentLanguage == AppLanguage.CHINESE) "主题外观" else "Theme"
-    val langLabel = if (currentLanguage == AppLanguage.CHINESE) "语言" else "Language"
-    val soundLabel = if (currentLanguage == AppLanguage.CHINESE) "声音反馈" else "Sound Feedback"
-    val dataTitle = if (currentLanguage == AppLanguage.CHINESE) "数据管理" else "Data Management"
-    val exportLabel = if (currentLanguage == AppLanguage.CHINESE) "导出密码" else "Export Passwords"
-    val importLabel = if (currentLanguage == AppLanguage.CHINESE) "导入密码" else "Import Passwords"
-    val moreTitle = if (currentLanguage == AppLanguage.CHINESE) "更多" else "More"
-    val helpLabel = if (currentLanguage == AppLanguage.CHINESE) "使用帮助" else "Help"
-    val privacyLabel = if (currentLanguage == AppLanguage.CHINESE) "隐私条款" else "Privacy Policy"
-    val aboutLabel = if (currentLanguage == AppLanguage.CHINESE) "关于我们" else "About Us"
+    // 剪贴板设置状态
+    var clipboardClearEnabled by remember { mutableStateOf(preferencesManager?.clipboardClearEnabled ?: false) }
+    var clipboardClearDelay by remember { mutableStateOf(preferencesManager?.clipboardClearDelay ?: 30) }
+    var showClipboardDelayPicker by remember { mutableStateOf(false) }
+    
+    val clipboardDelayOptions = listOf(
+        15 to (if (isZh) "15 秒" else "15 sec"),
+        30 to (if (isZh) "30 秒" else "30 sec"),
+        60 to (if (isZh) "1 分钟" else "1 min"),
+        300 to (if (isZh) "5 分钟" else "5 min")
+    )
+    val currentDelayLabel = clipboardDelayOptions.firstOrNull { it.first == clipboardClearDelay }?.second
+        ?: (if (isZh) "${clipboardClearDelay} 秒" else "${clipboardClearDelay} sec")
+    
+    val settingsTitle = if (isZh) "设置" else "Settings"
+    val accountTitle = if (isZh) "账户" else "Account"
+    val appSettingsTitle = if (isZh) "应用设置" else "App Settings"
+    val masterPwdLabel = if (isZh) "主密码" else "Master Password"
+    val themeLabel = if (isZh) "主题外观" else "Theme"
+    val langLabel = if (isZh) "语言" else "Language"
+    val soundLabel = if (isZh) "声音反馈" else "Sound Feedback"
+    val clipClearLabel = if (isZh) "自动清除剪贴板" else "Auto-clear Clipboard"
+    val clipDelayLabel = if (isZh) "清除延迟" else "Clear Delay"
+    val dataTitle = if (isZh) "数据管理" else "Data Management"
+    val exportLabel = if (isZh) "导出密码" else "Export Passwords"
+    val importLabel = if (isZh) "导入密码" else "Import Passwords"
+    val moreTitle = if (isZh) "更多" else "More"
+    val helpLabel = if (isZh) "使用帮助" else "Help"
+    val privacyLabel = if (isZh) "隐私条款" else "Privacy Policy"
+    val aboutLabel = if (isZh) "关于我们" else "About Us"
     
     Column(
         modifier = Modifier
@@ -1145,13 +1195,69 @@ private fun SettingsContent(
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = accountTitle, colors = themeColors)
             ProfileCard(userName = "Alex Morgan", userEmail = "alex@example.com", onClick = { }, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Shield, label = masterPwdLabel, onClick = { }, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Shield, label = masterPwdLabel, trailingText = if (preferencesManager?.hasMasterPassword == true) (if (isZh) "已设置" else "Set") else (if (isZh) "未设置" else "Not set"), onClick = onNavigateToMasterPassword, colors = themeColors)
+            // 指纹解锁（仅在已设置主密码时显示）
+            if (preferencesManager?.hasMasterPassword == true) {
+                SettingToggleItem(
+                    icon = Icons.Outlined.Fingerprint,
+                    label = if (isZh) "指纹解锁" else "Fingerprint Unlock",
+                    checked = preferencesManager.biometricEnabled,
+                    onCheckedChange = { preferencesManager.biometricEnabled = it },
+                    colors = themeColors
+                )
+            }
         }
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = appSettingsTitle, colors = themeColors)
             SettingItem(icon = Icons.Outlined.DarkMode, label = themeLabel, trailingText = currentThemeLabel, onClick = { onThemeDropdownToggle(themeItemOffset, themeItemSize) }, onPositioned = { offset, size -> themeItemOffset = offset; themeItemSize = size }, colors = themeColors)
             SettingItem(icon = Icons.Outlined.Language, label = langLabel, trailingText = currentLanguageLabel, onClick = { onLanguageDropdownToggle(languageItemOffset, languageItemSize) }, onPositioned = { offset, size -> languageItemOffset = offset; languageItemSize = size }, colors = themeColors)
             SettingToggleItem(icon = Icons.AutoMirrored.Outlined.VolumeUp, label = soundLabel, checked = soundEnabled, onCheckedChange = { soundEnabled = it }, colors = themeColors)
+            
+            // 剪贴板自动清除开关
+            SettingToggleItem(
+                icon = Icons.Outlined.ContentPaste,
+                label = clipClearLabel,
+                checked = clipboardClearEnabled,
+                onCheckedChange = {
+                    clipboardClearEnabled = it
+                    preferencesManager?.clipboardClearEnabled = it
+                },
+                colors = themeColors
+            )
+            // 清除延迟选择（仅在开启时显示）
+            if (clipboardClearEnabled) {
+                Box {
+                    SettingItem(
+                        icon = Icons.Outlined.Timer,
+                        label = clipDelayLabel,
+                        trailingText = currentDelayLabel,
+                        onClick = { showClipboardDelayPicker = !showClipboardDelayPicker },
+                        colors = themeColors
+                    )
+                    DropdownMenu(
+                        expanded = showClipboardDelayPicker,
+                        onDismissRequest = { showClipboardDelayPicker = false },
+                        modifier = Modifier.background(themeColors.surface)
+                    ) {
+                        clipboardDelayOptions.forEach { (seconds, label) ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = label,
+                                        color = if (seconds == clipboardClearDelay) themeColors.primary else themeColors.onBackground,
+                                        fontWeight = if (seconds == clipboardClearDelay) FontWeight.W700 else FontWeight.W400
+                                    )
+                                },
+                                onClick = {
+                                    clipboardClearDelay = seconds
+                                    preferencesManager?.clipboardClearDelay = seconds
+                                    showClipboardDelayPicker = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = dataTitle, colors = themeColors)

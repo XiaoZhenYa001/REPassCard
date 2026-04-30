@@ -115,12 +115,7 @@ fun PasswordListItem(
 }
 
 private fun copyToClipboard(context: Context, text: String, themeColors: ThemeColors) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val clip = ClipData.newPlainText("Password", text)
-    clipboard.setPrimaryClip(clip)
-    Handler(Looper.getMainLooper()).post {
-        Toast.makeText(context, "密码已复制", Toast.LENGTH_SHORT).show()
-    }
+    ClipboardHelper.copyToClipboard(context, text, label = "Password", showToast = true)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
