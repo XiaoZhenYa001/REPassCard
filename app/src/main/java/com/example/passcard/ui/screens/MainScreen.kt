@@ -42,6 +42,9 @@ import com.example.passcard.util.ExportPasswordEntry
 import com.example.passcard.util.ImportIssue
 import com.example.passcard.util.ImportParseResult
 import com.example.passcard.util.PreferencesManager
+import com.example.passcard.util.JsonExporter
+import com.example.passcard.util.JsonImporter
+import com.example.passcard.util.FileFormatDetector
 
 data class MainUiState(
     val selectedTab: TabItem = TabItem.HOME,
@@ -67,7 +70,8 @@ data class MainUiState(
     val themeDropdownSize: IntSize = IntSize.Zero,
     val showLanguageDropdown: Boolean = false,
     val languageDropdownOffset: IntOffset = IntOffset.Zero,
-    val languageDropdownSize: IntSize = IntSize.Zero
+    val languageDropdownSize: IntSize = IntSize.Zero,
+    val showExportFormatPicker: Boolean = false
 )
 
 @Composable
@@ -166,6 +170,8 @@ fun MainContainer(
             "text/comma-separated-values",
             "application/csv",
             "text/tab-separated-values",
+            "application/json",
+            "text/json",
             "*/*"
         )
     }
@@ -261,8 +267,17 @@ fun MainContainer(
             val startedAt = System.currentTimeMillis()
             uiState = uiState.copy(isImportBusy = true)
 
+            // 自动检测文件格式并解析
             val parseResult = withContext(Dispatchers.IO) {
-                CsvImporter.parseCsv(context, uri)
+                try {
+                    val (format, content) = FileFormatDetector.detectFromUri(context, uri)
+                    when (format) {
+                        FileFormatDetector.FileFormat.JSON -> JsonImporter.parseJsonContent(content).let { Result.success(it) }
+                        FileFormatDetector.FileFormat.CSV -> CsvImporter.parseCsv(context, uri)
+                    }
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
             }
 
             parseResult.onSuccess { parsed ->
@@ -286,6 +301,7 @@ fun MainContainer(
                 }
 
                 val selectedIds = entries.filterNot { it.isDuplicate }.map { it.id }.toSet()
+                val fileNameDisplay = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "file"
                 uiState = uiState.copy(
                     isImportBusy = false,
                     showImportPreview = true,
@@ -295,7 +311,7 @@ fun MainContainer(
                     importReceipt = buildParseReceipt(
                         parseResult = parsed,
                         duplicateCount = entries.count { it.isDuplicate },
-                        fileName = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "CSV",
+                        fileName = fileNameDisplay,
                         durationMillis = System.currentTimeMillis() - startedAt,
                         language = displayedLanguage
                     ),
@@ -310,12 +326,12 @@ fun MainContainer(
                     importIssues = listOf(
                         ImportIssue(
                             rowNumber = 0,
-                            reason = error.message ?: "无法解析 CSV 文件",
+                            reason = error.message ?: "无法解析文件",
                             rawRow = ""
                         )
                     ),
                     importReceipt = buildParseFailureReceipt(
-                        reason = error.message ?: "无法解析 CSV 文件",
+                        reason = error.message ?: "无法解析文件",
                         language = displayedLanguage
                     ),
                     showImportReceipt = true
@@ -461,28 +477,7 @@ fun MainContainer(
                                     importFilePickerLauncher.launch(importMimeTypes)
                                 },
                                 onNavigateToExport = {
-                                    val exportData = uiState.passwords.map { p ->
-                                        ExportPasswordEntry(
-                                            service = p.name,
-                                            username = p.username,
-                                            phone = p.phone,
-                                            email = p.email,
-                                            password = p.password,
-                                            note = p.note,
-                                            category = p.category
-                                        )
-                                    }
-                                    val result = CsvExporter.exportToCsv(context, exportData)
-                                    result.onSuccess { uri ->
-                                        val successMessage = if (displayedLanguage == AppLanguage.CHINESE) {
-                                            "导出成功，请选择分享方式"
-                                        } else {
-                                            "Export successful. Choose a share target."
-                                        }
-                                        Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
-                                        val shareIntent = CsvExporter.createShareIntent(uri, "passwords_export")
-                                        shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
-                                    }
+                                    uiState = uiState.copy(showExportFormatPicker = true)
                                 },
                                 showThemeDropdown = uiState.showThemeDropdown,
                                 onThemeDropdownToggle = { offset, size ->
@@ -571,6 +566,44 @@ fun MainContainer(
                                 itemHeight = uiState.languageDropdownSize.height
                             )
                         }
+
+                        // 导出格式选择弹窗
+                        FormatPickerSheet(
+                            visible = uiState.showExportFormatPicker,
+                            currentLanguage = displayedLanguage,
+                            onFormatSelected = { format ->
+                                uiState = uiState.copy(showExportFormatPicker = false)
+                                val exportData = uiState.passwords.map { p ->
+                                    ExportPasswordEntry(
+                                        service = p.name,
+                                        username = p.username,
+                                        phone = p.phone,
+                                        email = p.email,
+                                        password = p.password,
+                                        note = p.note,
+                                        category = p.category
+                                    )
+                                }
+                                val result = when (format) {
+                                    ExportFormat.CSV -> CsvExporter.exportToCsv(context, exportData)
+                                    ExportFormat.JSON -> JsonExporter.exportToJson(context, exportData)
+                                }
+                                result.onSuccess { uri ->
+                                    val successMessage = if (displayedLanguage == AppLanguage.CHINESE) {
+                                        "导出成功，请选择分享方式"
+                                    } else {
+                                        "Export successful. Choose a share target."
+                                    }
+                                    Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
+                                    val shareIntent = when (format) {
+                                        ExportFormat.CSV -> CsvExporter.createShareIntent(uri, "passwords_export")
+                                        ExportFormat.JSON -> JsonExporter.createShareIntent(uri)
+                                    }
+                                    shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
+                                }
+                            },
+                            onDismiss = { uiState = uiState.copy(showExportFormatPicker = false) }
+                        )
 
                         if (uiState.isImportBusy) {
                             Box(
