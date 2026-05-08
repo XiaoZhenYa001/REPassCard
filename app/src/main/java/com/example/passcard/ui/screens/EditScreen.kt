@@ -20,8 +20,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
 
@@ -73,6 +75,7 @@ fun EditScreen(
     modifier: Modifier = Modifier
 ) {
     val themeColors = rememberThemeColors()
+    val context = LocalContext.current
     val categories = if (currentLanguage == AppLanguage.CHINESE) COMMON_CATEGORIES_ZH else COMMON_CATEGORIES_EN
     val backInteractionSource = remember { MutableInteractionSource() }
     val saveInteractionSource = remember { MutableInteractionSource() }
@@ -144,6 +147,24 @@ fun EditScreen(
                         interactionSource = saveInteractionSource,
                         indication = rememberRipple(bounded = false, radius = 24.dp),
                         onClick = {
+                            val isAllBlank = uiState.name.isBlank() &&
+                                uiState.username.isBlank() &&
+                                uiState.phone.isBlank() &&
+                                uiState.email.isBlank() &&
+                                uiState.password.isBlank() &&
+                                uiState.category.isBlank() &&
+                                uiState.note.isBlank()
+
+                            if (uiState.isNew && isAllBlank) {
+                                val message = if (currentLanguage == AppLanguage.CHINESE) {
+                                    "请至少填写一项"
+                                } else {
+                                    "Please fill at least one field"
+                                }
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                return@clickable
+                            }
+
                             val item = PasswordItem(
                                 id = uiState.id.ifEmpty { java.util.UUID.randomUUID().toString() },
                                 name = uiState.name,

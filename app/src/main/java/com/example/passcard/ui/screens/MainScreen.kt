@@ -137,6 +137,7 @@ fun MainContainer(
     val themeColors = LocalThemeColors.current
     
     var uiState by remember { mutableStateOf(MainUiState(passwords = passwords)) }
+    var biometricEnabled by remember { mutableStateOf(preferencesManager?.biometricEnabled ?: false) }
     
     // 同步外部密码数据
     LaunchedEffect(passwords) {
@@ -456,8 +457,14 @@ fun MainContainer(
                     SetupMasterPasswordScreen(
                         preferencesManager = preferencesManager ?: return,
                         currentLanguage = displayedLanguage,
-                        onBack = { uiState = uiState.copy(showMasterPasswordSetup = false) },
-                        onPasswordSet = { uiState = uiState.copy(showMasterPasswordSetup = false) }
+                        onBack = {
+                            uiState = uiState.copy(showMasterPasswordSetup = false)
+                            biometricEnabled = preferencesManager?.biometricEnabled ?: false
+                        },
+                        onPasswordSet = {
+                            uiState = uiState.copy(showMasterPasswordSetup = false)
+                            biometricEnabled = preferencesManager?.biometricEnabled ?: false
+                        }
                     )
                 }
             }
@@ -511,6 +518,11 @@ fun MainContainer(
                             TabItem.SETTINGS -> SettingsContent(
                                 currentLanguage = displayedLanguage,
                                 preferencesManager = preferencesManager,
+                                biometricEnabled = biometricEnabled,
+                                onBiometricEnabledChange = {
+                                    biometricEnabled = it
+                                    preferencesManager?.biometricEnabled = it
+                                },
                                 onNavigateToImport = {
                                     importFilePickerLauncher.launch(importMimeTypes)
                                 },
@@ -1122,6 +1134,8 @@ private fun SecurityContent(currentLanguage: AppLanguage) {
 private fun SettingsContent(
     currentLanguage: AppLanguage,
     preferencesManager: PreferencesManager?,
+    biometricEnabled: Boolean,
+    onBiometricEnabledChange: (Boolean) -> Unit,
     onNavigateToImport: () -> Unit,
     onNavigateToExport: () -> Unit,
     showThemeDropdown: Boolean,
@@ -1201,8 +1215,8 @@ private fun SettingsContent(
                 SettingToggleItem(
                     icon = Icons.Outlined.Fingerprint,
                     label = if (isZh) "指纹解锁" else "Fingerprint Unlock",
-                    checked = preferencesManager.biometricEnabled,
-                    onCheckedChange = { preferencesManager.biometricEnabled = it },
+                    checked = biometricEnabled,
+                    onCheckedChange = onBiometricEnabledChange,
                     colors = themeColors
                 )
             }

@@ -1,5 +1,7 @@
 package com.example.passcard.ui.screens
 
+import android.content.Context
+import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -277,26 +279,44 @@ fun LockScreen(
  * 触发系统指纹/生物识别对话框
  */
 private fun triggerBiometric(
-    context: android.content.Context,
+    context: Context,
     prefs: PreferencesManager,
     onSuccess: () -> Unit
 ) {
-    val activity = context as? FragmentActivity ?: return
-
-    val biometricManager = BiometricManager.from(context)
-    if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-        != BiometricManager.BIOMETRIC_SUCCESS
-    ) {
-        Toast.makeText(context, "Biometric not available", Toast.LENGTH_SHORT).show()
+    val isZh = prefs.language == "CHINESE"
+    val activity = context.findFragmentActivity()
+    if (activity == null) {
+        Toast.makeText(
+            context,
+            if (isZh) "无法启动指纹验证" else "Unable to start biometric prompt",
+            Toast.LENGTH_SHORT
+        ).show()
         return
     }
 
-    val isZh = prefs.language == "CHINESE"
+    val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
+        BiometricManager.Authenticators.BIOMETRIC_WEAK
+    val biometricManager = BiometricManager.from(context)
+    val canAuth = biometricManager.canAuthenticate(authenticators)
+    if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
+        val message = when (canAuth) {
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED ->
+                if (isZh) "未录入指纹，请先在系统设置中添加" else "No biometrics enrolled"
+            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE ->
+                if (isZh) "设备不支持指纹" else "No biometric hardware"
+            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE ->
+                if (isZh) "指纹硬件不可用" else "Biometric hardware unavailable"
+            else -> if (isZh) "指纹不可用" else "Biometric not available"
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        return
+    }
 
     val promptInfo = BiometricPrompt.PromptInfo.Builder()
         .setTitle(if (isZh) "指纹解锁" else "Fingerprint Unlock")
         .setSubtitle(if (isZh) "使用指纹验证身份" else "Verify your identity")
         .setNegativeButtonText(if (isZh) "使用密码" else "Use Password")
+        .setAllowedAuthenticators(authenticators)
         .build()
 
     val biometricPrompt = BiometricPrompt(
@@ -320,4 +340,13 @@ private fun triggerBiometric(
     )
 
     biometricPrompt.authenticate(promptInfo)
+}
+
+private fun Context.findFragmentActivity(): FragmentActivity? {
+    var current = this
+    while (current is ContextWrapper) {
+        if (current is FragmentActivity) return current
+        current = current.baseContext
+    }
+    return if (current is FragmentActivity) current else null
 }

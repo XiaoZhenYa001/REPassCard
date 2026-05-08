@@ -32,17 +32,8 @@ fun SecurityScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(47.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "9:41",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.W600
-                ),
-                color = TextPrimary
-            )
-        }
+                .height(47.dp)
+        )
         
         // Nav Bar
         Row(
