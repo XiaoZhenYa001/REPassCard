@@ -1,7 +1,10 @@
 package com.example.passcard.ui.screens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -361,6 +365,62 @@ fun MainContainer(
     }
 
     val shareLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) { }
+    var pendingExportFormat by remember { mutableStateOf<ExportFormat?>(null) }
+
+    fun exportPasswords(format: ExportFormat) {
+        val exportData = uiState.passwords.map { p ->
+            ExportPasswordEntry(
+                service = p.name,
+                username = p.username,
+                phone = p.phone,
+                email = p.email,
+                password = p.password,
+                note = p.note,
+                category = p.category
+            )
+        }
+        val result = when (format) {
+            ExportFormat.CSV -> CsvExporter.exportToCsv(context, exportData)
+            ExportFormat.JSON -> JsonExporter.exportToJson(context, exportData)
+        }
+        result.onSuccess { uri ->
+            val successMessage = if (displayedLanguage == AppLanguage.CHINESE) {
+                "导出成功，已保存到 Documents/PassCard"
+            } else {
+                "Export saved to Documents/PassCard."
+            }
+            Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
+            val shareIntent = when (format) {
+                ExportFormat.CSV -> CsvExporter.createShareIntent(uri)
+                ExportFormat.JSON -> JsonExporter.createShareIntent(uri)
+            }
+            shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
+        }.onFailure {
+            val failureMessage = if (displayedLanguage == AppLanguage.CHINESE) {
+                "导出失败，无法写入 Documents/PassCard"
+            } else {
+                "Export failed. Unable to write to Documents/PassCard."
+            }
+            Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val format = pendingExportFormat
+        pendingExportFormat = null
+        if (granted && format != null) {
+            exportPasswords(format)
+        } else {
+            val message = if (displayedLanguage == AppLanguage.CHINESE) {
+                "需要存储权限才能导出到 PassCard 文件夹"
+            } else {
+                "Storage permission is required to export to the PassCard folder."
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     when {
             uiState.showEditScreen -> {
@@ -616,33 +676,17 @@ fun MainContainer(
                             currentLanguage = displayedLanguage,
                             onFormatSelected = { format ->
                                 uiState = uiState.copy(showExportFormatPicker = false)
-                                val exportData = uiState.passwords.map { p ->
-                                    ExportPasswordEntry(
-                                        service = p.name,
-                                        username = p.username,
-                                        phone = p.phone,
-                                        email = p.email,
-                                        password = p.password,
-                                        note = p.note,
-                                        category = p.category
-                                    )
-                                }
-                                val result = when (format) {
-                                    ExportFormat.CSV -> CsvExporter.exportToCsv(context, exportData)
-                                    ExportFormat.JSON -> JsonExporter.exportToJson(context, exportData)
-                                }
-                                result.onSuccess { uri ->
-                                    val successMessage = if (displayedLanguage == AppLanguage.CHINESE) {
-                                        "导出成功，请选择分享方式"
-                                    } else {
-                                        "Export successful. Choose a share target."
-                                    }
-                                    Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
-                                    val shareIntent = when (format) {
-                                        ExportFormat.CSV -> CsvExporter.createShareIntent(uri, "passwords_export")
-                                        ExportFormat.JSON -> JsonExporter.createShareIntent(uri)
-                                    }
-                                    shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
+                                if (
+                                    Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+                                    ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                    ) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    pendingExportFormat = format
+                                    storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                } else {
+                                    exportPasswords(format)
                                 }
                             },
                             onDismiss = { uiState = uiState.copy(showExportFormatPicker = false) }

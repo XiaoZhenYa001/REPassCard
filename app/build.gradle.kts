@@ -92,6 +92,7 @@ dependencies {
     // Room Database
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.sqlcipher.android)
     kapt(libs.room.compiler)
     
     // Material (for legacy views if needed)

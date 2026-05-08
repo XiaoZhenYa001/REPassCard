@@ -3,7 +3,7 @@ package com.example.passcard.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.passcard.PassCardApp
+import com.example.passcard.data.AppDatabase
 import com.example.passcard.data.PasswordEntity
 import com.example.passcard.data.PasswordRepository
 import com.example.passcard.ui.screens.PasswordItem
@@ -32,16 +32,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             if (initialized) return@launch
             
-            val db = try {
-                PassCardApp.getDatabase()
-            } catch (e: Exception) {
-                null
-            }
-            
-            if (db == null) {
-                initialized = true
-                return@launch
-            }
+            val db = AppDatabase.getInstance(getApplication())
             
             repository = PasswordRepository(db.passwordDao())
             
