@@ -85,6 +85,7 @@ fun CloudSyncContent(
     themeColors: ThemeColors,
     preferencesManager: PreferencesManager?,
     passwords: List<PasswordItem>,
+    loadAllPasswords: suspend () -> List<PasswordItem> = { passwords },
     replaceVaultPasswords: (List<PasswordItem>) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -138,6 +139,7 @@ fun CloudSyncContent(
     var phraseIsUpload by remember { mutableStateOf(true) }
     var savePhraseForBiometric by remember { mutableStateOf(false) }
     var hasSavedPhrase by remember { mutableStateOf(BiometricKeyStore.hasWrappedSyncKey(context)) }
+    var syncPasswords by remember { mutableStateOf(passwords) }
     val isTencentCos = s3Endpoint.contains("myqcloud.com", ignoreCase = true)
     val cosBucketLooksValid = !isTencentCos || Regex(""".+-\d{5,}$""").matches(s3Bucket.trim())
 
@@ -145,7 +147,7 @@ fun CloudSyncContent(
         val r = repo ?: return
         val pm = preferencesManager ?: return
         scope.launch(Dispatchers.IO) {
-            val result = runCatching { r.fetchCloudSnapshot(passwords.size) }
+            val result = runCatching { r.fetchCloudSnapshot(syncPasswords.size) }
             withContext(Dispatchers.Main) {
                 result.onSuccess { snap ->
                     cloudRevision = snap.cloudVaultRevision
@@ -240,6 +242,9 @@ fun CloudSyncContent(
     }
 
     LaunchedEffect(preferencesManager, passwords.size, objectPrefix, useRealCloud) {
+        syncPasswords = withContext(Dispatchers.IO) {
+            runCatching { loadAllPasswords() }.getOrElse { passwords }
+        }
         securityMode = preferencesManager?.syncSecurityMode ?: SyncSecurityMode.MAXIMUM_SECURITY
         objectPrefix = preferencesManager?.objectPrefix ?: "repasscard/"
         refreshSnapshot()
@@ -254,9 +259,9 @@ fun CloudSyncContent(
     }
 
     val snapshot = CloudSyncSnapshot(
-        localItemCount = passwords.size,
+        localItemCount = syncPasswords.size,
         localVaultRevision = localRevision,
-        localHasData = passwords.isNotEmpty(),
+        localHasData = syncPasswords.isNotEmpty(),
         cloudItemCount = cloudItemCount,
         cloudVaultRevision = cloudRevision,
         cloudHasData = cloudHasData
@@ -690,7 +695,7 @@ fun CloudSyncContent(
                                     Settings.Secure.ANDROID_ID
                                 ) ?: "unknown"
                                 val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-                                val entities = passwords.map { it.toPasswordEntity() }
+                                val entities = syncPasswords.map { it.toPasswordEntity() }
                                 val result: Result<Unit> = if (phraseIsUpload) {
                                     withContext(Dispatchers.IO) {
                                         repo.uploadEncryptedVault(

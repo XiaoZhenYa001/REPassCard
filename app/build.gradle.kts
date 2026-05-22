@@ -81,6 +81,10 @@ dependencies {
     
     // Navigation
     implementation(libs.navigation.compose)
+
+    // Paging
+    implementation(libs.paging.runtime)
+    implementation(libs.paging.compose)
     
     // Lifecycle
     implementation(libs.lifecycle.runtime.ktx)
@@ -92,6 +96,7 @@ dependencies {
     // Room Database
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.room.paging)
     implementation(libs.sqlcipher.android)
     kapt(libs.room.compiler)
     

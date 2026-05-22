@@ -71,9 +71,6 @@ fun LockScreen(
 
     // 自动弹出指纹
     LaunchedEffect(Unit) {
-        if (preferencesManager.biometricEnabled) {
-            triggerBiometric(context, preferencesManager, onUnlocked)
-        }
         try { focusRequester.requestFocus() } catch (_: Exception) {}
     }
 
