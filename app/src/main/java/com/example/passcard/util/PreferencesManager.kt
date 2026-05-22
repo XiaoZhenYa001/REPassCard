@@ -46,6 +46,11 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_CLOUD_UPDATED_AT = "last_cloud_updated_at"
         private const val KEY_LAST_CLOUD_ETAG = "last_cloud_etag"
         private const val KEY_LAST_LOCAL_SYNC_AT = "last_local_sync_at"
+        private const val KEY_RANDOM_PASSWORD_LENGTH = "random_password_length"
+        private const val KEY_RANDOM_PASSWORD_UPPERCASE = "random_password_uppercase"
+        private const val KEY_RANDOM_PASSWORD_LOWERCASE = "random_password_lowercase"
+        private const val KEY_RANDOM_PASSWORD_NUMBERS = "random_password_numbers"
+        private const val KEY_RANDOM_PASSWORD_SYMBOLS = "random_password_symbols"
         
         // Default Values
         private const val DEFAULT_THEME = "LIGHT"
@@ -186,6 +191,25 @@ class PreferencesManager(context: Context) {
     var lastLocalSyncAt: Long
         get() = prefs.getLong(KEY_LAST_LOCAL_SYNC_AT, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_LOCAL_SYNC_AT, value.coerceAtLeast(0L)) }
+
+    var randomPasswordSpec: RandomPasswordSpec
+        get() = RandomPasswordSpec(
+            length = prefs.getInt(KEY_RANDOM_PASSWORD_LENGTH, RandomPasswordSpec.DEFAULT_LENGTH),
+            includeUppercase = prefs.getBoolean(KEY_RANDOM_PASSWORD_UPPERCASE, true),
+            includeLowercase = prefs.getBoolean(KEY_RANDOM_PASSWORD_LOWERCASE, true),
+            includeNumbers = prefs.getBoolean(KEY_RANDOM_PASSWORD_NUMBERS, true),
+            includeSymbols = prefs.getBoolean(KEY_RANDOM_PASSWORD_SYMBOLS, true)
+        ).normalized()
+        set(value) {
+            val normalized = value.normalized()
+            prefs.edit {
+                putInt(KEY_RANDOM_PASSWORD_LENGTH, normalized.length)
+                putBoolean(KEY_RANDOM_PASSWORD_UPPERCASE, normalized.includeUppercase)
+                putBoolean(KEY_RANDOM_PASSWORD_LOWERCASE, normalized.includeLowercase)
+                putBoolean(KEY_RANDOM_PASSWORD_NUMBERS, normalized.includeNumbers)
+                putBoolean(KEY_RANDOM_PASSWORD_SYMBOLS, normalized.includeSymbols)
+            }
+        }
 
     fun nextVaultRevision(): Long {
         val next = vaultRevision + 1L

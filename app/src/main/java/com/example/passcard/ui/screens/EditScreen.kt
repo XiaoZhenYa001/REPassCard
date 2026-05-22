@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
+import com.example.passcard.util.RandomPasswordGenerator
+import com.example.passcard.util.RandomPasswordSpec
 
 data class EditUiState(
     val id: String = "",
@@ -69,6 +71,7 @@ val COMMON_CATEGORIES_EN = listOf("Social Media", "Work", "Finance", "Shopping",
 fun EditScreen(
     password: PasswordItem? = null,
     currentLanguage: AppLanguage = AppLanguage.CHINESE,
+    randomPasswordSpec: RandomPasswordSpec? = null,
     onBack: () -> Unit,
     onSave: (PasswordItem) -> Unit,
     onDelete: () -> Unit,
@@ -245,6 +248,27 @@ fun EditScreen(
             )
             
             // 分类选择器
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                FilledTonalButton(
+                    onClick = {
+                        val generated = RandomPasswordGenerator.generate(randomPasswordSpec ?: RandomPasswordSpec())
+                        uiState = uiState.copy(password = generated)
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoFixHigh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (currentLanguage == AppLanguage.CHINESE) "生成随机密码" else "Generate Password")
+                }
+            }
+
             CategorySelector(
                 label = AppStrings.category(currentLanguage),
                 selectedCategory = uiState.category,

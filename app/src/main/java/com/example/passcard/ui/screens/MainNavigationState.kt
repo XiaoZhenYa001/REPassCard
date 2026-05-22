@@ -38,4 +38,5 @@ sealed interface MainRoute {
     data object Privacy : MainRoute
     data object About : MainRoute
     data object MasterPasswordSetup : MainRoute
+    data object RandomPasswordSettings : MainRoute
 }

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Timer
@@ -73,7 +74,8 @@ fun SettingsContent(
     onNavigateToHelp: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
     onNavigateToAbout: () -> Unit,
-    onNavigateToMasterPassword: () -> Unit = {}
+    onNavigateToMasterPassword: () -> Unit = {},
+    onNavigateToRandomPassword: () -> Unit = {}
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
@@ -153,6 +155,15 @@ fun SettingsContent(
                 trailingText = currentLanguageLabel,
                 onClick = { onLanguageDropdownToggle(languageItemOffset, languageItemSize) },
                 onPositioned = { offset, size -> languageItemOffset = offset; languageItemSize = size },
+                colors = themeColors
+            )
+            SettingItem(
+                icon = Icons.Outlined.Password,
+                label = if (isZh) "随机密码" else "Random Password",
+                trailingText = preferencesManager?.randomPasswordSpec?.length?.let { length ->
+                    if (isZh) "${length} 位" else "$length chars"
+                },
+                onClick = onNavigateToRandomPassword,
                 colors = themeColors
             )
             SettingToggleItem(

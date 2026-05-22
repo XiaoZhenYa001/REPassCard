@@ -157,6 +157,7 @@ fun MainContainer(
                     EditScreen(
                         password = currentPassword,
                         currentLanguage = displayedLanguage,
+                        randomPasswordSpec = preferencesManager?.randomPasswordSpec,
                         onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
                         onSave = { updatedPassword ->
                             val itemToSave = if (route.passwordId == null) {
@@ -253,6 +254,17 @@ fun MainContainer(
                             uiState = uiState.copy(route = MainRoute.Tabs)
                             biometricEnabled = preferencesManager.biometricEnabled
                         }
+                    )
+                }
+            }
+
+            MainRoute.RandomPasswordSettings -> {
+                BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    RandomPasswordSettingsScreen(
+                        preferencesManager = preferencesManager,
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(route = MainRoute.Tabs) }
                     )
                 }
             }
@@ -367,7 +379,8 @@ fun MainContainer(
                                 onNavigateToHelp = { uiState = uiState.copy(route = MainRoute.Help) },
                                 onNavigateToPrivacy = { uiState = uiState.copy(route = MainRoute.Privacy) },
                                 onNavigateToAbout = { uiState = uiState.copy(route = MainRoute.About) },
-                                onNavigateToMasterPassword = { uiState = uiState.copy(route = MainRoute.MasterPasswordSetup) }
+                                onNavigateToMasterPassword = { uiState = uiState.copy(route = MainRoute.MasterPasswordSetup) },
+                                onNavigateToRandomPassword = { uiState = uiState.copy(route = MainRoute.RandomPasswordSettings) }
                             )
 
                             TabItem.CLOUD -> CloudSyncContent(
