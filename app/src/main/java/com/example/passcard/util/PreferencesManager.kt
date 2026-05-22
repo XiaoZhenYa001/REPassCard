@@ -10,6 +10,7 @@ import java.security.MessageDigest
  * 使用 SharedPreferences 持久化存储用户设置
  */
 class PreferencesManager(context: Context) {
+    private val appContext = context.applicationContext
     
     private val prefs: SharedPreferences = context.getSharedPreferences(
         PREFS_NAME,
@@ -27,6 +28,24 @@ class PreferencesManager(context: Context) {
         private const val KEY_CLIPBOARD_CLEAR_DELAY = "clipboard_clear_delay"
         private const val KEY_MASTER_PASSWORD_HASH = "master_password_hash"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+        private const val KEY_SYNC_SECURITY_MODE = "sync_security_mode"
+        private const val KEY_OBJECT_PREFIX = "cloud_object_prefix"
+        private const val KEY_S3_ENDPOINT = "s3_endpoint"
+        private const val KEY_S3_REGION = "s3_region"
+        private const val KEY_S3_BUCKET = "s3_bucket"
+        private const val KEY_S3_ACCESS_KEY = "s3_access_key"
+        private const val KEY_S3_SECRET_KEY = "s3_secret_key"
+        private const val KEY_S3_ACCESS_KEY_ENCRYPTED = "s3_access_key_encrypted"
+        private const val KEY_S3_ACCESS_KEY_IV = "s3_access_key_iv"
+        private const val KEY_S3_SECRET_KEY_ENCRYPTED = "s3_secret_key_encrypted"
+        private const val KEY_S3_SECRET_KEY_IV = "s3_secret_key_iv"
+        private const val KEY_S3_SESSION_TOKEN_ENCRYPTED = "s3_session_token_encrypted"
+        private const val KEY_S3_SESSION_TOKEN_IV = "s3_session_token_iv"
+        private const val KEY_VAULT_REVISION = "vault_revision"
+        private const val KEY_LAST_SYNCED_CLOUD_VAULT_REVISION = "last_synced_cloud_vault_revision"
+        private const val KEY_LAST_CLOUD_UPDATED_AT = "last_cloud_updated_at"
+        private const val KEY_LAST_CLOUD_ETAG = "last_cloud_etag"
+        private const val KEY_LAST_LOCAL_SYNC_AT = "last_local_sync_at"
         
         // Default Values
         private const val DEFAULT_THEME = "LIGHT"
@@ -83,6 +102,96 @@ class PreferencesManager(context: Context) {
     var biometricEnabled: Boolean
         get() = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
         set(value) = prefs.edit { putBoolean(KEY_BIOMETRIC_ENABLED, value) }
+
+    var syncSecurityMode: SyncSecurityMode
+        get() = runCatching {
+            SyncSecurityMode.valueOf(
+                prefs.getString(KEY_SYNC_SECURITY_MODE, SyncSecurityMode.MAXIMUM_SECURITY.name)
+                    ?: SyncSecurityMode.MAXIMUM_SECURITY.name
+            )
+        }.getOrDefault(SyncSecurityMode.MAXIMUM_SECURITY)
+        set(value) = prefs.edit { putString(KEY_SYNC_SECURITY_MODE, value.name) }
+
+    var objectPrefix: String
+        get() = normalizePrefix(prefs.getString(KEY_OBJECT_PREFIX, "repasscard/") ?: "repasscard/")
+        set(value) = prefs.edit { putString(KEY_OBJECT_PREFIX, normalizePrefix(value)) }
+
+    var s3Endpoint: String
+        get() = prefs.getString(KEY_S3_ENDPOINT, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_S3_ENDPOINT, value.trim()) }
+
+    var s3Region: String
+        get() = prefs.getString(KEY_S3_REGION, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_S3_REGION, value.trim()) }
+
+    var s3Bucket: String
+        get() = prefs.getString(KEY_S3_BUCKET, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_S3_BUCKET, value.trim()) }
+
+    var s3AccessKey: String
+        get() = getEncryptedString(
+            encryptedKey = KEY_S3_ACCESS_KEY_ENCRYPTED,
+            ivKey = KEY_S3_ACCESS_KEY_IV,
+            legacyPlaintextKey = KEY_S3_ACCESS_KEY
+        )
+        set(value) = putEncryptedString(
+            value = value.trim(),
+            encryptedKey = KEY_S3_ACCESS_KEY_ENCRYPTED,
+            ivKey = KEY_S3_ACCESS_KEY_IV,
+            legacyPlaintextKey = KEY_S3_ACCESS_KEY
+        )
+
+    var s3SecretKey: String
+        get() = getEncryptedString(
+            encryptedKey = KEY_S3_SECRET_KEY_ENCRYPTED,
+            ivKey = KEY_S3_SECRET_KEY_IV,
+            legacyPlaintextKey = KEY_S3_SECRET_KEY
+        )
+        set(value) = putEncryptedString(
+            value = value.trim(),
+            encryptedKey = KEY_S3_SECRET_KEY_ENCRYPTED,
+            ivKey = KEY_S3_SECRET_KEY_IV,
+            legacyPlaintextKey = KEY_S3_SECRET_KEY
+        )
+
+    var s3SessionToken: String
+        get() = getEncryptedString(
+            encryptedKey = KEY_S3_SESSION_TOKEN_ENCRYPTED,
+            ivKey = KEY_S3_SESSION_TOKEN_IV,
+            legacyPlaintextKey = null
+        )
+        set(value) = putEncryptedString(
+            value = value.trim(),
+            encryptedKey = KEY_S3_SESSION_TOKEN_ENCRYPTED,
+            ivKey = KEY_S3_SESSION_TOKEN_IV,
+            legacyPlaintextKey = null
+        )
+
+    var vaultRevision: Long
+        get() = prefs.getLong(KEY_VAULT_REVISION, 0L)
+        set(value) = prefs.edit { putLong(KEY_VAULT_REVISION, value.coerceAtLeast(0L)) }
+
+    var lastSyncedCloudVaultRevision: Long
+        get() = prefs.getLong(KEY_LAST_SYNCED_CLOUD_VAULT_REVISION, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_SYNCED_CLOUD_VAULT_REVISION, value.coerceAtLeast(0L)) }
+
+    var lastCloudUpdatedAt: Long
+        get() = prefs.getLong(KEY_LAST_CLOUD_UPDATED_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_CLOUD_UPDATED_AT, value.coerceAtLeast(0L)) }
+
+    var lastCloudEtag: String
+        get() = prefs.getString(KEY_LAST_CLOUD_ETAG, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_LAST_CLOUD_ETAG, value) }
+
+    var lastLocalSyncAt: Long
+        get() = prefs.getLong(KEY_LAST_LOCAL_SYNC_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_LOCAL_SYNC_AT, value.coerceAtLeast(0L)) }
+
+    fun nextVaultRevision(): Long {
+        val next = vaultRevision + 1L
+        vaultRevision = next
+        return next
+    }
     
     // ---- 工具 ----
     
@@ -95,4 +204,56 @@ class PreferencesManager(context: Context) {
         val hashBytes = digest.digest(password.toByteArray(Charsets.UTF_8))
         return hashBytes.joinToString("") { "%02x".format(it) }
     }
+
+    private fun normalizePrefix(value: String): String {
+        val trimmed = value.trim().trimStart('/')
+        if (trimmed.isBlank()) return "repasscard/"
+        return if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+    }
+
+    private fun getEncryptedString(
+        encryptedKey: String,
+        ivKey: String,
+        legacyPlaintextKey: String?
+    ): String {
+        val encrypted = prefs.getString(encryptedKey, null)
+        val iv = prefs.getString(ivKey, null)
+        if (!encrypted.isNullOrBlank() && !iv.isNullOrBlank()) {
+            return runCatching { KeystoreStringCipher.decrypt(encrypted, iv) }.getOrDefault("")
+        }
+
+        val legacy = legacyPlaintextKey?.let { prefs.getString(it, null) }.orEmpty()
+        if (legacy.isNotBlank()) {
+            putEncryptedString(legacy, encryptedKey, ivKey, legacyPlaintextKey)
+        }
+        return legacy
+    }
+
+    private fun putEncryptedString(
+        value: String,
+        encryptedKey: String,
+        ivKey: String,
+        legacyPlaintextKey: String?
+    ) {
+        if (value.isBlank()) {
+            prefs.edit {
+                remove(encryptedKey)
+                remove(ivKey)
+                if (legacyPlaintextKey != null) remove(legacyPlaintextKey)
+            }
+            return
+        }
+
+        val encrypted = KeystoreStringCipher.encrypt(value)
+        prefs.edit {
+            putString(encryptedKey, encrypted.ciphertext)
+            putString(ivKey, encrypted.iv)
+            if (legacyPlaintextKey != null) remove(legacyPlaintextKey)
+        }
+    }
+}
+
+enum class SyncSecurityMode {
+    MAXIMUM_SECURITY,
+    CONVENIENCE
 }

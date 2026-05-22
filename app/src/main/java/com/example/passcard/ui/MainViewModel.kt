@@ -85,6 +85,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository?.insertAllPasswords(items)
         }
     }
+
+    fun replaceAllPasswords(items: List<PasswordItem>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository?.deleteAllPasswords()
+            repository?.insertAllPasswords(items)
+        }
+    }
     
     fun deletePasswordById(id: String) {
         viewModelScope.launch(Dispatchers.IO) {

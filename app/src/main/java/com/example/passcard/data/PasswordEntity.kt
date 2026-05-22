@@ -15,5 +15,8 @@ data class PasswordEntity(
     val category: String = "",
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val revision: Long = 0L,
+    val deviceId: String = "",
+    val deletedAt: Long? = null
 )

@@ -79,6 +79,7 @@ class MainActivity : FragmentActivity() {
                                 passwords = passwords,
                                 onSavePassword = { item -> viewModel.addPassword(item) },
                                 onImportPasswords = { items -> viewModel.importPasswords(items) },
+                                onReplacePasswords = { items -> viewModel.replaceAllPasswords(items) },
                                 onDeletePassword = { id -> viewModel.deletePasswordById(id) }
                             )
                         }

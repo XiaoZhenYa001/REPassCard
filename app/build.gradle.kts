@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.passcard"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 72
+        versionName = "0.72"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

@@ -89,6 +89,7 @@ fun MainScreen(
     passwords: List<PasswordItem> = emptyList(),
     onSavePassword: ((PasswordItem) -> Unit)? = null,
     onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
+    onReplacePasswords: ((List<PasswordItem>) -> Unit)? = null,
     onDeletePassword: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -100,6 +101,7 @@ fun MainScreen(
         passwords = passwords,
         onSavePassword = onSavePassword,
         onImportPasswords = onImportPasswords,
+        onReplacePasswords = onReplacePasswords,
         onDeletePassword = onDeletePassword,
         modifier = modifier
     )
@@ -114,6 +116,7 @@ fun MainContainer(
     passwords: List<PasswordItem> = emptyList(),
     onSavePassword: ((PasswordItem) -> Unit)? = null,
     onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
+    onReplacePasswords: ((List<PasswordItem>) -> Unit)? = null,
     onDeletePassword: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -631,7 +634,16 @@ fun MainContainer(
                                 onNavigateToMasterPassword = { uiState = uiState.copy(showMasterPasswordSetup = true) }
                             )
 
-                            TabItem.CLOUD -> CloudSyncContent(displayedLanguage, themeColors)
+                            TabItem.CLOUD -> CloudSyncContent(
+                                currentLanguage = displayedLanguage,
+                                themeColors = themeColors,
+                                preferencesManager = preferencesManager,
+                                passwords = uiState.passwords,
+                                replaceVaultPasswords = { restored ->
+                                    onReplacePasswords?.invoke(restored)
+                                    uiState = uiState.copy(passwords = restored)
+                                }
+                            )
                         }
 
 
@@ -1440,7 +1452,7 @@ fun AboutContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Mod
     val title = if (currentLanguage == AppLanguage.CHINESE) "关于我们" else "About Us"
     
     val appName = "PassCard"
-    val version = "v1.0.0"
+    val version = "v0.72"
     val desc = if (currentLanguage == AppLanguage.CHINESE)
         "PassCard 是一款安全、简洁的密码管理应用。采用先进的加密技术，帮助您安全管理所有账户密码。"
     else
