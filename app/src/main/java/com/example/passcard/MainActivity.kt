@@ -78,6 +78,8 @@ class MainActivity : FragmentActivity() {
                             val passwords by viewModel.passwords.collectAsState()
                             val passwordCount by viewModel.passwordCount.collectAsState()
                             val securityStats by viewModel.securityStats.collectAsState()
+                            val weakPasswords by viewModel.weakPasswords.collectAsState()
+                            val reusedPasswordGroups by viewModel.reusedPasswordGroups.collectAsState()
                             val startupError by viewModel.startupError.collectAsState()
 
                             if (startupError != null && passwords.isEmpty()) {
@@ -92,7 +94,10 @@ class MainActivity : FragmentActivity() {
                                     passwordCount = passwordCount,
                                     pagedPasswords = viewModel.pagedPasswords,
                                     securityStats = securityStats,
+                                    weakPasswords = weakPasswords,
+                                    reusedPasswordGroups = reusedPasswordGroups,
                                     loadAllPasswords = viewModel::getAllPasswordsSnapshot,
+                                    onHomeSearchQueryChange = viewModel::setHomeSearchQuery,
                                     onAllPasswordsSearchQueryChange = viewModel::setAllPasswordsSearchQuery,
                                     onSavePassword = { item -> viewModel.addPassword(item) },
                                     onImportPasswords = { items -> viewModel.importPasswords(items) },

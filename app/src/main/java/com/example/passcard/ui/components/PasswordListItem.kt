@@ -20,13 +20,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.*
+import com.example.passcard.util.PasswordIconType
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -35,14 +35,13 @@ fun PasswordListItem(
     email: String,
     password: String,
     iconText: String,
-    iconBackgroundColor: Color,
-    iconTextColor: Color,
+    iconType: String = PasswordIconType.GENERATED,
+    iconValue: String = "",
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val themeColors = rememberThemeColors()
-    var lastTapTime by remember { mutableLongStateOf(0L) }
     
     Row(
         modifier = modifier
@@ -59,19 +58,13 @@ fun PasswordListItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 图标区域 - 单击进入编辑
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(iconBackgroundColor),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = iconText,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                color = iconTextColor
-            )
-        }
+        PasswordIcon(
+            label = name.ifBlank { iconText },
+            iconType = iconType,
+            iconValue = iconValue,
+            size = 40.dp,
+            cornerRadius = 8.dp
+        )
         
         Spacer(modifier = Modifier.width(12.dp))
         
@@ -82,7 +75,7 @@ fun PasswordListItem(
                 .pointerInput(password) {
                     detectTapGestures(
                         onDoubleTap = {
-                            copyToClipboard(context, password, themeColors)
+                            copyToClipboard(context, password)
                         }
                     )
                 },
@@ -114,7 +107,7 @@ fun PasswordListItem(
     }
 }
 
-private fun copyToClipboard(context: Context, text: String, themeColors: ThemeColors) {
+private fun copyToClipboard(context: Context, text: String) {
     ClipboardHelper.copyToClipboard(context, text, label = "Password", showToast = true)
 }
 
@@ -124,8 +117,8 @@ fun SimplePasswordListItem(
     name: String,
     email: String,
     iconText: String,
-    iconBackgroundColor: Color,
-    iconTextColor: Color,
+    iconType: String = PasswordIconType.GENERATED,
+    iconValue: String = "",
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -145,19 +138,13 @@ fun SimplePasswordListItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(iconBackgroundColor),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = iconText,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                color = iconTextColor
-            )
-        }
+        PasswordIcon(
+            label = name.ifBlank { iconText },
+            iconType = iconType,
+            iconValue = iconValue,
+            size = 40.dp,
+            cornerRadius = 8.dp
+        )
         
         Spacer(modifier = Modifier.width(12.dp))
         

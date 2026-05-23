@@ -8,12 +8,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
-import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Download
@@ -22,7 +22,6 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Password
-import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Upload
@@ -75,7 +74,8 @@ fun SettingsContent(
     onNavigateToPrivacy: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToMasterPassword: () -> Unit = {},
-    onNavigateToRandomPassword: () -> Unit = {}
+    onNavigateToRandomPassword: () -> Unit = {},
+    scrollState: ScrollState = rememberScrollState()
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
@@ -101,7 +101,7 @@ fun SettingsContent(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 24.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
@@ -224,22 +224,6 @@ fun SettingsContent(
             SectionTitle(title = if (isZh) "数据管理" else "Data Management", colors = themeColors)
             SettingItem(icon = Icons.Outlined.Upload, label = if (isZh) "导出密码" else "Export Passwords", onClick = onNavigateToExport, colors = themeColors)
             SettingItem(icon = Icons.Outlined.Download, label = if (isZh) "导入密码" else "Import Passwords", onClick = onNavigateToImport, colors = themeColors)
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            SectionTitle(title = if (isZh) "安全说明" else "Security", colors = themeColors)
-            SettingItem(
-                icon = Icons.Outlined.CloudDone,
-                label = if (isZh) "云同步使用加密备份" else "Cloud sync uses encrypted backups",
-                trailingText = if (isZh) "了解" else "Info",
-                onClick = onNavigateToHelp,
-                colors = themeColors
-            )
-            SettingItem(
-                icon = Icons.Outlined.Security,
-                label = if (isZh) "隐私条款" else "Privacy Policy",
-                onClick = onNavigateToPrivacy,
-                colors = themeColors
-            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle(title = if (isZh) "更多" else "More", colors = themeColors)

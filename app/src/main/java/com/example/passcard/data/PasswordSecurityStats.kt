@@ -7,5 +7,11 @@ data class PasswordSecurityStats(
     val compromisedCount: Int = 0
 ) {
     val score: Int
-        get() = (100 - weakCount * 12 - reusedCount * 8 - compromisedCount * 20).coerceIn(0, 100)
+        get() {
+            if (totalCount <= 0) return 0
+            val weakPenalty = weakCount.toFloat() / totalCount.toFloat() * 55f
+            val reusedPenalty = reusedCount.toFloat() / totalCount.toFloat() * 35f
+            val compromisedPenalty = compromisedCount.toFloat() / totalCount.toFloat() * 20f
+            return (100f - weakPenalty - reusedPenalty - compromisedPenalty).toInt().coerceIn(0, 100)
+        }
 }

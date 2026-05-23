@@ -16,6 +16,7 @@ room = "2.6.1"
 biometric = "1.1.0"
 sqlcipher = "4.13.0"
 paging = "3.3.6"
+androidsvg = "1.4"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -57,6 +58,7 @@ biometric = { group = "androidx.biometric", name = "biometric", version.ref = "b
 sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version.ref = "sqlcipher" }
 paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
+androidsvg = { group = "com.caverock", name = "androidsvg-aar", version.ref = "androidsvg" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

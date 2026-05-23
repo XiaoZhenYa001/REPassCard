@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -63,14 +65,12 @@ import com.example.passcard.data.CloudSyncSnapshot
 import com.example.passcard.data.PasswordEntity
 import com.example.passcard.data.SyncDirection
 import com.example.passcard.sync.CloudSyncRepository
-import com.example.passcard.sync.LocalFakeCloudStorage
 import com.example.passcard.sync.S3CloudStorage
 import com.example.passcard.ui.theme.Primary
 import com.example.passcard.ui.theme.ThemeColors
 import com.example.passcard.util.AuthHelper
 import com.example.passcard.util.PreferencesManager
 import com.example.passcard.util.SyncSecurityMode
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -110,19 +110,15 @@ fun CloudSyncContent(
         s3SecretKey.isNotBlank()
 
     val repo = remember(preferencesManager, s3Endpoint, s3Region, s3Bucket, s3AccessKey, s3SecretKey, s3SessionToken) {
-        preferencesManager?.let { prefs ->
-            val storageClient = if (useRealCloud) {
-                S3CloudStorage(
-                    endpoint = s3Endpoint,
-                    region = s3Region,
-                    bucketName = s3Bucket,
-                    accessKey = s3AccessKey,
-                    secretKey = s3SecretKey,
-                    sessionToken = s3SessionToken
-                )
-            } else {
-                LocalFakeCloudStorage(File(context.filesDir, "repasscard_fake_cloud"))
-            }
+        preferencesManager?.takeIf { useRealCloud }?.let { prefs ->
+            val storageClient = S3CloudStorage(
+                endpoint = s3Endpoint,
+                region = s3Region,
+                bucketName = s3Bucket,
+                accessKey = s3AccessKey,
+                secretKey = s3SecretKey,
+                sessionToken = s3SessionToken
+            )
             CloudSyncRepository(context.applicationContext, prefs, storageClient)
         }
     }
@@ -144,7 +140,14 @@ fun CloudSyncContent(
     val cosBucketLooksValid = !isTencentCos || Regex(""".+-\d{5,}$""").matches(s3Bucket.trim())
 
     fun refreshSnapshot(showToast: Boolean = false) {
-        val r = repo ?: return
+        val r = repo ?: run {
+            if (showToast) {
+                val msg = if (zh) "请先填写完整云端配置" else "Complete cloud configuration first."
+                statusText = msg
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
         val pm = preferencesManager ?: return
         scope.launch(Dispatchers.IO) {
             val result = runCatching { r.fetchCloudSnapshot(syncPasswords.size) }
@@ -165,7 +168,12 @@ fun CloudSyncContent(
     }
 
     fun testConnection() {
-        val r = repo ?: return
+        val r = repo ?: run {
+            val msg = if (zh) "请先填写完整云端配置" else "Complete cloud configuration first."
+            statusText = msg
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            return
+        }
         scope.launch {
             busy = true
             statusText = if (zh) "正在测试连接..." else "Testing connection..."
@@ -250,7 +258,7 @@ fun CloudSyncContent(
         refreshSnapshot()
     }
 
-    if (preferencesManager == null || repo == null) {
+    if (preferencesManager == null) {
         Text(
             text = if (zh) "偏好设置尚未初始化" else "Preferences are not ready.",
             modifier = modifier.padding(24.dp)
@@ -298,7 +306,7 @@ fun CloudSyncContent(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = if (zh) "云同步与加密备份" else "Cloud Sync & Encrypted Backup",
@@ -308,13 +316,27 @@ fun CloudSyncContent(
         )
         Text(
             text = if (zh) {
-                "密码库会先在本机使用恢复助记词加密，再上传到对象存储。未填写云配置时使用本机模拟云，便于测试流程。"
+                "密码库会先在本机使用恢复助记词加密，再上传到你配置的真实对象存储。"
             } else {
-                "The vault is encrypted locally with your recovery phrase before upload. Without S3 settings, a local fake cloud is used for testing."
+                "The vault is encrypted locally with your recovery phrase before uploading to the real object storage you configure."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = themeColors.onSurfaceVariant
         )
+        AnimatedVisibility(
+            visible = !useRealCloud,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            CloudNoticeCard(
+                themeColors = themeColors,
+                text = if (zh) {
+                    "请先完成云端配置。配置不完整时不会连接云端，也不会执行上传或下载。"
+                } else {
+                    "Complete cloud configuration first. Upload and download are disabled until the required fields are filled."
+                }
+            )
+        }
 
         CloudCard(themeColors = themeColors) {
             SectionTitle(
@@ -356,7 +378,7 @@ fun CloudSyncContent(
         CloudCard(themeColors = themeColors) {
             SectionTitle(
                 icon = { Icon(Icons.Outlined.CloudDone, contentDescription = null) },
-                title = if (zh) "云存储配置" else "Cloud Storage",
+                title = if (zh) "云端配置" else "Cloud Configuration",
                 themeColors = themeColors
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -365,11 +387,11 @@ fun CloudSyncContent(
                     enabled = !busy,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(if (zh) "腾讯云 COS 快捷配置" else "Tencent COS preset")
+                    Text(if (zh) "填入默认端点" else "Default Endpoint")
                 }
                 Button(
                     onClick = { testConnection() },
-                    enabled = !busy,
+                    enabled = !busy && useRealCloud,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(if (zh) "测试连接" else "Test")
@@ -468,7 +490,7 @@ fun CloudSyncContent(
                 text = if (useRealCloud) {
                     if (zh) "当前将同步到真实 S3 兼容对象存储。Access Key、Secret Key 和 STS Token 会使用 Android Keystore 加密保存。" else "Real S3-compatible object storage is active. Access Key, Secret Key and STS token are encrypted with Android Keystore."
                 } else {
-                    if (zh) "未填完整云配置，当前使用本机模拟云。" else "Incomplete cloud settings: using local fake cloud."
+                    if (zh) "云端配置尚未完整，当前不会进行任何云端读写。" else "Cloud settings are incomplete. No cloud read or write will run."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.onSurfaceVariant
@@ -495,13 +517,21 @@ fun CloudSyncContent(
                     fontWeight = FontWeight.SemiBold,
                     color = themeColors.onBackground
                 )
-                TextButton(onClick = { refreshSnapshot(showToast = true) }, enabled = !busy) {
+                TextButton(onClick = { refreshSnapshot(showToast = true) }, enabled = !busy && useRealCloud) {
                     Icon(Icons.Outlined.Refresh, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
                     Text(if (zh) "刷新" else "Refresh")
                 }
             }
-            Text(decisionText, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+            Text(
+                text = if (useRealCloud) {
+                    decisionText
+                } else {
+                    if (zh) "完成云端配置后，可以测试连接并读取云端备份状态。" else "After cloud configuration is complete, test the connection and refresh cloud backup status."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = themeColors.onSurfaceVariant
+            )
             Text(
                 text = if (zh) {
                     "本地 ${snapshot.localItemCount} 条，修订号 $localRevision；云端 ${cloudItemCount ?: "-"} 条，修订号 ${cloudRevision ?: "-"}。"
@@ -512,7 +542,11 @@ fun CloudSyncContent(
                 color = themeColors.onSurfaceVariant
             )
             Text(
-                text = if (zh) "建议：$recommendedLabel" else "Recommended: $recommendedLabel",
+                text = if (useRealCloud) {
+                    if (zh) "建议：$recommendedLabel" else "Recommended: $recommendedLabel"
+                } else {
+                    if (zh) "建议：先完成云端配置" else "Recommended: complete cloud configuration first"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = Primary,
                 fontWeight = FontWeight.SemiBold
@@ -569,7 +603,7 @@ fun CloudSyncContent(
                     syncPhrase = ""
                     showPhraseDialog = true
                 },
-                enabled = !busy,
+                enabled = !busy && useRealCloud,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Outlined.CloudUpload, contentDescription = null)
@@ -582,7 +616,7 @@ fun CloudSyncContent(
                     syncPhrase = ""
                     showPhraseDialog = true
                 },
-                enabled = !busy && cloudHasData,
+                enabled = !busy && useRealCloud && cloudHasData,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Outlined.CloudDownload, contentDescription = null)
@@ -690,6 +724,12 @@ fun CloudSyncContent(
                         scope.launch {
                             busy = true
                             try {
+                                val activeRepo = repo ?: run {
+                                    val msg = if (zh) "请先填写完整云端配置" else "Complete cloud configuration first."
+                                    statusText = msg
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
                                 val deviceId = Settings.Secure.getString(
                                     context.contentResolver,
                                     Settings.Secure.ANDROID_ID
@@ -698,7 +738,7 @@ fun CloudSyncContent(
                                 val entities = syncPasswords.map { it.toPasswordEntity() }
                                 val result: Result<Unit> = if (phraseIsUpload) {
                                     withContext(Dispatchers.IO) {
-                                        repo.uploadEncryptedVault(
+                                        activeRepo.uploadEncryptedVault(
                                             recoveryPhrase = syncPhrase,
                                             passwords = entities,
                                             deviceId = deviceId,
@@ -708,7 +748,7 @@ fun CloudSyncContent(
                                     }
                                 } else {
                                     withContext(Dispatchers.IO) {
-                                        repo.downloadAndRestoreVault(
+                                        activeRepo.downloadAndRestoreVault(
                                             recoveryPhrase = syncPhrase,
                                             currentLocalPasswords = entities,
                                             deviceId = deviceId,
@@ -756,7 +796,10 @@ fun CloudSyncContent(
 
 @Composable
 private fun CloudCard(themeColors: ThemeColors, content: @Composable ColumnScope.() -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = themeColors.surface)) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = themeColors.surface)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -764,6 +807,30 @@ private fun CloudCard(themeColors: ThemeColors, content: @Composable ColumnScope
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content
         )
+    }
+}
+
+@Composable
+private fun CloudNoticeCard(themeColors: ThemeColors, text: String) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = themeColors.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Outlined.CloudDone, contentDescription = null, tint = Primary, modifier = Modifier.size(20.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = themeColors.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
@@ -801,6 +868,8 @@ private fun PasswordItem.toPasswordEntity(): PasswordEntity {
         password = password,
         category = category,
         note = note,
+        iconType = iconType,
+        iconValue = iconValue,
         createdAt = now,
         updatedAt = now
     )
@@ -815,6 +884,8 @@ private fun PasswordEntity.toPasswordItem(): PasswordItem {
         email = email,
         password = password,
         category = category,
-        note = note
+        note = note,
+        iconType = iconType,
+        iconValue = iconValue
     )
 }

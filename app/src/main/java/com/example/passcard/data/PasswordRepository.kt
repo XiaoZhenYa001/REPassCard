@@ -22,6 +22,20 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
     val recentPasswords: Flow<List<PasswordItem>> = passwordDao.getRecentPasswords(HOME_RECENT_LIMIT).map { entities ->
         entities.map { it.toPasswordItem() }
     }
+
+    val weakPasswords: Flow<List<PasswordItem>> = passwordDao.getWeakPasswords().map { entities ->
+        entities.map { it.toPasswordItem() }
+    }
+
+    val reusedPasswordGroups: Flow<List<ReusedPasswordGroup>> = passwordDao.getReusedPasswords().map { entities ->
+        entities
+            .map { it.toPasswordItem() }
+            .groupBy { it.password }
+            .filterValues { it.size > 1 }
+            .values
+            .map { group -> ReusedPasswordGroup(items = group) }
+            .sortedWith(compareByDescending<ReusedPasswordGroup> { it.items.size }.thenBy { it.label })
+    }
     
     val passwordCount: Flow<Int> = passwordDao.getPasswordCount()
 
@@ -110,6 +124,13 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
     }
 }
 
+data class ReusedPasswordGroup(
+    val items: List<PasswordItem>
+) {
+    val label: String = items.firstOrNull()?.password.orEmpty()
+    val count: Int = items.size
+}
+
 private fun PasswordEntity.toPasswordItem(): PasswordItem {
     return PasswordItem(
         id = id,
@@ -119,7 +140,9 @@ private fun PasswordEntity.toPasswordItem(): PasswordItem {
         email = email,
         password = password,
         category = category,
-        note = note
+        note = note,
+        iconType = iconType,
+        iconValue = iconValue
     )
 }
 
@@ -132,6 +155,8 @@ private fun PasswordItem.toEntity(): PasswordEntity {
         email = email,
         password = password,
         category = category,
-        note = note
+        note = note,
+        iconType = iconType,
+        iconValue = iconValue
     )
 }

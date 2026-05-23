@@ -4,13 +4,15 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.runBlocking
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import java.util.Arrays
 
 @Database(
     entities = [PasswordEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,6 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
                     DATABASE_NAME
                 )
                     .openHelperFactory(SupportOpenHelperFactory(passphrase.copyOf()))
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration()
                     .build()
 
@@ -64,6 +67,13 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getAppDataDir(context: Context): java.io.File? {
             return context.getExternalFilesDir(null)
+        }
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE passwords ADD COLUMN iconType TEXT NOT NULL DEFAULT 'generated'")
+                db.execSQL("ALTER TABLE passwords ADD COLUMN iconValue TEXT NOT NULL DEFAULT ''")
+            }
         }
     }
 }

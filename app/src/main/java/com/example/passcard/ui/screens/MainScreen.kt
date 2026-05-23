@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.paging.PagingData
 import com.example.passcard.data.PasswordSecurityStats
+import com.example.passcard.data.ReusedPasswordGroup
 import kotlinx.coroutines.delay
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
@@ -44,7 +46,10 @@ fun MainScreen(
     passwordCount: Int = passwords.size,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
     securityStats: PasswordSecurityStats = PasswordSecurityStats(),
+    weakPasswords: List<PasswordItem> = emptyList(),
+    reusedPasswordGroups: List<ReusedPasswordGroup> = emptyList(),
     loadAllPasswords: suspend () -> List<PasswordItem> = { passwords },
+    onHomeSearchQueryChange: (String) -> Unit = {},
     onAllPasswordsSearchQueryChange: (String) -> Unit = {},
     onSavePassword: ((PasswordItem) -> Unit)? = null,
     onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
@@ -61,7 +66,10 @@ fun MainScreen(
         passwordCount = passwordCount,
         pagedPasswords = pagedPasswords,
         securityStats = securityStats,
+        weakPasswords = weakPasswords,
+        reusedPasswordGroups = reusedPasswordGroups,
         loadAllPasswords = loadAllPasswords,
+        onHomeSearchQueryChange = onHomeSearchQueryChange,
         onAllPasswordsSearchQueryChange = onAllPasswordsSearchQueryChange,
         onSavePassword = onSavePassword,
         onImportPasswords = onImportPasswords,
@@ -81,7 +89,10 @@ fun MainContainer(
     passwordCount: Int = passwords.size,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
     securityStats: PasswordSecurityStats = PasswordSecurityStats(),
+    weakPasswords: List<PasswordItem> = emptyList(),
+    reusedPasswordGroups: List<ReusedPasswordGroup> = emptyList(),
     loadAllPasswords: suspend () -> List<PasswordItem> = { passwords },
+    onHomeSearchQueryChange: (String) -> Unit = {},
     onAllPasswordsSearchQueryChange: (String) -> Unit = {},
     onSavePassword: ((PasswordItem) -> Unit)? = null,
     onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
@@ -111,6 +122,10 @@ fun MainContainer(
     )
 
     val themeColors = LocalThemeColors.current
+    val allPasswordsListState = rememberLazyListState()
+    val settingsScrollState = rememberScrollState()
+    val helpScrollState = rememberScrollState()
+    var allPasswordsSearchQuery by remember { mutableStateOf("") }
     
     var uiState by remember { mutableStateOf(MainUiState(passwords = passwords)) }
     var biometricEnabled by remember { mutableStateOf(preferencesManager?.biometricEnabled ?: false) }
@@ -151,14 +166,15 @@ fun MainContainer(
 
     when (val route = uiState.route) {
             is MainRoute.EditPassword -> {
-                BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
+                BackHandler { uiState = uiState.copy(route = route.returnRoute) }
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
                     val currentPassword = route.initialPassword ?: uiState.passwords.find { it.id == route.passwordId }
                     EditScreen(
                         password = currentPassword,
                         currentLanguage = displayedLanguage,
                         randomPasswordSpec = preferencesManager?.randomPasswordSpec,
-                        onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
+                        loadAllPasswords = loadAllPasswords,
+                        onBack = { uiState = uiState.copy(route = route.returnRoute) },
                         onSave = { updatedPassword ->
                             val itemToSave = if (route.passwordId == null) {
                                 updatedPassword.copy(id = System.currentTimeMillis().toString())
@@ -166,11 +182,11 @@ fun MainContainer(
                                 updatedPassword
                             }
                             onSavePassword?.invoke(itemToSave)
-                            uiState = uiState.copy(route = MainRoute.Tabs)
+                            uiState = uiState.copy(route = route.returnRoute)
                         },
                         onDelete = {
                             route.passwordId?.let { onDeletePassword?.invoke(it) }
-                            uiState = uiState.copy(route = MainRoute.Tabs)
+                            uiState = uiState.copy(route = route.returnRoute)
                         }
                     )
                 }
@@ -213,8 +229,21 @@ fun MainContainer(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
                         pagedPasswords = pagedPasswords,
-                        onSearchQueryChange = onAllPasswordsSearchQueryChange,
-                        onPasswordClick = { item -> uiState = uiState.copy(route = MainRoute.EditPassword(item.id, item)) }
+                        searchQuery = allPasswordsSearchQuery,
+                        onSearchQueryChange = { query ->
+                            allPasswordsSearchQuery = query
+                            onAllPasswordsSearchQueryChange(query)
+                        },
+                        listState = allPasswordsListState,
+                        onPasswordClick = { item ->
+                            uiState = uiState.copy(
+                                route = MainRoute.EditPassword(
+                                    passwordId = item.id,
+                                    initialPassword = item,
+                                    returnRoute = MainRoute.AllPasswords
+                                )
+                            )
+                        }
                     )
                 }
             }
@@ -222,7 +251,22 @@ fun MainContainer(
             MainRoute.Help -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
-                    HelpContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(route = MainRoute.Tabs) })
+                    HelpContent(
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
+                        onNavigateToCloudBackupHelp = { uiState = uiState.copy(route = MainRoute.CloudBackupHelp) },
+                        scrollState = helpScrollState
+                    )
+                }
+            }
+
+            MainRoute.CloudBackupHelp -> {
+                BackHandler { uiState = uiState.copy(route = MainRoute.Help) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    CloudBackupHelpContent(
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(route = MainRoute.Help) }
+                    )
                 }
             }
 
@@ -269,6 +313,40 @@ fun MainContainer(
                 }
             }
 
+            MainRoute.WeakPasswords -> {
+                WeakPasswordsScreen(
+                    currentLanguage = displayedLanguage,
+                    items = weakPasswords,
+                    onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
+                    onPasswordClick = { item ->
+                        uiState = uiState.copy(
+                            route = MainRoute.EditPassword(
+                                passwordId = item.id,
+                                initialPassword = item,
+                                returnRoute = MainRoute.WeakPasswords
+                            )
+                        )
+                    }
+                )
+            }
+
+            MainRoute.ReusedPasswords -> {
+                ReusedPasswordsScreen(
+                    currentLanguage = displayedLanguage,
+                    groups = reusedPasswordGroups,
+                    onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
+                    onPasswordClick = { item ->
+                        uiState = uiState.copy(
+                            route = MainRoute.EditPassword(
+                                passwordId = item.id,
+                                initialPassword = item,
+                                returnRoute = MainRoute.ReusedPasswords
+                            )
+                        )
+                    }
+                )
+            }
+
             MainRoute.Tabs -> {
                 Scaffold(
                     modifier = modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha },
@@ -308,7 +386,10 @@ fun MainContainer(
                                 recentText = recentText,
                                 viewAllText = viewAllText,
                                 onCategorySelected = { uiState = uiState.copy(selectedCategory = it) },
-                                onSearchQueryChange = { uiState = uiState.copy(searchQuery = it) },
+                                onSearchQueryChange = {
+                                    uiState = uiState.copy(searchQuery = it)
+                                    onHomeSearchQueryChange(it)
+                                },
                                 onNavigateToAllPasswords = { uiState = uiState.copy(route = MainRoute.AllPasswords) },
                                 onPasswordClick = { id ->
                                     uiState = uiState.copy(
@@ -323,7 +404,10 @@ fun MainContainer(
 
                             TabItem.SECURITY -> SecurityContent(
                                 currentLanguage = displayedLanguage,
-                                stats = securityStats
+                                stats = securityStats,
+                                onOpenAllPasswords = { uiState = uiState.copy(route = MainRoute.AllPasswords) },
+                                onOpenWeakPasswords = { uiState = uiState.copy(route = MainRoute.WeakPasswords) },
+                                onOpenReusedPasswords = { uiState = uiState.copy(route = MainRoute.ReusedPasswords) }
                             )
 
                             TabItem.SETTINGS -> SettingsContent(
@@ -380,7 +464,8 @@ fun MainContainer(
                                 onNavigateToPrivacy = { uiState = uiState.copy(route = MainRoute.Privacy) },
                                 onNavigateToAbout = { uiState = uiState.copy(route = MainRoute.About) },
                                 onNavigateToMasterPassword = { uiState = uiState.copy(route = MainRoute.MasterPasswordSetup) },
-                                onNavigateToRandomPassword = { uiState = uiState.copy(route = MainRoute.RandomPasswordSettings) }
+                                onNavigateToRandomPassword = { uiState = uiState.copy(route = MainRoute.RandomPasswordSettings) },
+                                scrollState = settingsScrollState
                             )
 
                             TabItem.CLOUD -> CloudSyncContent(

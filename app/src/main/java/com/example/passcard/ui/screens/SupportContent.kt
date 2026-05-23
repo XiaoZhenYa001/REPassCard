@@ -1,7 +1,9 @@
 package com.example.passcard.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,13 +21,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,14 +42,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.passcard.R
 import com.example.passcard.ui.theme.Primary
 import com.example.passcard.ui.theme.ThemeColors
 import com.example.passcard.ui.theme.rememberThemeColors
 
 @Composable
-fun HelpContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun HelpContent(
+    currentLanguage: AppLanguage,
+    onBack: () -> Unit,
+    onNavigateToCloudBackupHelp: () -> Unit,
+    modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState()
+) {
     val themeColors = rememberThemeColors()
     val title = if (currentLanguage == AppLanguage.CHINESE) "使用帮助" else "Help"
     val helpItems = if (currentLanguage == AppLanguage.CHINESE) listOf(
@@ -65,10 +80,67 @@ fun HelpContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Modi
         Triple("Theme", "Choose light, dark, or system theme in settings.", Icons.Outlined.DarkMode)
     )
 
-    SupportScaffold(title = title, onBack = onBack, themeColors = themeColors, modifier = modifier) {
+    SupportScaffold(title = title, onBack = onBack, themeColors = themeColors, modifier = modifier, scrollState = scrollState) {
+        HelpItem(
+            icon = Icons.Outlined.CloudDone,
+            title = if (currentLanguage == AppLanguage.CHINESE) "云同步与加密备份" else "Cloud Sync & Encrypted Backup",
+            description = if (currentLanguage == AppLanguage.CHINESE) {
+                "了解真实云端配置、恢复助记词和同步前后的注意事项。"
+            } else {
+                "Learn real cloud setup, recovery phrases, and sync safety notes."
+            },
+            themeColors = themeColors,
+            onClick = onNavigateToCloudBackupHelp
+        )
         helpItems.forEach { (itemTitle, itemDesc, itemIcon) ->
             HelpItem(icon = itemIcon, title = itemTitle, description = itemDesc, themeColors = themeColors)
         }
+    }
+}
+
+@Composable
+fun CloudBackupHelpContent(
+    currentLanguage: AppLanguage,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val themeColors = rememberThemeColors()
+    val isZh = currentLanguage == AppLanguage.CHINESE
+
+    SupportScaffold(
+        title = if (isZh) "云同步与加密备份" else "Cloud Sync & Encrypted Backup",
+        onBack = onBack,
+        themeColors = themeColors,
+        modifier = modifier
+    ) {
+        CloudHelpDiagram(currentLanguage = currentLanguage, themeColors = themeColors)
+        PrivacySection(
+            title = if (isZh) "需要先完成云端配置" else "Cloud configuration is required",
+            content = if (isZh) {
+                "云同步只连接你填写的真实 S3 兼容对象存储。Endpoint、Bucket、Access Key 和 Secret Key 未填完整时，同步按钮不会执行上传或下载。"
+            } else {
+                "Cloud sync only connects to the real S3-compatible storage you configure. Upload and download stay disabled until Endpoint, Bucket, Access Key, and Secret Key are complete."
+            },
+            themeColors = themeColors
+        )
+        PrivacySection(
+            title = if (isZh) "恢复助记词负责加密" else "Recovery phrase encrypts the backup",
+            content = if (isZh) {
+                "上传前会在本机用恢复助记词派生密钥并加密密码库，云端只保存密文。下载恢复时必须输入当时加密所用的助记词。"
+            } else {
+                "Before upload, the vault is encrypted locally with a key derived from the recovery phrase. The cloud stores ciphertext only. Restore requires the phrase used for that backup."
+            },
+            themeColors = themeColors
+        )
+        PrivacySection(
+            title = if (isZh) "建议使用 STS 临时密钥" else "Prefer STS temporary credentials",
+            content = if (isZh) {
+                "如果云服务支持，优先使用权限受限、可过期的 STS 临时密钥。长期 SecretKey 只建议用于个人受限子账号，并且要避免赋予删除整个 Bucket 的权限。"
+            } else {
+                "Use restricted, expiring STS credentials when your provider supports them. Permanent SecretKeys should be limited to personal restricted accounts and should not grant broad bucket deletion permissions."
+            },
+            themeColors = themeColors
+        )
     }
 }
 
@@ -129,18 +201,20 @@ fun AboutContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Mod
         modifier = modifier
     ) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(20.dp)).background(Primary), contentAlignment = Alignment.Center) {
-                Text(text = "P", style = MaterialTheme.typography.displayLarge, color = androidx.compose.ui.graphics.Color.White)
-            }
+            Image(
+                painter = painterResource(id = R.drawable.ic_passcard_logo),
+                contentDescription = if (isZh) "PassCard 图标" else "PassCard icon",
+                modifier = Modifier.size(88.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "REPassCard", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = themeColors.onBackground)
-            Text(text = "v0.72", style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+            Text(text = "PassCard", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = themeColors.onBackground)
+            Text(text = "v0.80", style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
         }
         Text(
             text = if (isZh) {
-                "REPassCard 是一款专注本地安全和可控备份的密码管理应用。"
+                "PassCard 是一款专注本地安全、真实云端备份和可控恢复的密码管理应用。"
             } else {
-                "REPassCard is a password manager focused on local security and controlled backups."
+                "PassCard is a password manager focused on local security, real cloud backups, and controlled recovery."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = themeColors.onSurfaceVariant
@@ -158,7 +232,7 @@ fun AboutContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Mod
             }
         }
         Text(
-            text = "© 2026 REPassCard. " + if (isZh) "保留所有权利。" else "All rights reserved.",
+            text = "© 2026 XiaoZhen. " + if (isZh) "保留所有权利。" else "All rights reserved.",
             style = MaterialTheme.typography.bodySmall,
             color = themeColors.onSurfaceVariant
         )
@@ -171,6 +245,7 @@ private fun SupportScaffold(
     onBack: () -> Unit,
     themeColors: ThemeColors,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
     content: @Composable () -> Unit
 ) {
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
@@ -185,7 +260,7 @@ private fun SupportScaffold(
             Text(text = title, style = MaterialTheme.typography.titleLarge, color = themeColors.onBackground)
         }
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 40.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 24.dp).padding(bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             content()
@@ -194,8 +269,22 @@ private fun SupportScaffold(
 }
 
 @Composable
-private fun HelpItem(icon: ImageVector, title: String, description: String, themeColors: ThemeColors) {
-    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(themeColors.surface).padding(16.dp), verticalAlignment = Alignment.Top) {
+private fun HelpItem(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    themeColors: ThemeColors,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(themeColors.surface)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
         Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
             Icon(imageVector = icon, contentDescription = title, tint = Primary, modifier = Modifier.size(20.dp))
         }
@@ -203,6 +292,77 @@ private fun HelpItem(icon: ImageVector, title: String, description: String, them
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
             Spacer(modifier = Modifier.height(2.dp))
+            Text(text = description, style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+        }
+        if (onClick != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = null,
+                tint = themeColors.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CloudHelpDiagram(currentLanguage: AppLanguage, themeColors: ThemeColors) {
+    val isZh = currentLanguage == AppLanguage.CHINESE
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(themeColors.surface)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = if (isZh) "同步流程" else "Sync flow",
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+            color = themeColors.onBackground
+        )
+        CloudHelpStep(
+            icon = Icons.Outlined.Lock,
+            title = if (isZh) "1. 本机加密" else "1. Encrypt locally",
+            description = if (isZh) "恢复助记词只在本机参与加密。" else "The recovery phrase is used only on device.",
+            themeColors = themeColors
+        )
+        CloudHelpStep(
+            icon = Icons.Outlined.CloudUpload,
+            title = if (isZh) "2. 上传密文" else "2. Upload ciphertext",
+            description = if (isZh) "云端对象存储保存的是加密后的备份文件。" else "Object storage receives the encrypted backup file.",
+            themeColors = themeColors
+        )
+        CloudHelpStep(
+            icon = Icons.Outlined.Security,
+            title = if (isZh) "3. 恢复时校验" else "3. Verify on restore",
+            description = if (isZh) "只有正确助记词才能解密恢复。" else "Only the correct phrase can decrypt the backup.",
+            themeColors = themeColors
+        )
+    }
+}
+
+@Composable
+private fun CloudHelpStep(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    themeColors: ThemeColors
+) {
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600), color = themeColors.onBackground)
             Text(text = description, style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
         }
     }

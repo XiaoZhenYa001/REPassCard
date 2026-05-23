@@ -152,20 +152,25 @@ fun rememberMainFileActions(
 
     fun exportPasswords(format: ExportFormat) {
         val language = latestLanguage
-        val exportData = latestState.passwords.map { p ->
-            ExportPasswordEntry(
-                service = p.name,
-                username = p.username,
-                phone = p.phone,
-                email = p.email,
-                password = p.password,
-                note = p.note,
-                category = p.category
-            )
-        }
-        val result = when (format) {
-            ExportFormat.CSV -> CsvExporter.exportToCsv(context, exportData)
-            ExportFormat.JSON -> JsonExporter.exportToJson(context, exportData)
+        scope.launch {
+            val exportData = withContext(Dispatchers.IO) {
+                latestLoadAllPasswords().map { p ->
+                    ExportPasswordEntry(
+                        service = p.name,
+                        username = p.username,
+                        phone = p.phone,
+                        email = p.email,
+                        password = p.password,
+                        note = p.note,
+                        category = p.category
+                    )
+                }
+            }
+        val result = withContext(Dispatchers.IO) {
+            when (format) {
+                ExportFormat.CSV -> CsvExporter.exportToCsv(context, exportData)
+                ExportFormat.JSON -> JsonExporter.exportToJson(context, exportData)
+            }
         }
         result.onSuccess { uri ->
             val successMessage = if (language == AppLanguage.CHINESE) {
@@ -186,6 +191,7 @@ fun rememberMainFileActions(
                 "Export failed. Unable to write to Documents/PassCard."
             }
             Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+        }
         }
     }
 

@@ -14,6 +14,8 @@ data class PasswordEntity(
     val password: String,
     val category: String = "",
     val note: String = "",
+    val iconType: String = "generated",
+    val iconValue: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val revision: Long = 0L,

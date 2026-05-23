@@ -8,6 +8,7 @@ import androidx.paging.cachedIn
 import com.example.passcard.data.AppDatabase
 import com.example.passcard.data.PasswordRepository
 import com.example.passcard.data.PasswordSecurityStats
+import com.example.passcard.data.ReusedPasswordGroup
 import com.example.passcard.ui.screens.PasswordItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,7 +42,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _passwordCount = MutableStateFlow(0)
     val passwordCount: StateFlow<Int> = _passwordCount.asStateFlow()
 
+    private val homeSearchQuery = MutableStateFlow("")
     private val allPasswordsSearchQuery = MutableStateFlow("")
+
+    private val debouncedHomeSearchQuery = homeSearchQuery
+        .debounce(250)
+        .distinctUntilChanged()
 
     private val debouncedAllPasswordsSearchQuery = allPasswordsSearchQuery
         .debounce(250)
@@ -71,6 +77,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             initialValue = PasswordSecurityStats()
         )
 
+    val weakPasswords: StateFlow<List<PasswordItem>> = repositoryState
+        .filterNotNull()
+        .flatMapLatest { repository -> repository.weakPasswords }
+        .catch { error ->
+            _startupError.value = buildErrorMessage("Weak passwords failed", error)
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    val reusedPasswordGroups: StateFlow<List<ReusedPasswordGroup>> = repositoryState
+        .filterNotNull()
+        .flatMapLatest { repository -> repository.reusedPasswordGroups }
+        .catch { error ->
+            _startupError.value = buildErrorMessage("Reused passwords failed", error)
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
     init {
         loadData()
     }
@@ -88,11 +120,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            repositoryState
-                .filterNotNull()
-                .flatMapLatest { repository -> repository.recentPasswords }
+            combine(
+                debouncedHomeSearchQuery,
+                repositoryState.filterNotNull()
+            ) { query, repository -> query to repository }
+                .flatMapLatest { (query, repository) ->
+                    if (query.isBlank()) {
+                        repository.recentPasswords
+                    } else {
+                        repository.searchPasswords(query)
+                    }
+                }
                 .catch { error ->
-                    _startupError.value = buildErrorMessage("Recent passwords failed", error)
+                    _startupError.value = buildErrorMessage("Home passwords failed", error)
                     emit(emptyList())
                 }
                 .collectLatest { list ->
@@ -116,6 +156,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAllPasswordsSearchQuery(query: String) {
         allPasswordsSearchQuery.value = query
+    }
+
+    fun setHomeSearchQuery(query: String) {
+        homeSearchQuery.value = query
     }
 
     fun addPassword(item: PasswordItem) {

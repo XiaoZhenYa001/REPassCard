@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -28,11 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,23 +51,20 @@ import kotlinx.coroutines.flow.flowOf
 fun AllPasswordsScreen(
     onBack: () -> Unit,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
+    searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     onPasswordClick: (PasswordItem) -> Unit,
     currentLanguage: AppLanguage = AppLanguage.CHINESE,
+    listState: LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier
 ) {
     val themeColors = rememberThemeColors()
     val isZh = currentLanguage == AppLanguage.CHINESE
-    var searchQuery by remember { mutableStateOf("") }
     val lazyPasswords = pagedPasswords.collectAsLazyPagingItems()
     val isInitialLoading = lazyPasswords.loadState.refresh is LoadState.Loading
     val isAppendLoading = lazyPasswords.loadState.append is LoadState.Loading
     val refreshError = lazyPasswords.loadState.refresh as? LoadState.Error
     val appendError = lazyPasswords.loadState.append as? LoadState.Error
-
-    LaunchedEffect(searchQuery) {
-        onSearchQueryChange(searchQuery)
-    }
 
     Column(
         modifier = modifier
@@ -105,7 +99,7 @@ fun AllPasswordsScreen(
 
         SearchField(
             value = searchQuery,
-            onValueChange = { searchQuery = it },
+            onValueChange = onSearchQueryChange,
             currentLanguage = currentLanguage
         )
 
@@ -146,6 +140,7 @@ fun AllPasswordsScreen(
             }
             else -> {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 40.dp)
@@ -161,8 +156,8 @@ fun AllPasswordsScreen(
                                 email = item.email.ifEmpty { item.username },
                                 password = item.password,
                                 iconText = item.name.take(1).uppercase(),
-                                iconBackgroundColor = themeColors.iconBackground,
-                                iconTextColor = themeColors.onBackground,
+                                iconType = item.iconType,
+                                iconValue = item.iconValue,
                                 onClick = { onPasswordClick(item) }
                             )
                         }

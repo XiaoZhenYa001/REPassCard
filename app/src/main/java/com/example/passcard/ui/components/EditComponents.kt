@@ -242,6 +242,8 @@ fun CategorySelector(
 @Composable
 fun LogoSelector(
     name: String,
+    iconType: String,
+    iconValue: String,
     onChangeIcon: () -> Unit,
     modifier: Modifier = Modifier,
     changeIconText: String = "更换图标"
@@ -253,19 +255,14 @@ fun LogoSelector(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(themeColors.surface),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = name.take(1).uppercase().ifEmpty { "?" },
-                style = MaterialTheme.typography.headlineMedium,
-                color = Primary
-            )
-        }
+        PasswordIcon(
+            label = name,
+            iconType = iconType,
+            iconValue = iconValue,
+            size = 80.dp,
+            cornerRadius = 24.dp,
+            modifier = Modifier.clickable { onChangeIcon() }
+        )
         
         Text(
             text = changeIconText,

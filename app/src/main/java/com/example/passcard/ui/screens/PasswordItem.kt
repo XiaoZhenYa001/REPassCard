@@ -11,5 +11,7 @@ data class PasswordItem(
     val email: String = "",
     val password: String,
     val category: String = "",
-    val note: String = ""
+    val note: String = "",
+    val iconType: String = "generated",
+    val iconValue: String = ""
 )

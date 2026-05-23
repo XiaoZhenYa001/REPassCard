@@ -1,5 +1,7 @@
 package com.example.passcard.ui.screens
 
+import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,11 +25,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import android.widget.Toast
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
+import com.example.passcard.util.LocalIconImage
+import com.example.passcard.util.PasswordIconStorage
+import com.example.passcard.util.PasswordIconType
 import com.example.passcard.util.RandomPasswordGenerator
 import com.example.passcard.util.RandomPasswordSpec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+private val ICON_PICKER_MIME_TYPES = arrayOf(
+    "image/*",
+    "image/svg+xml",
+    "application/svg+xml",
+    "text/xml",
+    "application/xml",
+    "*/*"
+)
 
 data class EditUiState(
     val id: String = "",
@@ -38,6 +58,8 @@ data class EditUiState(
     val password: String = "",
     val category: String = "",
     val note: String = "",
+    val iconType: String = PasswordIconType.GENERATED,
+    val iconValue: String = "",
     val isNew: Boolean = true
 )
 
@@ -46,7 +68,7 @@ val EditUiStateSaver = listSaver<EditUiState, Any>(
     save = { state ->
         listOf(
             state.id, state.name, state.username, state.phone, state.email,
-            state.password, state.category, state.note, state.isNew
+            state.password, state.category, state.note, state.iconType, state.iconValue, state.isNew
         )
     },
     restore = { list ->
@@ -59,7 +81,9 @@ val EditUiStateSaver = listSaver<EditUiState, Any>(
             password = list[5] as String,
             category = list[6] as String,
             note = list[7] as String,
-            isNew = list[8] as Boolean
+            iconType = list[8] as String,
+            iconValue = list[9] as String,
+            isNew = list[10] as Boolean
         )
     }
 )
@@ -72,6 +96,7 @@ fun EditScreen(
     password: PasswordItem? = null,
     currentLanguage: AppLanguage = AppLanguage.CHINESE,
     randomPasswordSpec: RandomPasswordSpec? = null,
+    loadAllPasswords: suspend () -> List<PasswordItem> = { emptyList() },
     onBack: () -> Unit,
     onSave: (PasswordItem) -> Unit,
     onDelete: () -> Unit,
@@ -79,6 +104,7 @@ fun EditScreen(
 ) {
     val themeColors = rememberThemeColors()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val categories = if (currentLanguage == AppLanguage.CHINESE) COMMON_CATEGORIES_ZH else COMMON_CATEGORIES_EN
     val backInteractionSource = remember { MutableInteractionSource() }
     val saveInteractionSource = remember { MutableInteractionSource() }
@@ -96,11 +122,158 @@ fun EditScreen(
                     password = password.password,
                     category = password.category,
                     note = password.note,
+                    iconType = password.iconType,
+                    iconValue = password.iconValue,
                     isNew = false
                 )
             } else {
                 EditUiState()
             }
+        )
+    }
+
+    val originalIconType = password?.iconType ?: PasswordIconType.GENERATED
+    val originalIconValue = password?.iconValue.orEmpty()
+    var showIconPicker by remember { mutableStateOf(false) }
+    var pickerIconType by remember { mutableStateOf(uiState.iconType) }
+    var pickerIconValue by remember { mutableStateOf(uiState.iconValue) }
+    var deleteOldIconOnSave by rememberSaveable { mutableStateOf(true) }
+    var localImages by remember { mutableStateOf<List<LocalIconImage>>(emptyList()) }
+    var busyImageUri by remember { mutableStateOf<String?>(null) }
+    var isImportingImage by remember { mutableStateOf(false) }
+
+    fun showImageError(error: Throwable) {
+        Toast.makeText(
+            context,
+            error.message ?: if (currentLanguage == AppLanguage.CHINESE) "图片处理失败" else "Image processing failed",
+            Toast.LENGTH_LONG
+        ).show()
+    }
+
+    fun hasImageReadPermission(): Boolean {
+        val permission = PasswordIconStorage.requiredReadPermission() ?: return true
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun loadLocalImages() {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { PasswordIconStorage.listLocalImages(context) }
+            result.onSuccess { localImages = it }
+                .onFailure { showImageError(it) }
+        }
+    }
+
+    val imagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            loadLocalImages()
+        } else {
+            val message = if (currentLanguage == AppLanguage.CHINESE) {
+                "无法读取本地图片：请允许图片访问权限，或使用上传按钮选择图片。"
+            } else {
+                "Cannot read local images. Allow image access or use Upload to pick an image."
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun refreshLocalImages() {
+        val permission = PasswordIconStorage.requiredReadPermission()
+        if (permission != null && !hasImageReadPermission()) {
+            imagePermissionLauncher.launch(permission)
+        } else {
+            loadLocalImages()
+        }
+    }
+
+    val uploadIconLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        scope.launch {
+            isImportingImage = true
+            val result = withContext(Dispatchers.IO) { PasswordIconStorage.importPickedIcon(context, uri) }
+            result.onSuccess { saved ->
+                pickerIconType = PasswordIconType.IMAGE
+                pickerIconValue = saved.uriString
+                refreshLocalImages()
+                saved.warning?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            }.onFailure { showImageError(it) }
+            isImportingImage = false
+        }
+    }
+
+    fun processLocalImage(image: LocalIconImage) {
+        scope.launch {
+            busyImageUri = image.uriString
+            val result = withContext(Dispatchers.IO) { PasswordIconStorage.optimizeLibraryImage(context, image) }
+            result.onSuccess { saved ->
+                pickerIconType = PasswordIconType.IMAGE
+                pickerIconValue = saved.uriString
+                refreshLocalImages()
+                saved.warning?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            }.onFailure { showImageError(it) }
+            busyImageUri = null
+        }
+    }
+
+    fun shouldShowDeleteOldIconOption(): Boolean {
+        return originalIconType == PasswordIconType.IMAGE &&
+            originalIconValue.isNotBlank() &&
+            (pickerIconType != originalIconType || pickerIconValue != originalIconValue)
+    }
+
+    suspend fun deleteOldIconIfNeeded() {
+        if (!deleteOldIconOnSave) return
+        if (originalIconType != PasswordIconType.IMAGE || originalIconValue.isBlank()) return
+        if (uiState.iconType == originalIconType && uiState.iconValue == originalIconValue) return
+
+        val referenceCount = runCatching {
+            loadAllPasswords().count { item ->
+                item.iconType == PasswordIconType.IMAGE && item.iconValue == originalIconValue
+            }
+        }.getOrDefault(Int.MAX_VALUE)
+
+        if (referenceCount <= 1) {
+            val result = withContext(Dispatchers.IO) { PasswordIconStorage.deleteIcon(context, originalIconValue) }
+            result.onFailure { showImageError(it) }
+        }
+    }
+
+    fun buildSaveItem(): PasswordItem? {
+        val isAllBlank = uiState.name.isBlank() &&
+            uiState.username.isBlank() &&
+            uiState.phone.isBlank() &&
+            uiState.email.isBlank() &&
+            uiState.password.isBlank() &&
+            uiState.category.isBlank() &&
+            uiState.note.isBlank()
+
+        if (uiState.isNew && isAllBlank) {
+            val message = if (currentLanguage == AppLanguage.CHINESE) {
+                "请至少填写一项"
+            } else {
+                "Please fill at least one field"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            return null
+        }
+
+        return PasswordItem(
+            id = uiState.id.ifEmpty { java.util.UUID.randomUUID().toString() },
+            name = uiState.name,
+            username = uiState.username,
+            phone = uiState.phone,
+            email = uiState.email,
+            password = uiState.password,
+            category = uiState.category,
+            note = uiState.note,
+            iconType = uiState.iconType,
+            iconValue = uiState.iconValue
         )
     }
     
@@ -150,35 +323,11 @@ fun EditScreen(
                         interactionSource = saveInteractionSource,
                         indication = rememberRipple(bounded = false, radius = 24.dp),
                         onClick = {
-                            val isAllBlank = uiState.name.isBlank() &&
-                                uiState.username.isBlank() &&
-                                uiState.phone.isBlank() &&
-                                uiState.email.isBlank() &&
-                                uiState.password.isBlank() &&
-                                uiState.category.isBlank() &&
-                                uiState.note.isBlank()
-
-                            if (uiState.isNew && isAllBlank) {
-                                val message = if (currentLanguage == AppLanguage.CHINESE) {
-                                    "请至少填写一项"
-                                } else {
-                                    "Please fill at least one field"
-                                }
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                                return@clickable
+                            scope.launch {
+                                val item = buildSaveItem() ?: return@launch
+                                deleteOldIconIfNeeded()
+                                onSave(item)
                             }
-
-                            val item = PasswordItem(
-                                id = uiState.id.ifEmpty { java.util.UUID.randomUUID().toString() },
-                                name = uiState.name,
-                                username = uiState.username,
-                                phone = uiState.phone,
-                                email = uiState.email,
-                                password = uiState.password,
-                                category = uiState.category,
-                                note = uiState.note
-                            )
-                            onSave(item)
                         }
                     )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -199,7 +348,15 @@ fun EditScreen(
             // 图标选择器
             LogoSelector(
                 name = uiState.name,
-                onChangeIcon = { /* TODO: 图标选择功能 */ },
+                iconType = uiState.iconType,
+                iconValue = uiState.iconValue,
+                onChangeIcon = {
+                    pickerIconType = uiState.iconType
+                    pickerIconValue = uiState.iconValue
+                    deleteOldIconOnSave = true
+                    showIconPicker = true
+                    refreshLocalImages()
+                },
                 changeIconText = AppStrings.changeIcon(currentLanguage)
             )
             
@@ -295,5 +452,32 @@ fun EditScreen(
                 )
             }
         }
+    }
+
+    if (showIconPicker) {
+        PasswordIconPickerSheet(
+            currentLanguage = currentLanguage,
+            label = uiState.name,
+            selectedIconType = pickerIconType,
+            selectedIconValue = pickerIconValue,
+            localImages = localImages,
+            busyImageUri = busyImageUri,
+            isImportingImage = isImportingImage,
+            canDeleteOldImage = shouldShowDeleteOldIconOption(),
+            deleteOldImage = deleteOldIconOnSave,
+            onDeleteOldImageChange = { deleteOldIconOnSave = it },
+            onSelectedIconChange = { type, value ->
+                pickerIconType = type
+                pickerIconValue = value
+            },
+            onRefreshLocalImages = { refreshLocalImages() },
+            onLocalImageClick = { image -> processLocalImage(image) },
+            onUploadClick = { uploadIconLauncher.launch(ICON_PICKER_MIME_TYPES) },
+            onDismiss = { showIconPicker = false },
+            onConfirm = {
+                uiState = uiState.copy(iconType = pickerIconType, iconValue = pickerIconValue)
+                showIconPicker = false
+            }
+        )
     }
 }

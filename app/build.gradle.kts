@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.passcard"
         minSdk = 28
         targetSdk = 35
-        versionCode = 72
-        versionName = "0.72"
+        versionCode = 80
+        versionName = "0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -105,6 +105,9 @@ dependencies {
 
     // Biometric authentication
     implementation(libs.biometric)
+
+    // SVG icon import support
+    implementation(libs.androidsvg)
 
     // Testing - disabled for now
     // testImplementation(libs.junit)

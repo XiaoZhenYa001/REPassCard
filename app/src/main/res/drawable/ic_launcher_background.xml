@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TODO: Replace with custom app icon background color -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#4F46E5"
+        android:fillColor="#082A34"
         android:pathData="M0,0h108v108h-108z" />
+    <path
+        android:fillColor="#123C66"
+        android:fillAlpha="0.9"
+        android:pathData="M-8,18C16,2 46,-4 68,8C91,20 103,48 113,77L113,113L-8,113z" />
+    <path
+        android:fillColor="#1FD6B2"
+        android:fillAlpha="0.18"
+        android:pathData="M79,-6C101,8 113,29 111,54C109,79 90,96 67,101C44,106 23,99 10,82C-4,64 -4,39 9,21C23,2 57,-20 79,-6z" />
+    <path
+        android:fillColor="#6E63FF"
+        android:fillAlpha="0.24"
+        android:pathData="M-10,74C7,60 27,55 45,65C63,75 69,96 63,114L-10,114z" />
 </vector>

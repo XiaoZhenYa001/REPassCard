@@ -68,9 +68,11 @@ fun HomeContent(
         listOf(allCategory) + (defaultCategories + passwords.map { it.category }.filter { it.isNotBlank() })
             .distinct()
     }
+    val isSearching = searchQuery.isNotBlank()
     val filteredPasswords = remember(passwords, selectedCategory, searchQuery) {
         passwords.filter { item ->
-            val matchCategory = selectedCategory == null ||
+            val matchCategory = searchQuery.isNotBlank() ||
+                selectedCategory == null ||
                 selectedCategory == allCategory ||
                 item.category == selectedCategory
             val matchSearch = searchQuery.isBlank() ||
@@ -80,7 +82,7 @@ fun HomeContent(
                 item.phone.contains(searchQuery, ignoreCase = true) ||
                 item.note.contains(searchQuery, ignoreCase = true)
             matchCategory && matchSearch
-        }.take(5)
+        }.take(if (searchQuery.isBlank()) 5 else 20)
     }
 
     Column(
@@ -150,7 +152,15 @@ fun HomeContent(
 
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = recentText, style = MaterialTheme.typography.titleMedium, color = themeColors.onBackground)
+                Text(
+                    text = if (isSearching) {
+                        if (isZh) "搜索结果" else "Search Results"
+                    } else {
+                        recentText
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = themeColors.onBackground
+                )
                 Text(
                     text = viewAllText,
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W500),
@@ -172,8 +182,8 @@ fun HomeContent(
                             email = password.email.ifEmpty { password.username },
                             password = password.password,
                             iconText = password.name.take(1).uppercase(),
-                            iconBackgroundColor = themeColors.iconBackground,
-                            iconTextColor = themeColors.onBackground,
+                            iconType = password.iconType,
+                            iconValue = password.iconValue,
                             onClick = { onPasswordClick(password.id) }
                         )
                     }

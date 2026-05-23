@@ -27,7 +27,7 @@ interface PasswordDao {
     @Query("SELECT * FROM passwords WHERE category = :category ORDER BY updatedAt DESC")
     fun getPasswordsByCategory(category: String): Flow<List<PasswordEntity>>
     
-    @Query("SELECT * FROM passwords WHERE name LIKE '%' || :query || '%' OR username LIKE '%' || :query || '%' OR email LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM passwords WHERE name LIKE '%' || :query || '%' OR username LIKE '%' || :query || '%' OR email LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%' OR note LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
     fun searchPasswords(query: String): Flow<List<PasswordEntity>>
 
     @Query("SELECT * FROM passwords WHERE name LIKE '%' || :query || '%' OR username LIKE '%' || :query || '%' OR email LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%' OR note LIKE '%' || :query || '%' ORDER BY updatedAt DESC LIMIT :limit OFFSET :offset")
@@ -57,8 +57,14 @@ interface PasswordDao {
     @Query("SELECT COUNT(*) FROM passwords WHERE length(password) < 10 OR password NOT GLOB '*[0-9]*' OR password NOT GLOB '*[A-Z]*' OR password NOT GLOB '*[a-z]*'")
     fun getWeakPasswordCount(): Flow<Int>
 
+    @Query("SELECT * FROM passwords WHERE length(password) < 10 OR password NOT GLOB '*[0-9]*' OR password NOT GLOB '*[A-Z]*' OR password NOT GLOB '*[a-z]*' ORDER BY updatedAt DESC")
+    fun getWeakPasswords(): Flow<List<PasswordEntity>>
+
     @Query("SELECT COUNT(*) FROM passwords WHERE password != '' AND password IN (SELECT password FROM passwords WHERE password != '' GROUP BY password HAVING COUNT(*) > 1)")
     fun getReusedPasswordCount(): Flow<Int>
+
+    @Query("SELECT * FROM passwords WHERE password != '' AND password IN (SELECT password FROM passwords WHERE password != '' GROUP BY password HAVING COUNT(*) > 1) ORDER BY password ASC, updatedAt DESC")
+    fun getReusedPasswords(): Flow<List<PasswordEntity>>
 
     @Query("SELECT COUNT(*) FROM passwords WHERE name LIKE '%' || :query || '%' OR username LIKE '%' || :query || '%' OR email LIKE '%' || :query || '%' OR phone LIKE '%' || :query || '%' OR note LIKE '%' || :query || '%'")
     suspend fun getSearchPasswordCount(query: String): Int

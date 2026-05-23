@@ -30,13 +30,17 @@ sealed interface MainRoute {
     data object Tabs : MainRoute
     data class EditPassword(
         val passwordId: String?,
-        val initialPassword: PasswordItem? = null
+        val initialPassword: PasswordItem? = null,
+        val returnRoute: MainRoute = Tabs
     ) : MainRoute
     data object ImportPreview : MainRoute
     data object AllPasswords : MainRoute
     data object Help : MainRoute
+    data object CloudBackupHelp : MainRoute
     data object Privacy : MainRoute
     data object About : MainRoute
     data object MasterPasswordSetup : MainRoute
     data object RandomPasswordSettings : MainRoute
+    data object WeakPasswords : MainRoute
+    data object ReusedPasswords : MainRoute
 }
