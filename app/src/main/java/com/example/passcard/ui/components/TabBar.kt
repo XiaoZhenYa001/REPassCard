@@ -2,10 +2,8 @@ package com.example.passcard.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -102,8 +100,10 @@ fun TabBar(
             IOSTabButton(
                 selected = selectedTab == TabItem.HOME,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onTabSelected(TabItem.HOME)
+                    if (selectedTab != TabItem.HOME) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(TabItem.HOME)
+                    }
                 },
                 selectedIcon = Icons.Filled.Home,
                 unselectedIcon = Icons.Outlined.Home,
@@ -116,8 +116,10 @@ fun TabBar(
             IOSTabButton(
                 selected = selectedTab == TabItem.SECURITY,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onTabSelected(TabItem.SECURITY)
+                    if (selectedTab != TabItem.SECURITY) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(TabItem.SECURITY)
+                    }
                 },
                 selectedIcon = Icons.Filled.Shield,
                 unselectedIcon = Icons.Outlined.Shield,
@@ -140,8 +142,10 @@ fun TabBar(
             IOSTabButton(
                 selected = selectedTab == TabItem.CLOUD,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onTabSelected(TabItem.CLOUD)
+                    if (selectedTab != TabItem.CLOUD) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(TabItem.CLOUD)
+                    }
                 },
                 selectedIcon = Icons.Filled.Cloud,
                 unselectedIcon = Icons.Outlined.Cloud,
@@ -154,8 +158,10 @@ fun TabBar(
             IOSTabButton(
                 selected = selectedTab == TabItem.SETTINGS,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onTabSelected(TabItem.SETTINGS)
+                    if (selectedTab != TabItem.SETTINGS) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onTabSelected(TabItem.SETTINGS)
+                    }
                 },
                 selectedIcon = Icons.Filled.Settings,
                 unselectedIcon = Icons.Outlined.Settings,
@@ -184,53 +190,50 @@ private fun IOSTabButton(
 
     // 按压缩放（弹性回弹）
     val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.82f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
-        ),
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
         label = "pressScale"
     )
 
     // 选中弹性放大
     val selectionScale by animateFloatAsState(
-        targetValue = if (selected) 1.08f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 350f),
+        targetValue = if (selected) 1.02f else 1f,
+        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         label = "selectionScale"
     )
 
     // 选中时上移
     val offsetY by animateFloatAsState(
-        targetValue = if (selected) -2.5f else 0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
+        targetValue = if (selected) -1f else 0f,
+        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         label = "offsetY"
     )
 
     // 颜色过渡
     val tintColor by animateColorAsState(
         targetValue = if (selected) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
         label = "tintColor"
     )
 
     // 图标尺寸
     val iconSize by animateFloatAsState(
-        targetValue = if (selected) 24f else 20f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        targetValue = if (selected) 22f else 20f,
+        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         label = "iconSize"
     )
 
     // 标签透明度
     val labelAlpha by animateFloatAsState(
         targetValue = if (selected) 1f else 0.55f,
-        animationSpec = tween(220),
+        animationSpec = tween(140),
         label = "labelAlpha"
     )
 
     // 圆点指示器弹出
     val dotScale by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.45f, stiffness = 500f),
+        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
         label = "dotScale"
     )
 
@@ -291,11 +294,8 @@ private fun IOSAddButton(
 
     // 按压弹性缩放
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.82f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
-        ),
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
         label = "addScale"
     )
 

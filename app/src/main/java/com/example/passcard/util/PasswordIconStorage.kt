@@ -8,11 +8,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.util.LruCache
 import com.caverock.androidsvg.SVG
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -52,8 +55,17 @@ object PasswordIconStorage {
     private const val DIRECTORY_NAME = "PassCard/images"
     private const val RELATIVE_PATH = "Documents/$DIRECTORY_NAME/"
     private const val TARGET_SIZE = 384
+    private const val SVG_RENDER_SIZE = 1024
+    private const val SVG_OUTPUT_PADDING_RATIO = 0.08f
     private const val WEBP_MIME = "image/webp"
     private const val KEEP_FILE = ".passcard_images"
+    private const val ICON_CACHE_KB = 4096
+
+    private val iconCache = object : LruCache<String, Bitmap>(ICON_CACHE_KB) {
+        override fun sizeOf(key: String, value: Bitmap): Int {
+            return max(1, value.allocationByteCount / 1024)
+        }
+    }
 
     fun requiredReadPermission(): String? {
         return when {
@@ -112,9 +124,17 @@ object PasswordIconStorage {
 
     fun decodeIconBitmap(context: Context, iconValue: String, maxSize: Int = TARGET_SIZE): Bitmap? {
         if (iconValue.isBlank()) return null
+        getCachedIconBitmap(iconValue, maxSize)?.let { return it }
         return runCatching {
             decodeScaledBitmap(context, Uri.parse(iconValue), maxSize)
-        }.getOrNull()
+        }.getOrNull()?.also { bitmap ->
+            iconCache.put(cacheKey(iconValue, maxSize), bitmap)
+        }
+    }
+
+    fun getCachedIconBitmap(iconValue: String, maxSize: Int = TARGET_SIZE): Bitmap? {
+        if (iconValue.isBlank()) return null
+        return iconCache.get(cacheKey(iconValue, maxSize))
     }
 
     private fun createCompressedIcon(
@@ -239,10 +259,11 @@ object PasswordIconStorage {
             }
             SVG.getFromInputStream(stream)
         }
-        val picture = svg.renderToPicture(maxSize, maxSize)
-        val bitmap = Bitmap.createBitmap(maxSize, maxSize, Bitmap.Config.ARGB_8888)
-        Canvas(bitmap).drawPicture(picture)
-        return bitmap
+        val renderSize = max(SVG_RENDER_SIZE, maxSize * 3)
+        val picture = svg.renderToPicture(renderSize, renderSize)
+        val rendered = Bitmap.createBitmap(renderSize, renderSize, Bitmap.Config.ARGB_8888)
+        Canvas(rendered).drawPicture(picture)
+        return centerVisibleContent(rendered, maxSize, SVG_OUTPUT_PADDING_RATIO)
     }
 
     private fun centerCrop(source: Bitmap, size: Int): Bitmap {
@@ -258,6 +279,50 @@ object PasswordIconStorage {
             Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         )
         if (square != source) square.recycle()
+        source.recycle()
+        return output
+    }
+
+    private fun centerVisibleContent(source: Bitmap, size: Int, paddingRatio: Float): Bitmap {
+        val pixels = IntArray(source.width * source.height)
+        source.getPixels(pixels, 0, source.width, 0, 0, source.width, source.height)
+
+        var minX = source.width
+        var minY = source.height
+        var maxX = -1
+        var maxY = -1
+
+        pixels.forEachIndexed { index, pixel ->
+            if ((pixel ushr 24) > 8) {
+                val x = index % source.width
+                val y = index / source.width
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return centerCrop(source, size)
+        }
+
+        val sourceRect = Rect(minX, minY, maxX + 1, maxY + 1)
+        val contentWidth = sourceRect.width().coerceAtLeast(1)
+        val contentHeight = sourceRect.height().coerceAtLeast(1)
+        val padding = (size * paddingRatio).toInt()
+        val targetSize = (size - padding * 2).coerceAtLeast(1)
+        val scale = min(targetSize.toFloat() / contentWidth, targetSize.toFloat() / contentHeight)
+        val destWidth = contentWidth * scale
+        val destHeight = contentHeight * scale
+        val destRect = RectF(
+            (size - destWidth) / 2f,
+            (size - destHeight) / 2f,
+            (size + destWidth) / 2f,
+            (size + destHeight) / 2f
+        )
+        val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        Canvas(output).drawBitmap(source, sourceRect, destRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
         source.recycle()
         return output
     }
@@ -419,6 +484,10 @@ object PasswordIconStorage {
     private fun nextIconFileName(): String {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
         return "icon_$stamp.webp"
+    }
+
+    private fun cacheKey(iconValue: String, maxSize: Int): String {
+        return "$iconValue#$maxSize"
     }
 
     private fun legacyImageDirectory(): File {

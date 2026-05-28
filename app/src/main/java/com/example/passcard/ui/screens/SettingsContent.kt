@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.example.passcard.R
 import com.example.passcard.ui.components.DropdownOption
 import com.example.passcard.ui.components.ProfileCard
 import com.example.passcard.ui.components.SectionTitle
@@ -116,6 +117,7 @@ fun SettingsContent(
                 userName = if (isZh) "本地保险库" else "Local Vault",
                 userEmail = if (isZh) "数据仅由本机与加密备份保存" else "Local data with encrypted backups",
                 onClick = { },
+                avatarResId = R.drawable.empty_records_icon,
                 colors = themeColors
             )
             SettingItem(

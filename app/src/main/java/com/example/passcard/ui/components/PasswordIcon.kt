@@ -123,11 +123,15 @@ private fun ImagePasswordIcon(
     cornerRadius: Dp
 ) {
     val context = LocalContext.current
-    var bitmap by remember(iconValue) { mutableStateOf<Bitmap?>(null) }
+    var bitmap by remember(iconValue) {
+        mutableStateOf(PasswordIconStorage.getCachedIconBitmap(iconValue, 192))
+    }
 
     LaunchedEffect(iconValue) {
-        bitmap = withContext(Dispatchers.IO) {
-            PasswordIconStorage.decodeIconBitmap(context, iconValue, 192)
+        if (bitmap == null) {
+            bitmap = withContext(Dispatchers.IO) {
+                PasswordIconStorage.decodeIconBitmap(context, iconValue, 192)
+            }
         }
     }
 

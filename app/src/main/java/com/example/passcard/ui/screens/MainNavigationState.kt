@@ -36,6 +36,7 @@ sealed interface MainRoute {
     data object ImportPreview : MainRoute
     data object AllPasswords : MainRoute
     data object Help : MainRoute
+    data object SearchHelp : MainRoute
     data object CloudBackupHelp : MainRoute
     data object Privacy : MainRoute
     data object About : MainRoute

@@ -64,10 +64,6 @@ fun SetupMasterPasswordScreen(
     // 密码强度评估
     val strength = remember(newPassword) { evaluatePasswordStrength(newPassword) }
 
-    LaunchedEffect(Unit) {
-        try { focusRequester.requestFocus() } catch (_: Exception) {}
-    }
-
     fun handleSave() {
         errorMessage = null
         successMessage = null

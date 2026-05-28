@@ -20,11 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -37,10 +38,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.example.passcard.ui.theme.LocalThemeColors
+import com.example.passcard.ui.components.ClipboardHelper
 import com.example.passcard.util.PreferencesManager
 import com.example.passcard.util.RandomPasswordGenerator
 import com.example.passcard.util.RandomPasswordSpec
@@ -53,6 +57,7 @@ fun RandomPasswordSettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val themeColors = LocalThemeColors.current
+    val context = LocalContext.current
     val isZh = currentLanguage == AppLanguage.CHINESE
     var spec by remember(preferencesManager) {
         mutableStateOf(preferencesManager?.randomPasswordSpec ?: RandomPasswordSpec())
@@ -107,6 +112,14 @@ fun RandomPasswordSettingsScreen(
                 strengthScore = strength.score,
                 strengthLabel = if (isZh) strength.labelZh else strength.labelEn,
                 strengthHint = if (isZh) strength.hintZh else strength.hintEn,
+                onCopy = {
+                    ClipboardHelper.copyToClipboard(context, preview, label = "Random Password", showToast = false)
+                    Toast.makeText(
+                        context,
+                        if (isZh) "已复制随机密码" else "Random password copied",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
                 onRefresh = { preview = RandomPasswordGenerator.generate(spec) }
             )
 
@@ -162,16 +175,6 @@ fun RandomPasswordSettingsScreen(
                     onCheckedChange = { updateSpec(spec.copy(includeSymbols = it)) }
                 )
             }
-
-            Button(
-                onClick = { preview = RandomPasswordGenerator.generate(spec) },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (isZh) "重新生成预览" else "Regenerate Preview")
-            }
         }
     }
 }
@@ -182,6 +185,7 @@ private fun PreviewCard(
     strengthScore: Int,
     strengthLabel: String,
     strengthHint: String,
+    onCopy: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val themeColors = LocalThemeColors.current
@@ -212,12 +216,22 @@ private fun PreviewCard(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            Icon(
-                imageVector = Icons.Outlined.Refresh,
-                contentDescription = "Refresh",
-                tint = themeColors.primary,
-                modifier = Modifier.size(24.dp).clickable { onRefresh() }
-            )
+            IconButton(onClick = onCopy, modifier = Modifier.size(34.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.ContentCopy,
+                    contentDescription = "Copy",
+                    tint = themeColors.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(onClick = onRefresh, modifier = Modifier.size(34.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "Refresh",
+                    tint = themeColors.primary,
+                    modifier = Modifier.size(21.dp)
+                )
+            }
         }
         LinearProgressIndicator(
             progress = { strengthScore / 100f },

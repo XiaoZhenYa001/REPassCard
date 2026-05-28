@@ -54,6 +54,7 @@ import com.example.passcard.ui.theme.rememberThemeColors
 fun HelpContent(
     currentLanguage: AppLanguage,
     onBack: () -> Unit,
+    onNavigateToSearchHelp: () -> Unit,
     onNavigateToCloudBackupHelp: () -> Unit,
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState()
@@ -66,7 +67,6 @@ fun HelpContent(
         Triple("复制密码", "双击密码列表中的任意条目即可复制密码。", Icons.Outlined.ContentCopy),
         Triple("编辑密码", "点击密码详情页的编辑按钮修改信息。", Icons.Outlined.Edit),
         Triple("删除密码", "在编辑页面点击删除按钮移除密码。", Icons.Outlined.Delete),
-        Triple("搜索密码", "在首页或全部密码页面使用搜索框。", Icons.Outlined.Search),
         Triple("分类管理", "为密码添加分类标签便于管理。", Icons.Outlined.Category),
         Triple("主题切换", "在设置中选择浅色、深色或跟随系统。", Icons.Outlined.DarkMode)
     ) else listOf(
@@ -75,7 +75,6 @@ fun HelpContent(
         Triple("Copy Password", "Double-tap any item to copy the password.", Icons.Outlined.ContentCopy),
         Triple("Edit Password", "Tap edit button to modify information.", Icons.Outlined.Edit),
         Triple("Delete Password", "Tap delete button on the edit page.", Icons.Outlined.Delete),
-        Triple("Search", "Use the search bar on home or all passwords page.", Icons.Outlined.Search),
         Triple("Categories", "Add category tags to organize passwords.", Icons.Outlined.Category),
         Triple("Theme", "Choose light, dark, or system theme in settings.", Icons.Outlined.DarkMode)
     )
@@ -92,9 +91,66 @@ fun HelpContent(
             themeColors = themeColors,
             onClick = onNavigateToCloudBackupHelp
         )
+        HelpItem(
+            icon = Icons.Outlined.Search,
+            title = if (currentLanguage == AppLanguage.CHINESE) "搜索密码" else "Search Passwords",
+            description = if (currentLanguage == AppLanguage.CHINESE) {
+                "了解排序优先级和 /t 字段检索语法。"
+            } else {
+                "Learn result priority and /t field search syntax."
+            },
+            themeColors = themeColors,
+            onClick = onNavigateToSearchHelp
+        )
         helpItems.forEach { (itemTitle, itemDesc, itemIcon) ->
+            if (itemIcon == Icons.Outlined.Search) return@forEach
             HelpItem(icon = itemIcon, title = itemTitle, description = itemDesc, themeColors = themeColors)
         }
+    }
+}
+
+@Composable
+fun SearchHelpContent(
+    currentLanguage: AppLanguage,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val themeColors = rememberThemeColors()
+    val isZh = currentLanguage == AppLanguage.CHINESE
+
+    SupportScaffold(
+        title = if (isZh) "搜索密码" else "Search Passwords",
+        onBack = onBack,
+        themeColors = themeColors,
+        modifier = modifier
+    ) {
+        PrivacySection(
+            title = if (isZh) "普通搜索排序" else "Default result order",
+            content = if (isZh) {
+                "输入关键词后，结果会按字段优先级排序：名称、用户名、手机号、邮箱、密码、分类、备注。同一字段内会优先显示完全匹配，其次是开头匹配，最后是包含匹配。"
+            } else {
+                "Type a keyword to rank results by field priority: name, username, phone, email, password, category, then note. Within a field, exact matches appear first, then prefix matches, then contains matches."
+            },
+            themeColors = themeColors
+        )
+        PrivacySection(
+            title = if (isZh) "字段检索" else "Field search",
+            content = if (isZh) {
+                "输入 /t 字段 关键词 可以只搜索指定字段。例如：/t 名称 微信、/t 用户名 alex、/t 手机 138、/t 邮箱 gmail、/t 分类 工作、/t 备注 备用。"
+            } else {
+                "Use /t field keyword to search one field only. Examples: /t name wechat, /t username alex, /t phone 138, /t email gmail, /t category work, /t note backup."
+            },
+            themeColors = themeColors
+        )
+        PrivacySection(
+            title = if (isZh) "隐私提醒" else "Privacy note",
+            content = if (isZh) {
+                "支持按密码字段检索，但列表不会为了搜索结果额外明文展示密码内容；需要查看或修改时再进入条目详情。"
+            } else {
+                "Password-field search is supported, but the list does not reveal matching password text. Open the item when you need details or editing."
+            },
+            themeColors = themeColors
+        )
     }
 }
 
@@ -202,13 +258,13 @@ fun AboutContent(currentLanguage: AppLanguage, onBack: () -> Unit, modifier: Mod
     ) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
-                painter = painterResource(id = R.drawable.ic_passcard_logo),
+                painter = painterResource(id = R.mipmap.passcard_launcher_foreground),
                 contentDescription = if (isZh) "PassCard 图标" else "PassCard icon",
                 modifier = Modifier.size(88.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(text = "PassCard", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = themeColors.onBackground)
-            Text(text = "v0.80", style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+            Text(text = "v0.81", style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
         }
         Text(
             text = if (isZh) {

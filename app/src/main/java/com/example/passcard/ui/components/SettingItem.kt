@@ -1,9 +1,11 @@
 package com.example.passcard.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.annotation.DrawableRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -15,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -142,6 +146,7 @@ fun ProfileCard(
     userEmail: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    @DrawableRes avatarResId: Int? = null,
     colors: ThemeColors = rememberThemeColors()
 ) {
     Row(
@@ -156,9 +161,21 @@ fun ProfileCard(
         Box(
             modifier = Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(colors.onSurfaceVariant.copy(alpha = 0.2f))
-        ) {}
+                .clip(RoundedCornerShape(14.dp))
+                .background(colors.iconBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            if (avatarResId != null) {
+                Image(
+                    painter = painterResource(id = avatarResId),
+                    contentDescription = userName,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(4.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(16.dp))
         Column(
             modifier = Modifier.weight(1f),

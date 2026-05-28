@@ -7,6 +7,7 @@ import androidx.paging.map
 import com.example.passcard.ui.screens.PasswordItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class PasswordRepository(private val passwordDao: PasswordDao) {
@@ -54,6 +55,7 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
 
     fun getPagedPasswords(query: String): Flow<PagingData<PasswordItem>> {
         val normalizedQuery = query.trim()
+        val parsedSearch = PasswordSearchSyntax.parse(normalizedQuery)
         return Pager(
             config = PagingConfig(
                 pageSize = PASSWORD_PAGE_SIZE,
@@ -61,7 +63,23 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
                 initialLoadSize = PASSWORD_PAGE_SIZE,
                 enablePlaceholders = false
             ),
-            pagingSourceFactory = { passwordDao.getPagedPasswords(normalizedQuery) }
+            pagingSourceFactory = {
+                when {
+                    normalizedQuery.isBlank() -> passwordDao.getPagedPasswords("", "", "%%")
+                    parsedSearch.keyword.isBlank() -> passwordDao.getEmptyPagedPasswords()
+                    parsedSearch.field != null -> passwordDao.getPagedPasswordsByField(
+                        field = parsedSearch.field.column,
+                        query = parsedSearch.keyword,
+                        prefix = parsedSearch.prefix,
+                        contains = parsedSearch.contains
+                    )
+                    else -> passwordDao.getPagedPasswords(
+                        query = parsedSearch.keyword,
+                        prefix = parsedSearch.prefix,
+                        contains = parsedSearch.contains
+                    )
+                }
+            }
         ).flow.map { pagingData ->
             pagingData.map { it.toPasswordItem() }
         }
@@ -74,7 +92,24 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
     }
     
     fun searchPasswords(query: String): Flow<List<PasswordItem>> {
-        return passwordDao.searchPasswords(query).map { entities ->
+        val parsedSearch = PasswordSearchSyntax.parse(query)
+        if (parsedSearch.keyword.isBlank()) return flowOf(emptyList())
+
+        val source = if (parsedSearch.field != null) {
+            passwordDao.searchPasswordsByField(
+                field = parsedSearch.field.column,
+                query = parsedSearch.keyword,
+                prefix = parsedSearch.prefix,
+                contains = parsedSearch.contains
+            )
+        } else {
+            passwordDao.searchPasswords(
+                query = parsedSearch.keyword,
+                prefix = parsedSearch.prefix,
+                contains = parsedSearch.contains
+            )
+        }
+        return source.map { entities ->
             entities.map { it.toPasswordItem() }
         }
     }
@@ -84,11 +119,15 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
     }
 
     suspend fun searchPasswordsPage(query: String, limit: Int, offset: Int): List<PasswordItem> {
-        return passwordDao.searchPasswordsPage(query, limit, offset).map { it.toPasswordItem() }
+        val parsedSearch = PasswordSearchSyntax.parse(query)
+        if (parsedSearch.keyword.isBlank()) return emptyList()
+        return passwordDao.searchPasswordsPage(parsedSearch.contains, limit, offset).map { it.toPasswordItem() }
     }
 
     suspend fun getSearchPasswordCount(query: String): Int {
-        return passwordDao.getSearchPasswordCount(query)
+        val parsedSearch = PasswordSearchSyntax.parse(query)
+        if (parsedSearch.keyword.isBlank()) return 0
+        return passwordDao.getSearchPasswordCount(parsedSearch.contains)
     }
     
     suspend fun getPasswordById(id: String): PasswordItem? {

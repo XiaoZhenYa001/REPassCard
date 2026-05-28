@@ -254,8 +254,19 @@ fun MainContainer(
                     HelpContent(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
+                        onNavigateToSearchHelp = { uiState = uiState.copy(route = MainRoute.SearchHelp) },
                         onNavigateToCloudBackupHelp = { uiState = uiState.copy(route = MainRoute.CloudBackupHelp) },
                         scrollState = helpScrollState
+                    )
+                }
+            }
+
+            MainRoute.SearchHelp -> {
+                BackHandler { uiState = uiState.copy(route = MainRoute.Help) }
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    SearchHelpContent(
+                        currentLanguage = displayedLanguage,
+                        onBack = { uiState = uiState.copy(route = MainRoute.Help) }
                     )
                 }
             }

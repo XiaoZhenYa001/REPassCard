@@ -23,8 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -59,7 +57,6 @@ fun LockScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var shakeOffset by remember { mutableStateOf(0f) }
-    val focusRequester = remember { FocusRequester() }
 
     // 抖动动画
     val shakeAnim by animateFloatAsState(
@@ -70,10 +67,6 @@ fun LockScreen(
     )
 
     // 自动弹出指纹
-    LaunchedEffect(Unit) {
-        try { focusRequester.requestFocus() } catch (_: Exception) {}
-    }
-
     fun attemptUnlock() {
         if (password.isEmpty()) return
         if (preferencesManager.verifyMasterPassword(password)) {
@@ -151,8 +144,7 @@ fun LockScreen(
                         color = if (errorMessage != null) themeColors.error else themeColors.border,
                         shape = RoundedCornerShape(16.dp)
                     )
-                    .padding(horizontal = 16.dp)
-                    .focusRequester(focusRequester),
+                    .padding(horizontal = 16.dp),
                 textStyle = TextStyle(
                     fontSize = 16.sp,
                     color = themeColors.onBackground,

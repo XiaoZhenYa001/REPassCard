@@ -69,6 +69,7 @@ fun HomeContent(
             .distinct()
     }
     val isSearching = searchQuery.isNotBlank()
+    val isFieldSearch = searchQuery.trim().startsWith("/t", ignoreCase = true)
     val filteredPasswords = remember(passwords, selectedCategory, searchQuery) {
         passwords.filter { item ->
             val matchCategory = searchQuery.isNotBlank() ||
@@ -76,10 +77,13 @@ fun HomeContent(
                 selectedCategory == allCategory ||
                 item.category == selectedCategory
             val matchSearch = searchQuery.isBlank() ||
+                isFieldSearch ||
                 item.name.contains(searchQuery, ignoreCase = true) ||
                 item.username.contains(searchQuery, ignoreCase = true) ||
                 item.email.contains(searchQuery, ignoreCase = true) ||
                 item.phone.contains(searchQuery, ignoreCase = true) ||
+                item.password.contains(searchQuery, ignoreCase = true) ||
+                item.category.contains(searchQuery, ignoreCase = true) ||
                 item.note.contains(searchQuery, ignoreCase = true)
             matchCategory && matchSearch
         }.take(if (searchQuery.isBlank()) 5 else 20)
