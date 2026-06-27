@@ -1,5 +1,6 @@
 package com.example.passcard.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,11 +23,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.passcard.data.PasswordSecurityStats
+import com.example.passcard.ui.components.SectionTitle
 import com.example.passcard.ui.components.SecurityListItem
 import com.example.passcard.ui.components.SecurityScoreCard
 import com.example.passcard.ui.components.SecurityStatCard
 import com.example.passcard.ui.components.SecuritySuggestionItem
 import com.example.passcard.ui.theme.LocalThemeColors
+import com.example.passcard.ui.theme.Spacing10
+import com.example.passcard.ui.theme.Spacing12
+import com.example.passcard.ui.theme.Spacing20
+import com.example.passcard.ui.theme.Spacing24
 
 @Composable
 fun SecurityContent(
@@ -48,15 +54,16 @@ fun SecurityContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(themeColors.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp)
+            .padding(horizontal = Spacing20, vertical = Spacing20),
+        verticalArrangement = Arrangement.spacedBy(Spacing24)
     ) {
-        Row(modifier = Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (isZh) "安全中心" else "Security Center",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.displayLarge,
                 color = themeColors.onBackground
             )
         }
@@ -65,7 +72,7 @@ fun SecurityContent(
             description = scoreDesc,
             currentLanguage = currentLanguage
         )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
             SecurityStatCard(
                 icon = Icons.Outlined.Storage,
                 value = stats.totalCount.toString(),
@@ -100,12 +107,8 @@ fun SecurityContent(
                 onClick = onOpenReusedPasswords
             )
         }
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = if (isZh) "需要关注" else "Attention Needed",
-                style = MaterialTheme.typography.titleMedium,
-                color = themeColors.onBackground
-            )
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
+            SectionTitle(title = if (isZh) "需要关注" else "Attention Needed", colors = themeColors)
             SecurityListItem(
                 iconBackgroundColor = themeColors.errorContainer,
                 icon = Icons.Outlined.LockOpen,
@@ -123,12 +126,8 @@ fun SecurityContent(
                 onClick = onOpenReusedPasswords
             )
         }
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = if (isZh) "安全建议" else "Security Suggestions",
-                style = MaterialTheme.typography.titleMedium,
-                color = themeColors.onBackground
-            )
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
+            SectionTitle(title = if (isZh) "安全建议" else "Security Suggestions", colors = themeColors)
             SecuritySuggestionItem(
                 title = if (isZh) "优先修复弱密码和重复密码" else "Fix weak and reused passwords first",
                 description = if (isZh) {

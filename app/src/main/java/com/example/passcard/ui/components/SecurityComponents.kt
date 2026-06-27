@@ -1,7 +1,6 @@
 package com.example.passcard.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,13 +25,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.screens.AppLanguage
-import com.example.passcard.ui.theme.PrimaryDark
+import com.example.passcard.ui.theme.ElevationLevel
+import com.example.passcard.ui.theme.Radius10
+import com.example.passcard.ui.theme.Radius12
+import com.example.passcard.ui.theme.Radius16
+import com.example.passcard.ui.theme.Radius18
+import com.example.passcard.ui.theme.Radius24
+import com.example.passcard.ui.theme.ScoreCardBackground
+import com.example.passcard.ui.theme.SecurityScoreStyle
+import com.example.passcard.ui.theme.Spacing12
+import com.example.passcard.ui.theme.Spacing14
+import com.example.passcard.ui.theme.Spacing16
+import com.example.passcard.ui.theme.Spacing20
+import com.example.passcard.ui.theme.Spacing24
+import com.example.passcard.ui.theme.Spacing4
+import com.example.passcard.ui.theme.Spacing8
+import com.example.passcard.ui.theme.StatValueStyle
+import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.ui.theme.rememberThemeColors
+import com.example.passcard.ui.theme.softShadow
 
 @Composable
 fun SecurityScoreCard(
@@ -54,10 +68,15 @@ fun SecurityScoreCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (themeColors.isDark) Color(0xFF1F1F23) else PrimaryDark)
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .softShadow(
+                colors = themeColors,
+                shape = RoundedCornerShape(Radius24),
+                level = ElevationLevel.Elevated
+            )
+            .clip(RoundedCornerShape(Radius24))
+            .background(ScoreCardBackground)
+            .padding(Spacing24),
+        verticalArrangement = Arrangement.spacedBy(Spacing14)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -66,38 +85,40 @@ fun SecurityScoreCard(
         ) {
             Text(
                 text = if (isZh) "安全评分" else "Security Score",
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
-                color = themeColors.tabInactive
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                color = Color.White.copy(alpha = 0.62f)
             )
-            Icon(
-                imageVector = Icons.Outlined.Shield,
-                contentDescription = null,
-                tint = themeColors.success,
-                modifier = Modifier.size(24.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(Radius10))
+                    .background(themeColors.success.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Shield,
+                    contentDescription = null,
+                    tint = themeColors.success,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
         }
 
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = safeScore.toString(),
-                style = TextStyle(
-                    fontWeight = FontWeight.W800,
-                    fontSize = 64.sp,
-                    lineHeight = 64.sp
-                ),
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = safeScore.toString(), style = SecurityScoreStyle, color = Color.White)
+            Spacer(modifier = Modifier.width(Spacing8))
             Text(
                 text = "/ 100",
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500),
-                color = themeColors.tabInactive,
-                modifier = Modifier.padding(bottom = 10.dp)
+                color = Color.White.copy(alpha = 0.56f),
+                modifier = Modifier.padding(bottom = 9.dp)
             )
         }
 
         LinearProgressIndicator(
             progress = { safeScore / 100f },
+            color = themeColors.success,
+            trackColor = Color.White.copy(alpha = 0.14f),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
@@ -105,14 +126,13 @@ fun SecurityScoreCard(
         )
         Text(
             text = grade,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W700),
             color = themeColors.success
         )
         Text(
             text = description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = themeColors.tabInactive,
-            lineHeight = 20.sp
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.66f)
         )
     }
 }
@@ -129,34 +149,44 @@ fun SecurityStatCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(104.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(backgroundColor)
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = iconTint,
-            modifier = Modifier.size(20.dp)
-        )
+    val themeColors = rememberThemeColors()
+    val content: @Composable () -> Unit = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(108.dp)
+                .appleSurface(colors = themeColors, radius = Radius18)
+                .padding(Spacing16),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(Radius10))
+                    .background(backgroundColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(18.dp))
+            }
 
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = value,
-                style = TextStyle(fontWeight = FontWeight.W700, fontSize = 24.sp),
-                color = valueColor
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.W500),
-                color = labelColor
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing4)) {
+                Text(text = value, style = StatValueStyle, color = valueColor)
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.W700),
+                    color = labelColor
+                )
+            }
+        }
+    }
+
+    if (onClick != null) {
+        PressableScale(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+            content()
+        }
+    } else {
+        Box(modifier = modifier.fillMaxWidth()) {
+            content()
         }
     }
 }
@@ -173,46 +203,45 @@ fun SecurityListItem(
 ) {
     val themeColors = rememberThemeColors()
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(themeColors.surface)
-            .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+    PressableScale(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(iconBackgroundColor),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .appleSurface(colors = themeColors, radius = Radius18)
+                .padding(Spacing16),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing14)
         ) {
-            Icon(imageVector = icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
-        }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(Radius12))
+                    .background(iconBackgroundColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
+            }
 
-        Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing4)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+                    color = themeColors.onBackground
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeColors.onSurfaceVariant
+                )
+            }
 
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                color = themeColors.onBackground
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = null,
+                tint = themeColors.muted,
+                modifier = Modifier.size(18.dp)
             )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = themeColors.onSurfaceVariant
-            )
         }
-
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-            contentDescription = null,
-            tint = themeColors.tabInactive,
-            modifier = Modifier.size(20.dp)
-        )
     }
 }
 
@@ -227,31 +256,36 @@ fun SecuritySuggestionItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(themeColors.successContainer)
-            .padding(16.dp),
-        verticalAlignment = Alignment.Top
+            .appleSurface(colors = themeColors, radius = Radius18)
+            .padding(Spacing16),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(Spacing12)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Shield,
-            contentDescription = null,
-            tint = themeColors.success,
-            modifier = Modifier.size(20.dp)
-        )
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(Radius10))
+                .background(themeColors.successContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Shield,
+                contentDescription = null,
+                tint = themeColors.success,
+                modifier = Modifier.size(18.dp)
+            )
+        }
 
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing4)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
-                color = if (themeColors.isDark) Color(0xFF86EFAC) else Color(0xFF15803D)
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W700),
+                color = themeColors.onBackground
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (themeColors.isDark) Color(0xFFBBF7D0) else Color(0xFF166534),
-                lineHeight = 17.sp
+                color = themeColors.onSurfaceVariant
             )
         }
     }

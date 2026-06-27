@@ -8,8 +8,6 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,7 +24,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,9 +31,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.example.passcard.ui.components.PressableScale
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.PreferencesManager
 
@@ -84,7 +81,7 @@ fun LockScreen(
             .background(themeColors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 32.dp),
+            .padding(horizontal = Spacing28),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -93,7 +90,7 @@ fun LockScreen(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(themeColors.primary.copy(alpha = 0.1f)),
+                .background(themeColors.primaryLight),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -104,7 +101,7 @@ fun LockScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(Spacing24))
 
         Text(
             text = if (isZh) "欢迎回来" else "Welcome Back",
@@ -112,7 +109,7 @@ fun LockScreen(
             color = themeColors.onBackground
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing8))
 
         Text(
             text = if (isZh) "请输入主密码解锁" else "Enter master password to unlock",
@@ -120,7 +117,7 @@ fun LockScreen(
             color = themeColors.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(Spacing32))
 
         // 密码输入框（带抖动动画）
         Box(
@@ -137,19 +134,14 @@ fun LockScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(themeColors.surfaceVariant)
+                    .appleSurface(colors = themeColors, radius = Radius16)
                     .border(
-                        width = 1.5.dp,
-                        color = if (errorMessage != null) themeColors.error else themeColors.border,
-                        shape = RoundedCornerShape(16.dp)
+                        width = if (errorMessage != null) 1.dp else 0.dp,
+                        color = if (errorMessage != null) themeColors.error else Color.Transparent,
+                        shape = RoundedCornerShape(Radius16)
                     )
-                    .padding(horizontal = 16.dp),
-                textStyle = TextStyle(
-                    fontSize = 16.sp,
-                    color = themeColors.onBackground,
-                    fontWeight = FontWeight.W500
-                ),
+                    .padding(horizontal = Spacing16),
+                textStyle = InputTextStyle.copy(color = themeColors.onBackground),
                 singleLine = true,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
@@ -168,28 +160,25 @@ fun LockScreen(
                             tint = themeColors.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(Spacing12))
                         Box(modifier = Modifier.weight(1f)) {
                             if (password.isEmpty()) {
                                 Text(
                                     text = if (isZh) "输入主密码" else "Master password",
                                     color = themeColors.muted,
-                                    fontSize = 16.sp
+                                    style = InputTextStyle
                                 )
                             }
                             innerTextField()
                         }
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = "Toggle visibility",
-                            tint = themeColors.onSurfaceVariant,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) { passwordVisible = !passwordVisible }
-                        )
+                        PressableScale(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = "Toggle visibility",
+                                tint = themeColors.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             )
@@ -197,68 +186,67 @@ fun LockScreen(
 
         // 错误提示
         if (errorMessage != null) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing8))
             Text(
                 text = errorMessage!!,
                 color = themeColors.error,
-                fontSize = 13.sp,
+                style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Start
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(Spacing20))
 
         // 解锁按钮
         Button(
             onClick = { attemptUnlock() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(16.dp),
+                .height(ActionButtonHeight),
+            shape = RoundedCornerShape(Radius16),
             colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary),
             enabled = password.isNotEmpty()
         ) {
             Text(
                 text = if (isZh) "解锁" else "Unlock",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.W600
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700)
             )
         }
 
         // 指纹解锁按钮（仅在开启时显示）
         if (preferencesManager.biometricEnabled) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(Spacing24))
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
+            PressableScale(
+                onClick = {
                     triggerBiometric(context, preferencesManager, onUnlocked)
                 }
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(themeColors.primary.copy(alpha = 0.08f)),
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Fingerprint,
-                        contentDescription = "Fingerprint",
-                        tint = themeColors.primary,
-                        modifier = Modifier.size(28.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(themeColors.primaryLight),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Fingerprint,
+                            contentDescription = "Fingerprint",
+                            tint = themeColors.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(Spacing8))
+                    Text(
+                        text = if (isZh) "指纹解锁" else "Use Fingerprint",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeColors.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = if (isZh) "指纹解锁" else "Use Fingerprint",
-                    fontSize = 13.sp,
-                    color = themeColors.onSurfaceVariant
-                )
             }
         }
     }

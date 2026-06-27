@@ -1,7 +1,6 @@
 package com.example.passcard.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,14 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -46,7 +45,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.screens.AppLanguage
+import com.example.passcard.ui.theme.IconBgBlue
 import com.example.passcard.ui.theme.LocalThemeColors
+import com.example.passcard.ui.theme.Radius12
+import com.example.passcard.ui.theme.Radius14
+import com.example.passcard.ui.theme.Radius16
+import com.example.passcard.ui.theme.Radius18
+import com.example.passcard.ui.theme.Spacing4
+import com.example.passcard.ui.theme.Spacing6
+import com.example.passcard.ui.theme.Spacing8
+import com.example.passcard.ui.theme.Spacing10
+import com.example.passcard.ui.theme.Spacing12
+import com.example.passcard.ui.theme.Spacing14
+import com.example.passcard.ui.theme.Spacing16
+import com.example.passcard.ui.theme.Spacing20
+import com.example.passcard.ui.theme.Spacing24
+import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.util.LocalIconImage
 import com.example.passcard.util.PasswordIconType
 
@@ -89,21 +103,20 @@ fun PasswordIconPickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = Spacing20)
+                .padding(bottom = Spacing24),
+            verticalArrangement = Arrangement.spacedBy(Spacing14)
         ) {
             Text(
                 text = if (isZh) "更换图标" else "Change Icon",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = themeColors.onBackground
             )
-            OutlinedTextField(
+            SearchBar(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(if (isZh) "搜索图标或文件名" else "Search icons or filenames") }
+                placeholder = if (isZh) "搜索图标或文件名" else "Search icons or filenames"
             )
             TabRow(selectedTabIndex = selectedTab, containerColor = themeColors.background) {
                 tabs.forEachIndexed { index, title ->
@@ -145,21 +158,28 @@ fun PasswordIconPickerSheet(
             }
 
             if (canDeleteOldImage) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(themeColors.surface)
-                        .clickable { onDeleteOldImageChange(!deleteOldImage) }
-                        .padding(end = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(checked = deleteOldImage, onCheckedChange = onDeleteOldImageChange)
-                    Text(
-                        text = if (isZh) "保存后删除旧图标文件" else "Delete previous icon file after saving",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = themeColors.onSurfaceVariant
-                    )
+                PressableScale(onClick = { onDeleteOldImageChange(!deleteOldImage) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .appleSurface(colors = themeColors, radius = Radius12)
+                            .padding(end = Spacing12),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = deleteOldImage,
+                            onCheckedChange = onDeleteOldImageChange,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = themeColors.primary,
+                                uncheckedColor = themeColors.muted
+                            )
+                        )
+                        Text(
+                            text = if (isZh) "保存后删除旧图标文件" else "Delete previous icon file after saving",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = themeColors.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
@@ -171,7 +191,12 @@ fun PasswordIconPickerSheet(
                 TextButton(onClick = onDismiss) {
                     Text(if (isZh) "取消" else "Cancel")
                 }
-                Button(onClick = onConfirm, enabled = busyImageUri == null && !isImportingImage) {
+                Button(
+                    onClick = onConfirm,
+                    enabled = busyImageUri == null && !isImportingImage,
+                    shape = RoundedCornerShape(Radius14),
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary)
+                ) {
                     Text(if (isZh) "确定" else "Confirm")
                 }
             }
@@ -196,9 +221,9 @@ private fun GeneratedIconGrid(
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = Modifier.height(210.dp),
-        contentPadding = PaddingValues(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(vertical = Spacing4),
+        horizontalArrangement = Arrangement.spacedBy(Spacing10),
+        verticalArrangement = Arrangement.spacedBy(Spacing10)
     ) {
         items(filtered, key = { it.value.ifBlank { "auto" } }) { option ->
             IconChoiceTile(
@@ -227,9 +252,9 @@ private fun EmojiIconGrid(
     LazyVerticalGrid(
         columns = GridCells.Fixed(4),
         modifier = Modifier.height(250.dp),
-        contentPadding = PaddingValues(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(vertical = Spacing4),
+        horizontalArrangement = Arrangement.spacedBy(Spacing10),
+        verticalArrangement = Arrangement.spacedBy(Spacing10)
     ) {
         items(filtered, key = { it.emoji }) { option ->
             IconChoiceTile(
@@ -257,11 +282,13 @@ private fun LocalImageGrid(
 ) {
     val isZh = currentLanguage == AppLanguage.CHINESE
     val filtered = images.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
         Button(
             onClick = onUploadClick,
             enabled = !isImportingImage && busyImageUri == null,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radius16),
+            colors = ButtonDefaults.buttonColors(containerColor = IconBgBlue)
         ) {
             if (isImportingImage) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -280,12 +307,12 @@ private fun LocalImageGrid(
                 )
             }
         } else {
-            LazyVerticalGrid(
+                LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
                 modifier = Modifier.height(250.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(vertical = Spacing4),
+                horizontalArrangement = Arrangement.spacedBy(Spacing10),
+                verticalArrangement = Arrangement.spacedBy(Spacing10)
             ) {
                 items(filtered, key = { it.uriString }) { image ->
                     IconChoiceTile(
@@ -313,45 +340,47 @@ private fun IconChoiceTile(
     val themeColors = LocalThemeColors.current
     val bg = if (selected) themeColors.primary.copy(alpha = 0.14f) else themeColors.surface
     val border = if (selected) themeColors.primary else themeColors.border
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(bg)
-            .clickable(enabled = !busy, onClick = onClick)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(border.copy(alpha = 0.08f))
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                content()
-            }
-            if (busy) {
+    PressableScale(onClick = onClick, enabled = !busy) {
+        Column(
+            modifier = Modifier
+                .appleSurface(colors = themeColors, radius = Radius16)
+                .background(bg)
+                .padding(Spacing8),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing6)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(themeColors.background.copy(alpha = 0.72f)),
+                        .background(border.copy(alpha = if (selected) 0.16f else 0.08f))
+                        .padding(2.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    content()
+                }
+                if (busy) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(Radius16))
+                            .background(themeColors.background.copy(alpha = 0.72f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    }
                 }
             }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) themeColors.primary else themeColors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = themeColors.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }

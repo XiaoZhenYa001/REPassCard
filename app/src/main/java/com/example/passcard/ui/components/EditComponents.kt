@@ -1,7 +1,6 @@
 package com.example.passcard.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -25,7 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
 
 /**
@@ -66,33 +64,28 @@ fun InputField(
     
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing8)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = themeColors.onBackground
+            color = themeColors.onSurfaceVariant
         )
         
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (isMultiline) Modifier.heightIn(min = 120.dp) else Modifier.height(56.dp))
-                .clip(RoundedCornerShape(16.dp))
-                .background(themeColors.surface),
+                .appleSurface(colors = themeColors, radius = Radius16),
             contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = if (isMultiline) 12.dp else 0.dp),
+                    .padding(horizontal = Spacing16, vertical = if (isMultiline) Spacing12 else 0.dp),
                 contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
             ) {
-                val textStyle = TextStyle(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.W500,
-                    color = themeColors.onBackground
-                )
+                val textStyle = InputTextStyle.copy(color = themeColors.onBackground)
                 
                 BasicTextField(
                     value = value,
@@ -117,7 +110,7 @@ fun InputField(
                                 Text(
                                     text = placeholder,
                                     style = textStyle.copy(color = themeColors.muted),
-                                    modifier = Modifier.padding(top = 2.dp)
+                                    modifier = Modifier.padding(top = Spacing2)
                                 )
                             }
                             innerTextField()
@@ -129,29 +122,29 @@ fun InputField(
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(end = Spacing16),
+                horizontalArrangement = Arrangement.spacedBy(Spacing12),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isPassword) {
                     onCopy?.let { copyAction ->
+                        PressableScale(onClick = copyAction) {
+                            Icon(
+                                imageVector = Icons.Outlined.ContentCopy,
+                                contentDescription = "复制",
+                                tint = themeColors.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    PressableScale(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
-                            imageVector = Icons.Outlined.ContentCopy,
-                            contentDescription = "复制",
-                            tint = themeColors.onBackground,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clickable { copyAction() }
+                            imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription = if (passwordVisible) "隐藏" else "显示",
+                            tint = themeColors.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Icon(
-                        imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = if (passwordVisible) "隐藏" else "显示",
-                        tint = themeColors.onBackground,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable { passwordVisible = !passwordVisible }
-                    )
                 }
                 trailingIcons()
             }
@@ -176,48 +169,37 @@ fun CategorySelector(
     
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing8)
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = themeColors.onBackground
+            color = themeColors.onSurfaceVariant
         )
         
         // 分类标签行
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(Spacing8)
         ) {
             items(categories) { category ->
                 val isSelected = selectedCategory == category
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(if (isSelected) Primary else themeColors.surface)
-                        .clickable { onCategorySelected(if (isSelected) "" else category) }
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (isSelected) Color.White else themeColors.onBackground
-                    )
-                }
+                CategoryTag(
+                    label = category,
+                    selected = isSelected,
+                    onClick = { onCategorySelected(if (isSelected) "" else category) }
+                )
             }
         }
         
         // 当前选择显示
         if (selectedCategory.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing8))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(themeColors.surface)
-                    .padding(horizontal = 16.dp),
+                    .appleSurface(colors = themeColors, radius = Radius14)
+                    .padding(horizontal = Spacing16),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -228,7 +210,7 @@ fun CategorySelector(
                 Text(
                     text = selectedCategory,
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
-                    color = Primary
+                    color = themeColors.primary
                 )
             }
         }
@@ -253,23 +235,29 @@ fun LogoSelector(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing12)
     ) {
-        PasswordIcon(
-            label = name,
-            iconType = iconType,
-            iconValue = iconValue,
-            size = 80.dp,
-            cornerRadius = 24.dp,
-            modifier = Modifier.clickable { onChangeIcon() }
-        )
+        PressableScale(onClick = onChangeIcon) {
+            PasswordIcon(
+                label = name,
+                iconType = iconType,
+                iconValue = iconValue,
+                size = 82.dp,
+                cornerRadius = Radius24
+            )
+        }
         
-        Text(
-            text = changeIconText,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
-            color = themeColors.onBackground,
-            modifier = Modifier.clickable { onChangeIcon() }
-        )
+        PressableScale(onClick = onChangeIcon) {
+            Text(
+                text = changeIconText,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                color = themeColors.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius14))
+                    .background(themeColors.primaryLight)
+                    .padding(horizontal = Spacing14, vertical = Spacing8)
+            )
+        }
     }
 }
 
@@ -284,28 +272,29 @@ fun DeleteButton(
 ) {
     val themeColors = rememberThemeColors()
     
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(themeColors.errorContainer)
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Delete,
-            contentDescription = "删除",
-            tint = themeColors.error,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-            color = themeColors.error
-        )
+    PressableScale(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ActionButtonHeight)
+                .clip(RoundedCornerShape(Radius16))
+                .background(themeColors.errorContainer)
+                .padding(horizontal = Spacing16),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Delete,
+                contentDescription = "删除",
+                tint = themeColors.error,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(Spacing8))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+                color = themeColors.error
+            )
+        }
     }
 }

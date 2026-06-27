@@ -23,10 +23,17 @@ data class ThemeColors(
     val errorContainer: Color,
     val warningContainer: Color,
     val successContainer: Color,
+    val blueContainer: Color,
     val primary: Color,
+    val primaryPressed: Color,
+    val primaryLight: Color,
+    val primaryGradientStart: Color,
+    val primaryGradientEnd: Color,
     val error: Color,
     val warning: Color,
     val success: Color,
+    val blue: Color,
+    val cyan: Color,
     val isDark: Boolean
 )
 
@@ -65,10 +72,17 @@ fun buildThemeColors(isDark: Boolean): ThemeColors {
             errorContainer = ErrorContainerDark,
             warningContainer = WarningContainerDark,
             successContainer = SuccessContainerDark,
-            primary = Primary,
-            error = Error,
+            blueContainer = BlueContainerDark,
+            primary = PrimaryDarkMode,
+            primaryPressed = PrimaryDarkModePressed,
+            primaryLight = PrimaryLightDark,
+            primaryGradientStart = PrimaryGradStartDark,
+            primaryGradientEnd = PrimaryGradEndDark,
+            error = ErrorDark,
             warning = Warning,
             success = Success,
+            blue = BlueDark,
+            cyan = CyanDark,
             isDark = true
         )
     } else {
@@ -92,10 +106,17 @@ fun buildThemeColors(isDark: Boolean): ThemeColors {
             errorContainer = ErrorContainer,
             warningContainer = WarningContainer,
             successContainer = SuccessContainer,
+            blueContainer = BlueContainer,
             primary = Primary,
+            primaryPressed = PrimaryDark,
+            primaryLight = PrimaryLight,
+            primaryGradientStart = PrimaryGradStart,
+            primaryGradientEnd = PrimaryGradEnd,
             error = Error,
             warning = Warning,
             success = Success,
+            blue = Blue,
+            cyan = Cyan,
             isDark = false
         )
     }

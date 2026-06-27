@@ -38,14 +38,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import com.example.passcard.R
 import com.example.passcard.ui.components.DropdownOption
 import com.example.passcard.ui.components.ProfileCard
 import com.example.passcard.ui.components.SectionTitle
 import com.example.passcard.ui.components.SettingItem
 import com.example.passcard.ui.components.SettingToggleItem
+import com.example.passcard.ui.theme.IconBgBlue
+import com.example.passcard.ui.theme.IconBgCyan
+import com.example.passcard.ui.theme.IconBgGray
+import com.example.passcard.ui.theme.IconBgGreen
+import com.example.passcard.ui.theme.IconBgLightGreen
+import com.example.passcard.ui.theme.IconBgOrange
+import com.example.passcard.ui.theme.IconBgPurple
+import com.example.passcard.ui.theme.IconBgRed
 import com.example.passcard.ui.theme.LocalThemeColors
+import com.example.passcard.ui.theme.Spacing10
+import com.example.passcard.ui.theme.Spacing20
+import com.example.passcard.ui.theme.Spacing28
 import com.example.passcard.util.PreferencesManager
 
 @Suppress("UNUSED_PARAMETER")
@@ -103,15 +113,15 @@ fun SettingsContent(
             .fillMaxSize()
             .statusBarsPadding()
             .verticalScroll(scrollState)
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(32.dp)
+            .padding(horizontal = Spacing20, vertical = Spacing20),
+        verticalArrangement = Arrangement.spacedBy(Spacing28)
     ) {
         Text(
             text = if (isZh) "设置" else "Settings",
             style = MaterialTheme.typography.displayLarge,
             color = themeColors.onBackground
         )
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
             SectionTitle(title = if (isZh) "保险库" else "Vault", colors = themeColors)
             ProfileCard(
                 userName = if (isZh) "本地保险库" else "Local Vault",
@@ -129,6 +139,7 @@ fun SettingsContent(
                     if (isZh) "未设置" else "Not set"
                 },
                 onClick = onNavigateToMasterPassword,
+                iconBackgroundColor = IconBgBlue,
                 colors = themeColors
             )
             if (preferencesManager?.hasMasterPassword == true) {
@@ -137,11 +148,12 @@ fun SettingsContent(
                     label = if (isZh) "指纹解锁" else "Fingerprint Unlock",
                     checked = biometricEnabled,
                     onCheckedChange = onBiometricEnabledChange,
+                    iconBackgroundColor = IconBgGreen,
                     colors = themeColors
                 )
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
             SectionTitle(title = if (isZh) "应用设置" else "App Settings", colors = themeColors)
             SettingItem(
                 icon = Icons.Outlined.DarkMode,
@@ -149,6 +161,7 @@ fun SettingsContent(
                 trailingText = currentThemeLabel,
                 onClick = { onThemeDropdownToggle(themeItemOffset, themeItemSize) },
                 onPositioned = { offset, size -> themeItemOffset = offset; themeItemSize = size },
+                iconBackgroundColor = IconBgOrange,
                 colors = themeColors
             )
             SettingItem(
@@ -157,6 +170,7 @@ fun SettingsContent(
                 trailingText = currentLanguageLabel,
                 onClick = { onLanguageDropdownToggle(languageItemOffset, languageItemSize) },
                 onPositioned = { offset, size -> languageItemOffset = offset; languageItemSize = size },
+                iconBackgroundColor = IconBgPurple,
                 colors = themeColors
             )
             SettingItem(
@@ -166,6 +180,7 @@ fun SettingsContent(
                     if (isZh) "${length} 位" else "$length chars"
                 },
                 onClick = onNavigateToRandomPassword,
+                iconBackgroundColor = IconBgCyan,
                 colors = themeColors
             )
             SettingToggleItem(
@@ -176,6 +191,7 @@ fun SettingsContent(
                     soundEnabled = it
                     preferencesManager?.soundEnabled = it
                 },
+                iconBackgroundColor = IconBgGreen,
                 colors = themeColors
             )
             SettingToggleItem(
@@ -186,6 +202,7 @@ fun SettingsContent(
                     clipboardClearEnabled = it
                     preferencesManager?.clipboardClearEnabled = it
                 },
+                iconBackgroundColor = IconBgRed,
                 colors = themeColors
             )
             if (clipboardClearEnabled) {
@@ -195,6 +212,7 @@ fun SettingsContent(
                         label = if (isZh) "清除延迟" else "Clear Delay",
                         trailingText = currentDelayLabel,
                         onClick = { showClipboardDelayPicker = !showClipboardDelayPicker },
+                        iconBackgroundColor = IconBgOrange,
                         colors = themeColors
                     )
                     DropdownMenu(
@@ -222,16 +240,16 @@ fun SettingsContent(
                 }
             }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
             SectionTitle(title = if (isZh) "数据管理" else "Data Management", colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Upload, label = if (isZh) "导出密码" else "Export Passwords", onClick = onNavigateToExport, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Download, label = if (isZh) "导入密码" else "Import Passwords", onClick = onNavigateToImport, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Upload, label = if (isZh) "导出密码" else "Export Passwords", onClick = onNavigateToExport, iconBackgroundColor = IconBgLightGreen, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Download, label = if (isZh) "导入密码" else "Import Passwords", onClick = onNavigateToImport, iconBackgroundColor = IconBgBlue, colors = themeColors)
         }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
             SectionTitle(title = if (isZh) "更多" else "More", colors = themeColors)
-            SettingItem(icon = Icons.AutoMirrored.Outlined.HelpOutline, label = if (isZh) "使用帮助" else "Help", onClick = onNavigateToHelp, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Lock, label = if (isZh) "隐私条款" else "Privacy Policy", onClick = onNavigateToPrivacy, colors = themeColors)
-            SettingItem(icon = Icons.Outlined.Info, label = if (isZh) "关于" else "About", onClick = onNavigateToAbout, colors = themeColors)
+            SettingItem(icon = Icons.AutoMirrored.Outlined.HelpOutline, label = if (isZh) "使用帮助" else "Help", onClick = onNavigateToHelp, iconBackgroundColor = IconBgOrange, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Lock, label = if (isZh) "隐私条款" else "Privacy Policy", onClick = onNavigateToPrivacy, iconBackgroundColor = IconBgGray, colors = themeColors)
+            SettingItem(icon = Icons.Outlined.Info, label = if (isZh) "关于" else "About", onClick = onNavigateToAbout, iconBackgroundColor = IconBgPurple, colors = themeColors)
         }
     }
 }

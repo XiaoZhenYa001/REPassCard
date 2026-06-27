@@ -1,7 +1,6 @@
 package com.example.passcard.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,15 +27,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.components.CategoryTagRow
 import com.example.passcard.ui.components.PasswordListItem
+import com.example.passcard.ui.components.PressableScale
 import com.example.passcard.ui.components.SearchBar
+import com.example.passcard.ui.theme.ElevationLevel
+import com.example.passcard.ui.theme.IconBgBlue
 import com.example.passcard.ui.theme.LocalThemeColors
-import com.example.passcard.ui.theme.OnPrimary
-import com.example.passcard.ui.theme.Primary
+import com.example.passcard.ui.theme.Radius10
+import com.example.passcard.ui.theme.Radius18
+import com.example.passcard.ui.theme.Radius20
+import com.example.passcard.ui.theme.Spacing10
+import com.example.passcard.ui.theme.Spacing12
+import com.example.passcard.ui.theme.Spacing16
+import com.example.passcard.ui.theme.Spacing20
+import com.example.passcard.ui.theme.Spacing24
+import com.example.passcard.ui.theme.Spacing4
+import com.example.passcard.ui.theme.Spacing8
+import com.example.passcard.ui.theme.appleSurface
+import com.example.passcard.ui.theme.softShadow
 
 @Composable
 fun HomeContent(
@@ -94,67 +109,41 @@ fun HomeContent(
             .fillMaxSize()
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+            .padding(horizontal = Spacing20, vertical = Spacing20),
+        verticalArrangement = Arrangement.spacedBy(Spacing24)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing4)) {
             Text(text = welcomeText, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
             Text(
                 text = if (isZh) "我的保险库" else "My Vault",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineLarge,
                 color = themeColors.onBackground
             )
         }
 
         SearchBar(value = searchQuery, onValueChange = onSearchQueryChange, placeholder = searchPlaceholder)
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(140.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(themeColors.surfaceVariant)
-                    .clickable { onNavigateToAllPasswords() },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).background(themeColors.iconBackground),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.VpnKey, contentDescription = null, tint = themeColors.onBackground)
-                    }
-                    Text(
-                        text = pwdCountText,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                        color = themeColors.onBackground
-                    )
-                }
-            }
-            Box(
-                modifier = Modifier.weight(1f).height(140.dp).clip(RoundedCornerShape(16.dp)).background(Primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).background(OnPrimary.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Shield, contentDescription = null, tint = OnPrimary)
-                    }
-                    Text(
-                        text = secScoreText,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                        color = OnPrimary
-                    )
-                }
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
+            HomeMetricCard(
+                text = pwdCountText,
+                icon = Icons.Outlined.VpnKey,
+                iconColor = IconBgBlue,
+                emphasized = false,
+                onClick = onNavigateToAllPasswords,
+                modifier = Modifier.weight(1f)
+            )
+            HomeMetricCard(
+                text = secScoreText,
+                icon = Icons.Outlined.Shield,
+                iconColor = Color.White.copy(alpha = 0.20f),
+                emphasized = true,
+                modifier = Modifier.weight(1f)
+            )
         }
 
         CategoryTagRow(categories = categories, selectedCategory = selectedCategory, onCategorySelected = onCategorySelected)
 
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing12)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (isSearching) {
@@ -165,12 +154,13 @@ fun HomeContent(
                     style = MaterialTheme.typography.titleMedium,
                     color = themeColors.onBackground
                 )
-                Text(
-                    text = viewAllText,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W500),
-                    color = Primary,
-                    modifier = Modifier.clickable { onNavigateToAllPasswords() }
-                )
+                PressableScale(onClick = onNavigateToAllPasswords) {
+                    Text(
+                        text = viewAllText,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                        color = themeColors.primary
+                    )
+                }
             }
             if (filteredPasswords.isEmpty()) {
                 HomeEmptyState(
@@ -179,7 +169,7 @@ fun HomeContent(
                     onAddPassword = onAddPassword
                 )
             } else {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
                     filteredPasswords.forEach { password ->
                         PasswordListItem(
                             name = password.name,
@@ -198,6 +188,74 @@ fun HomeContent(
 }
 
 @Composable
+private fun HomeMetricCard(
+    text: String,
+    icon: ImageVector,
+    iconColor: Color,
+    emphasized: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val themeColors = LocalThemeColors.current
+    val shape = RoundedCornerShape(Radius20)
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .height(138.dp)
+        .let { base ->
+            if (emphasized) {
+                base
+                    .softShadow(colors = themeColors, shape = shape, level = ElevationLevel.Floating)
+                    .clip(shape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(themeColors.primaryGradientStart, themeColors.primaryGradientEnd)
+                        )
+                    )
+            } else {
+                base.appleSurface(colors = themeColors, radius = Radius20)
+            }
+        }
+        .padding(Spacing16)
+
+    val content: @Composable () -> Unit = {
+        Column(
+            modifier = cardModifier,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(Radius10))
+                    .background(if (emphasized) iconColor else iconColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (emphasized) Color.White else iconColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+                color = if (emphasized) Color.White else themeColors.onBackground
+            )
+        }
+    }
+
+    if (onClick != null) {
+        PressableScale(onClick = onClick, modifier = modifier) {
+            content()
+        }
+    } else {
+        Box(modifier = modifier) {
+            content()
+        }
+    }
+}
+
+@Composable
 private fun HomeEmptyState(
     isSearching: Boolean,
     isZh: Boolean,
@@ -207,17 +265,19 @@ private fun HomeEmptyState(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(themeColors.surface)
-            .padding(24.dp),
+            .appleSurface(colors = themeColors, radius = Radius18)
+            .padding(Spacing24),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing10)
     ) {
         Box(
-            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).background(themeColors.iconBackground),
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(Radius18))
+                .background(themeColors.primaryLight),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, tint = themeColors.onBackground)
+            Icon(Icons.Outlined.Add, contentDescription = null, tint = themeColors.primary)
         }
         Text(
             text = if (isSearching) {
@@ -240,13 +300,14 @@ private fun HomeEmptyState(
             textAlign = TextAlign.Center
         )
         if (!isSearching) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = if (isZh) "添加密码" else "Add Password",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                color = Primary,
-                modifier = Modifier.clickable { onAddPassword() }
-            )
+            Spacer(modifier = Modifier.height(Spacing4))
+            PressableScale(onClick = onAddPassword) {
+                Text(
+                    text = if (isZh) "添加密码" else "Add Password",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700),
+                    color = themeColors.primary
+                )
+            }
         }
     }
 }

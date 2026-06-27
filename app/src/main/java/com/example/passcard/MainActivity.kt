@@ -21,9 +21,6 @@ import com.example.passcard.ui.MainViewModel
 import com.example.passcard.ui.screens.LockScreen
 import com.example.passcard.ui.screens.MainScreen
 import com.example.passcard.ui.theme.PassCardTheme
-import com.example.passcard.ui.theme.LocalThemeColors
-import com.example.passcard.ui.theme.buildThemeColors
-import androidx.compose.runtime.CompositionLocalProvider
 import com.example.passcard.util.PreferencesManager
 
 /**
@@ -61,9 +58,6 @@ class MainActivity : FragmentActivity() {
             }
             
             PassCardTheme(darkTheme = isDarkTheme) {
-                val themeColors = buildThemeColors(isDarkTheme)
-                
-                CompositionLocalProvider(LocalThemeColors provides themeColors) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
@@ -107,7 +101,6 @@ class MainActivity : FragmentActivity() {
                             }
                         }
                     }
-                }
             }
         }
     }

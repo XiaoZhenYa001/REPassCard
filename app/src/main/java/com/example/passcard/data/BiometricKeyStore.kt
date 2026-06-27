@@ -7,7 +7,6 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.core.content.edit
 import java.security.KeyStore
-import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -25,19 +24,10 @@ object BiometricKeyStore {
     private const val KEY_WRAPPED_SYNC_KEY_IV = "wrapped_sync_key_iv"
     private const val AES_GCM = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
-    private const val SYNC_KEY_SIZE_BYTES = 32
 
     fun hasWrappedSyncKey(context: Context): Boolean {
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getString(KEY_WRAPPED_SYNC_KEY, null) != null && prefs.getString(KEY_WRAPPED_SYNC_KEY_IV, null) != null
-    }
-
-    fun generateAndWrapSyncKey(context: Context): ByteArray {
-        val appContext = context.applicationContext
-        val syncKey = ByteArray(SYNC_KEY_SIZE_BYTES)
-        SecureRandom().nextBytes(syncKey)
-        // Note: No longer wrapped directly as we need cipher via AuthPrompt
-        return syncKey
     }
 
     fun getEncryptionCipher(): Cipher? {

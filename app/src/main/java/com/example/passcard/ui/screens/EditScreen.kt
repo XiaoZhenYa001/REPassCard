@@ -3,8 +3,6 @@ package com.example.passcard.ui.screens
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -13,10 +11,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -106,8 +102,6 @@ fun EditScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val categories = if (currentLanguage == AppLanguage.CHINESE) COMMON_CATEGORIES_ZH else COMMON_CATEGORIES_EN
-    val backInteractionSource = remember { MutableInteractionSource() }
-    val saveInteractionSource = remember { MutableInteractionSource() }
     
     // 使用 rememberSaveable 防止屏幕旋转数据丢失
     var uiState by rememberSaveable(stateSaver = EditUiStateSaver) {
@@ -278,72 +272,70 @@ fun EditScreen(
     }
     
     Column(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = modifier.fillMaxSize().background(themeColors.background)
     ) {
-        // 顶部导航栏
         Row(
-            modifier = Modifier.fillMaxWidth().height(100.dp).padding(top = 12.dp).padding(horizontal = 16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(58.dp)
+                .padding(horizontal = Spacing20),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 返回按钮 - 扩大点击区域并添加涟漪效果
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .clickable(
-                        interactionSource = backInteractionSource,
-                        indication = rememberRipple(bounded = false, radius = 28.dp),
-                        onClick = onBack
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = "Back",
-                    tint = themeColors.onBackground,
-                    modifier = Modifier.size(28.dp)
-                )
+            PressableScale(onClick = onBack) {
+                Box(
+                    modifier = Modifier
+                        .size(BackButtonSize)
+                        .clip(RoundedCornerShape(Radius12))
+                        .background(themeColors.surface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                        contentDescription = "Back",
+                        tint = themeColors.onBackground,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
             
             Text(
                 text = if (uiState.isNew) AppStrings.addPassword(currentLanguage) else AppStrings.editPassword(currentLanguage),
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+                style = MaterialTheme.typography.titleLarge,
                 color = themeColors.onBackground
             )
             
-            // 保存按钮 - 扩大点击区域并添加涟漪效果
-            Text(
-                text = AppStrings.save(currentLanguage),
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                color = Primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(
-                        interactionSource = saveInteractionSource,
-                        indication = rememberRipple(bounded = false, radius = 24.dp),
-                        onClick = {
-                            scope.launch {
-                                val item = buildSaveItem() ?: return@launch
-                                deleteOldIconIfNeeded()
-                                onSave(item)
-                            }
-                        }
-                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            )
+            PressableScale(
+                onClick = {
+                    scope.launch {
+                        val item = buildSaveItem() ?: return@launch
+                        deleteOldIconIfNeeded()
+                        onSave(item)
+                    }
+                }
+            ) {
+                Text(
+                    text = AppStrings.save(currentLanguage),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                    color = themeColors.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius12))
+                        .background(themeColors.primaryLight)
+                        .padding(horizontal = Spacing12, vertical = Spacing8)
+                )
+            }
         }
         
-        // 滚动内容区
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = Spacing20)
                 .padding(bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing16)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing4))
             
             // 图标选择器
             LogoSelector(
@@ -360,7 +352,7 @@ fun EditScreen(
                 changeIconText = AppStrings.changeIcon(currentLanguage)
             )
             
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing4))
             
             // 名称输入
             InputField(
@@ -414,7 +406,11 @@ fun EditScreen(
                         val generated = RandomPasswordGenerator.generate(randomPasswordSpec ?: RandomPasswordSpec())
                         uiState = uiState.copy(password = generated)
                     },
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(Radius14),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = themeColors.primaryLight,
+                        contentColor = themeColors.primary
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.AutoFixHigh,
@@ -445,7 +441,7 @@ fun EditScreen(
             
             // 删除按钮（仅编辑模式显示）
             if (!uiState.isNew) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(Spacing12))
                 DeleteButton(
                     text = AppStrings.deletePassword(currentLanguage),
                     onClick = onDelete

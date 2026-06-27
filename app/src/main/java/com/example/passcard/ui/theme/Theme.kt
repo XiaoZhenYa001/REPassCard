@@ -11,7 +11,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -21,7 +20,7 @@ private const val THEME_ANIMATION_DURATION_MS = 420
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
-    primaryContainer = Surface,
+    primaryContainer = PrimaryLight,
     onPrimaryContainer = OnBackground,
     secondary = PrimaryDark,
     onSecondary = OnPrimary,
@@ -42,11 +41,11 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Primary,
+    primary = PrimaryDarkMode,
     onPrimary = OnPrimary,
-    primaryContainer = PrimaryDark,
-    onPrimaryContainer = Color(0xFFE0E0E0),
-    secondary = Color(0xFF6366F1),
+    primaryContainer = PrimaryLightDark,
+    onPrimaryContainer = OnBackgroundDark,
+    secondary = PrimaryDarkModePressed,
     onSecondary = OnPrimary,
     tertiary = Success,
     onTertiary = OnPrimary,
@@ -56,12 +55,12 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = OnBackgroundDark,
     surfaceVariant = SurfaceVariantDark,
     onSurfaceVariant = OnSurfaceVariantDark,
-    error = Error,
+    error = ErrorDark,
     onError = OnPrimary,
     errorContainer = ErrorContainerDark,
-    onErrorContainer = Color(0xFFFFB3B3),
+    onErrorContainer = ErrorDark,
     outline = BorderDark,
-    outlineVariant = Color(0xFF252525)
+    outlineVariant = SurfaceVariantDark
 )
 
 object DarkThemeColors {
@@ -100,10 +99,17 @@ private fun animateThemeColors(target: ThemeColors): ThemeColors {
     val errorContainer by animateColorAsState(targetValue = target.errorContainer, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_error_container")
     val warningContainer by animateColorAsState(targetValue = target.warningContainer, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_warning_container")
     val successContainer by animateColorAsState(targetValue = target.successContainer, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_success_container")
+    val blueContainer by animateColorAsState(targetValue = target.blueContainer, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_blue_container")
     val primary by animateColorAsState(targetValue = target.primary, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_primary")
+    val primaryPressed by animateColorAsState(targetValue = target.primaryPressed, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_primary_pressed")
+    val primaryLight by animateColorAsState(targetValue = target.primaryLight, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_primary_light")
+    val primaryGradientStart by animateColorAsState(targetValue = target.primaryGradientStart, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_primary_grad_start")
+    val primaryGradientEnd by animateColorAsState(targetValue = target.primaryGradientEnd, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_primary_grad_end")
     val error by animateColorAsState(targetValue = target.error, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_error")
     val warning by animateColorAsState(targetValue = target.warning, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_warning")
     val success by animateColorAsState(targetValue = target.success, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_success")
+    val blue by animateColorAsState(targetValue = target.blue, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_blue")
+    val cyan by animateColorAsState(targetValue = target.cyan, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_cyan")
 
     return target.copy(
         background = background,
@@ -122,10 +128,17 @@ private fun animateThemeColors(target: ThemeColors): ThemeColors {
         errorContainer = errorContainer,
         warningContainer = warningContainer,
         successContainer = successContainer,
+        blueContainer = blueContainer,
         primary = primary,
+        primaryPressed = primaryPressed,
+        primaryLight = primaryLight,
+        primaryGradientStart = primaryGradientStart,
+        primaryGradientEnd = primaryGradientEnd,
         error = error,
         warning = warning,
-        success = success
+        success = success,
+        blue = blue,
+        cyan = cyan
     )
 }
 
@@ -199,7 +212,6 @@ fun PassCardTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
