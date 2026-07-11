@@ -155,6 +155,8 @@ fun AllPasswordsScreen(
                                 iconText = item.name.take(1).uppercase(),
                                 iconType = item.iconType,
                                 iconValue = item.iconValue,
+                                copyContentDescription = if (isZh) "复制密码" else "Copy password",
+                                copiedToastMessage = if (isZh) "已复制密码" else "Password copied",
                                 onClick = { onPasswordClick(item) }
                             )
                         }

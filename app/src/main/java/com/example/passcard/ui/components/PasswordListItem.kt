@@ -1,10 +1,13 @@
 package com.example.passcard.ui.components
 
 import android.content.Context
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import android.view.Gravity
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,8 +16,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,12 +36,12 @@ import com.example.passcard.ui.theme.Radius13
 import com.example.passcard.ui.theme.Radius18
 import com.example.passcard.ui.theme.Spacing12
 import com.example.passcard.ui.theme.Spacing14
-import com.example.passcard.ui.theme.Spacing16
+import com.example.passcard.ui.theme.ThemeColors
 import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.ui.theme.rememberThemeColors
 import com.example.passcard.util.PasswordIconType
+import kotlin.math.roundToInt
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PasswordListItem(
     name: String,
@@ -44,6 +50,8 @@ fun PasswordListItem(
     iconText: String,
     iconType: String = PasswordIconType.GENERATED,
     iconValue: String = "",
+    copyContentDescription: String = "Copy password",
+    copiedToastMessage: String = "Password copied",
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -56,12 +64,10 @@ fun PasswordListItem(
             .fillMaxWidth()
             .height(68.dp)
             .appleSurface(colors = themeColors, radius = Radius18)
-            .combinedClickable(
+            .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick,
-                onLongClick = {},
-                onDoubleClick = { copyToClipboard(context, password) }
+                onClick = onClick
             )
             .padding(horizontal = Spacing14),
         verticalAlignment = Alignment.CenterVertically
@@ -96,20 +102,48 @@ fun PasswordListItem(
             )
         }
 
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-            contentDescription = null,
-            tint = themeColors.muted,
-            modifier = Modifier.size(18.dp)
+        Spacer(modifier = Modifier.width(Spacing12))
+
+        CopyPasswordButton(
+            themeColors = themeColors,
+            contentDescription = copyContentDescription,
+            onClick = { copyToClipboard(context, password, copiedToastMessage) }
         )
     }
 }
 
-private fun copyToClipboard(context: Context, text: String) {
-    ClipboardHelper.copyToClipboard(context, text, label = "Password", showToast = true)
+@Composable
+private fun CopyPasswordButton(
+    themeColors: ThemeColors,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    PressableScale(onClick = onClick, pressScale = 0.92f) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(Radius13))
+                .background(themeColors.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ContentCopy,
+                contentDescription = contentDescription,
+                tint = themeColors.onSurfaceVariant,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+    }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+private fun copyToClipboard(context: Context, text: String, toastMessage: String) {
+    ClipboardHelper.copyToClipboard(context, text, label = "Password", showToast = false)
+    Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).apply {
+        val topOffset = (context.resources.displayMetrics.density * 72).roundToInt()
+        setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, topOffset)
+    }.show()
+}
+
 @Composable
 fun SimplePasswordListItem(
     name: String,
@@ -128,11 +162,10 @@ fun SimplePasswordListItem(
             .fillMaxWidth()
             .height(68.dp)
             .appleSurface(colors = themeColors, radius = Radius18)
-            .combinedClickable(
+            .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick,
-                onLongClick = {}
+                onClick = onClick
             )
             .padding(horizontal = Spacing14),
         verticalAlignment = Alignment.CenterVertically

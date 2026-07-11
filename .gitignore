@@ -29,6 +29,7 @@ app/debug/
 app/release/
 
 /*.html
+/test_html/
 
 /PassCard.png
 /PassCard_images/

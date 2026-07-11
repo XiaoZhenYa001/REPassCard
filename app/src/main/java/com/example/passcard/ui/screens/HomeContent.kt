@@ -178,6 +178,8 @@ fun HomeContent(
                             iconText = password.name.take(1).uppercase(),
                             iconType = password.iconType,
                             iconValue = password.iconValue,
+                            copyContentDescription = if (isZh) "复制密码" else "Copy password",
+                            copiedToastMessage = if (isZh) "已复制密码" else "Password copied",
                             onClick = { onPasswordClick(password.id) }
                         )
                     }
