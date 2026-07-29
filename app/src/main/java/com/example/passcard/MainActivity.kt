@@ -1,8 +1,11 @@
 package com.example.passcard
 
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,8 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.passcard.ui.MainViewModel
+import com.example.passcard.ui.SessionStateViewModel
 import com.example.passcard.ui.screens.LockScreen
 import com.example.passcard.ui.screens.MainScreen
 import com.example.passcard.ui.theme.PassCardTheme
@@ -27,14 +33,16 @@ import com.example.passcard.util.PreferencesManager
  * 使用 FragmentActivity 以支持 BiometricPrompt
  */
 class MainActivity : FragmentActivity() {
-    
     private lateinit var preferencesManager: PreferencesManager
-    
+    private val sessionState: SessionStateViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         
         preferencesManager = PreferencesManager(this)
+        sessionState.initialize(preferencesManager.hasMasterPassword)
         
         setContent {
             var themeMode by remember { mutableStateOf(preferencesManager.theme) }
@@ -52,29 +60,27 @@ class MainActivity : FragmentActivity() {
                 languageKey = preferencesManager.language
             }
             
-            // 是否已解锁（如果没有主密码则默认已解锁）
-            var isUnlocked by remember {
-                mutableStateOf(!preferencesManager.hasMasterPassword)
-            }
-            
             PassCardTheme(darkTheme = isDarkTheme) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        if (!isUnlocked && preferencesManager.hasMasterPassword) {
+                        if (!sessionState.isUnlocked && preferencesManager.hasMasterPassword) {
                             LockScreen(
                                 preferencesManager = preferencesManager,
-                                onUnlocked = { isUnlocked = true }
+                                onUnlocked = {
+                                    sessionState.unlockVault()
+                                }
                             )
                         } else {
-                            val viewModel: MainViewModel = viewModel()
-                            val passwords by viewModel.passwords.collectAsState()
-                            val passwordCount by viewModel.passwordCount.collectAsState()
-                            val securityStats by viewModel.securityStats.collectAsState()
-                            val weakPasswords by viewModel.weakPasswords.collectAsState()
-                            val reusedPasswordGroups by viewModel.reusedPasswordGroups.collectAsState()
-                            val startupError by viewModel.startupError.collectAsState()
+                            val viewModel: MainViewModel = viewModel(
+                                viewModelStoreOwner = sessionState.vaultViewModelStoreOwner,
+                                factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+                            )
+                            val passwords by viewModel.passwords.collectAsStateWithLifecycle()
+                            val passwordCount by viewModel.passwordCount.collectAsStateWithLifecycle()
+                            val securityStats by viewModel.securityStats.collectAsStateWithLifecycle()
+                            val startupError by viewModel.startupError.collectAsStateWithLifecycle()
 
                             if (startupError != null && passwords.isEmpty()) {
                                 StartupErrorContent(startupError.orEmpty())
@@ -88,8 +94,8 @@ class MainActivity : FragmentActivity() {
                                     passwordCount = passwordCount,
                                     pagedPasswords = viewModel.pagedPasswords,
                                     securityStats = securityStats,
-                                    weakPasswords = weakPasswords,
-                                    reusedPasswordGroups = reusedPasswordGroups,
+                                    weakPasswordsFlow = viewModel.weakPasswords,
+                                    reusedPasswordGroupsFlow = viewModel.reusedPasswordGroups,
                                     loadAllPasswords = viewModel::getAllPasswordsSnapshot,
                                     onHomeSearchQueryChange = viewModel::setHomeSearchQuery,
                                     onAllPasswordsSearchQueryChange = viewModel::setAllPasswordsSearchQuery,
@@ -103,6 +109,30 @@ class MainActivity : FragmentActivity() {
                     }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!this::preferencesManager.isInitialized) return
+
+        sessionState.moveToForeground(
+            hasMasterPassword = preferencesManager.hasMasterPassword,
+            elapsedRealtime = SystemClock.elapsedRealtime(),
+            timeoutSeconds = preferencesManager.autoLockDelaySeconds
+        )
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations &&
+            this::preferencesManager.isInitialized
+        ) {
+            sessionState.moveToBackground(
+                hasMasterPassword = preferencesManager.hasMasterPassword,
+                elapsedRealtime = SystemClock.elapsedRealtime(),
+                timeoutSeconds = preferencesManager.autoLockDelaySeconds
+            )
+        }
+        super.onStop()
     }
 }
 

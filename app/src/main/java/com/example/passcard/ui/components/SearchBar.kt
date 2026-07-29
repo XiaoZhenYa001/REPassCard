@@ -42,8 +42,8 @@ import com.example.passcard.ui.theme.rememberThemeColors
 fun SearchBar(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String = "搜索密码...",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String = "搜索密码..."
 ) {
     val themeColors = rememberThemeColors()
     var focused by remember { mutableStateOf(false) }

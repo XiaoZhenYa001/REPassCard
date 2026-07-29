@@ -1,6 +1,7 @@
 package com.example.passcard.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.passcard.data.PasswordSearch
+import com.example.passcard.data.PasswordSearchField
+import com.example.passcard.data.PasswordSearchSyntax
 import com.example.passcard.ui.components.CategoryTagRow
 import com.example.passcard.ui.components.PasswordListItem
 import com.example.passcard.ui.components.PressableScale
@@ -55,7 +59,7 @@ import com.example.passcard.ui.theme.softShadow
 
 @Composable
 fun HomeContent(
-    passwords: List<PasswordItem>,
+    passwords: PasswordListSnapshot,
     selectedCategory: String?,
     searchQuery: String,
     currentLanguage: AppLanguage,
@@ -69,37 +73,31 @@ fun HomeContent(
     onSearchQueryChange: (String) -> Unit,
     onNavigateToAllPasswords: () -> Unit,
     onPasswordClick: (String) -> Unit,
-    onAddPassword: () -> Unit
+    onAddPassword: () -> Unit,
+    scrollState: ScrollState = rememberScrollState()
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
+    val passwordItems = passwords.items
     val allCategory = if (isZh) "全部" else "All"
     val defaultCategories = if (isZh) {
         listOf("社交媒体", "工作", "金融", "购物", "娱乐", "AI")
     } else {
         listOf("Social Media", "Work", "Finance", "Shopping", "Entertainment", "AI")
     }
-    val categories = remember(passwords, currentLanguage) {
-        listOf(allCategory) + (defaultCategories + passwords.map { it.category }.filter { it.isNotBlank() })
+    val categories = remember(passwordItems, currentLanguage) {
+        listOf(allCategory) + (defaultCategories + passwordItems.map { it.category }.filter { it.isNotBlank() })
             .distinct()
     }
     val isSearching = searchQuery.isNotBlank()
-    val isFieldSearch = searchQuery.trim().startsWith("/t", ignoreCase = true)
-    val filteredPasswords = remember(passwords, selectedCategory, searchQuery) {
-        passwords.filter { item ->
+    val parsedSearch = remember(searchQuery) { PasswordSearchSyntax.parse(searchQuery) }
+    val filteredPasswords = remember(passwordItems, selectedCategory, searchQuery, parsedSearch) {
+        passwordItems.filter { item ->
             val matchCategory = searchQuery.isNotBlank() ||
                 selectedCategory == null ||
                 selectedCategory == allCategory ||
                 item.category == selectedCategory
-            val matchSearch = searchQuery.isBlank() ||
-                isFieldSearch ||
-                item.name.contains(searchQuery, ignoreCase = true) ||
-                item.username.contains(searchQuery, ignoreCase = true) ||
-                item.email.contains(searchQuery, ignoreCase = true) ||
-                item.phone.contains(searchQuery, ignoreCase = true) ||
-                item.password.contains(searchQuery, ignoreCase = true) ||
-                item.category.contains(searchQuery, ignoreCase = true) ||
-                item.note.contains(searchQuery, ignoreCase = true)
+            val matchSearch = searchQuery.isBlank() || item.matchesPasswordSearch(parsedSearch)
             matchCategory && matchSearch
         }.take(if (searchQuery.isBlank()) 5 else 20)
     }
@@ -108,7 +106,7 @@ fun HomeContent(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = Spacing20, vertical = Spacing20),
         verticalArrangement = Arrangement.spacedBy(Spacing24)
     ) {
@@ -186,6 +184,28 @@ fun HomeContent(
                 }
             }
         }
+    }
+}
+
+internal fun PasswordItem.matchesPasswordSearch(search: PasswordSearch): Boolean {
+    val keyword = search.keyword
+    if (keyword.isBlank()) return false
+
+    return when (search.field) {
+        PasswordSearchField.NAME -> name.contains(keyword, ignoreCase = true)
+        PasswordSearchField.USERNAME -> username.contains(keyword, ignoreCase = true)
+        PasswordSearchField.PHONE -> phone.contains(keyword, ignoreCase = true)
+        PasswordSearchField.EMAIL -> email.contains(keyword, ignoreCase = true)
+        PasswordSearchField.PASSWORD -> password.contains(keyword, ignoreCase = true)
+        PasswordSearchField.CATEGORY -> category.contains(keyword, ignoreCase = true)
+        PasswordSearchField.NOTE -> note.contains(keyword, ignoreCase = true)
+        null -> name.contains(keyword, ignoreCase = true) ||
+            username.contains(keyword, ignoreCase = true) ||
+            phone.contains(keyword, ignoreCase = true) ||
+            email.contains(keyword, ignoreCase = true) ||
+            password.contains(keyword, ignoreCase = true) ||
+            category.contains(keyword, ignoreCase = true) ||
+            note.contains(keyword, ignoreCase = true)
     }
 }
 

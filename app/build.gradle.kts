@@ -36,6 +36,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = "11"
+        if (providers.gradleProperty("enableComposeCompilerReports").orNull == "true") {
+            val reportsDir = layout.buildDirectory.dir("compose_compiler").get().asFile.absolutePath
+            freeCompilerArgs += listOf(
+                "-P",
+                "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=$reportsDir",
+                "-P",
+                "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=$reportsDir"
+            )
+        }
     }
     buildFeatures {
         compose = true
@@ -59,9 +68,10 @@ android {
     }
 }
 
-// Disable unit tests for now
-tasks.register<Delete>("testClasses") {
-    enabled = false
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -88,6 +98,7 @@ dependencies {
     
     // Lifecycle
     implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.lifecycle.runtime.compose)
     implementation(libs.lifecycle.viewmodel.compose)
     
     // Coroutines
@@ -109,10 +120,10 @@ dependencies {
     // SVG icon import support
     implementation(libs.androidsvg)
 
-    // Testing - disabled for now
-    // testImplementation(libs.junit)
-    // androidTestImplementation(libs.ext.junit)
-    // androidTestImplementation(libs.espresso.core)
+    // Testing
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.ext.junit)
+    androidTestImplementation(libs.espresso.core)
     
     // Debug
     debugImplementation(libs.compose.ui.tooling)

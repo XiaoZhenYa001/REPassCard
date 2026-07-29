@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +37,10 @@ import androidx.fragment.app.FragmentActivity
 import com.example.passcard.ui.components.PressableScale
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.PreferencesManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 锁屏界面 — 输入主密码或指纹解锁
@@ -49,11 +54,14 @@ fun LockScreen(
     val themeColors = LocalThemeColors.current
     val context = LocalContext.current
     val isZh = preferencesManager.language == "CHINESE"
+    val scope = rememberCoroutineScope()
 
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var shakeOffset by remember { mutableStateOf(0f) }
+    var shakeOffset by remember { mutableFloatStateOf(0f) }
+    var isVerifying by remember { mutableStateOf(false) }
+    var hasAutoPromptedBiometric by rememberSaveable { mutableStateOf(false) }
 
     // 抖动动画
     val shakeAnim by animateFloatAsState(
@@ -65,13 +73,36 @@ fun LockScreen(
 
     // 自动弹出指纹
     fun attemptUnlock() {
-        if (password.isEmpty()) return
-        if (preferencesManager.verifyMasterPassword(password)) {
-            onUnlocked()
-        } else {
-            errorMessage = if (isZh) "密码错误，请重试" else "Incorrect password, try again"
-            shakeOffset = 16f
-            password = ""
+        if (password.isEmpty() || isVerifying) return
+        val candidate = password
+        password = ""
+        isVerifying = true
+        scope.launch {
+            val isValid = try {
+                withContext(Dispatchers.Default) {
+                    preferencesManager.verifyMasterPassword(candidate)
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                errorMessage = if (isZh) "暂时无法验证主密码，请重试" else "Unable to verify master password. Try again."
+                return@launch
+            } finally {
+                isVerifying = false
+            }
+            if (isValid) {
+                onUnlocked()
+            } else {
+                errorMessage = if (isZh) "密码错误，请重试" else "Incorrect password, try again"
+                shakeOffset = 16f
+            }
+        }
+    }
+
+    LaunchedEffect(preferencesManager.biometricEnabled) {
+        if (preferencesManager.biometricEnabled && !hasAutoPromptedBiometric) {
+            hasAutoPromptedBiometric = true
+            triggerBiometric(context, preferencesManager, onUnlocked)
         }
     }
 
@@ -185,10 +216,10 @@ fun LockScreen(
         }
 
         // 错误提示
-        if (errorMessage != null) {
+        errorMessage?.let { message ->
             Spacer(modifier = Modifier.height(Spacing8))
             Text(
-                text = errorMessage!!,
+                text = message,
                 color = themeColors.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxWidth(),
@@ -206,12 +237,20 @@ fun LockScreen(
                 .height(ActionButtonHeight),
             shape = RoundedCornerShape(Radius16),
             colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary),
-            enabled = password.isNotEmpty()
+            enabled = password.isNotEmpty() && !isVerifying
         ) {
-            Text(
-                text = if (isZh) "解锁" else "Unlock",
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700)
-            )
+            if (isVerifying) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = if (isZh) "解锁" else "Unlock",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700)
+                )
+            }
         }
 
         // 指纹解锁按钮（仅在开启时显示）
@@ -219,6 +258,7 @@ fun LockScreen(
             Spacer(modifier = Modifier.height(Spacing24))
 
             PressableScale(
+                enabled = !isVerifying,
                 onClick = {
                     triggerBiometric(context, preferencesManager, onUnlocked)
                 }
@@ -242,7 +282,7 @@ fun LockScreen(
                     }
                     Spacer(modifier = Modifier.height(Spacing8))
                     Text(
-                        text = if (isZh) "指纹解锁" else "Use Fingerprint",
+                        text = if (isZh) "点击指纹解锁" else "Tap to use fingerprint",
                         style = MaterialTheme.typography.bodySmall,
                         color = themeColors.onSurfaceVariant
                     )
@@ -304,7 +344,12 @@ private fun triggerBiometric(
                 onSuccess()
             }
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                // 用户取消或选择使用密码，不做额外处理
+                val wasCancelled = errorCode == BiometricPrompt.ERROR_CANCELED ||
+                    errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                    errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                if (!wasCancelled) {
+                    Toast.makeText(context, errString, Toast.LENGTH_SHORT).show()
+                }
             }
             override fun onAuthenticationFailed() {
                 Toast.makeText(

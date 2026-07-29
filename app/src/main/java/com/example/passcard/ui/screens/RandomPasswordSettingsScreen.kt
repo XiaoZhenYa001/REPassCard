@@ -43,7 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
-import com.example.passcard.ui.components.ClipboardHelper
+import com.example.passcard.util.ClipboardHelper
 import com.example.passcard.ui.components.PressableScale
 import com.example.passcard.ui.theme.ActionButtonHeight
 import com.example.passcard.ui.theme.BackButtonSize

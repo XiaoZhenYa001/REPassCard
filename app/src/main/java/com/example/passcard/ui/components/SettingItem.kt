@@ -34,7 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,7 +74,7 @@ fun SettingItem(
 ) {
     val positionedModifier = if (onPositioned != null) {
         Modifier.onGloballyPositioned { coordinates ->
-            val position = coordinates.positionInRoot()
+            val position = coordinates.positionInWindow()
             onPositioned(
                 IntOffset(position.x.toInt(), position.y.toInt()),
                 IntSize(coordinates.size.width, coordinates.size.height)
@@ -170,57 +170,88 @@ fun SettingToggleItem(
 fun ProfileCard(
     userName: String,
     userEmail: String,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     @DrawableRes avatarResId: Int? = null,
     colors: ThemeColors = rememberThemeColors()
 ) {
-    PressableScale(onClick = onClick, modifier = modifier.fillMaxWidth()) {
-        Row(
+    if (onClick == null) {
+        ProfileCardContent(
+            userName = userName,
+            userEmail = userEmail,
+            avatarResId = avatarResId,
+            showChevron = false,
+            colors = colors,
+            modifier = modifier
+        )
+    } else {
+        PressableScale(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+            ProfileCardContent(
+                userName = userName,
+                userEmail = userEmail,
+                avatarResId = avatarResId,
+                showChevron = true,
+                colors = colors
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileCardContent(
+    userName: String,
+    userEmail: String,
+    @DrawableRes avatarResId: Int?,
+    showChevron: Boolean,
+    colors: ThemeColors,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .appleSurface(colors = colors, radius = Radius18)
+            .padding(Spacing16),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing16)
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .appleSurface(colors = colors, radius = Radius18)
-                .padding(Spacing16),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing16)
+                .size(ProfileIconSize)
+                .clip(RoundedCornerShape(Radius14))
+                .background(colors.surfaceVariant),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(ProfileIconSize)
-                    .clip(RoundedCornerShape(Radius14))
-                    .background(colors.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                if (avatarResId != null) {
-                    Image(
-                        painter = painterResource(id = avatarResId),
-                        contentDescription = userName,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(Spacing4)
-                    )
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(Spacing4)
-            ) {
-                Text(
-                    text = userName,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
-                    color = colors.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = userEmail,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+            if (avatarResId != null) {
+                Image(
+                    painter = painterResource(id = avatarResId),
+                    contentDescription = userName,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(Spacing4)
                 )
             }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Spacing4)
+        ) {
+            Text(
+                text = userName,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
+                color = colors.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = userEmail,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (showChevron) {
             Icon(
                 imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = null,

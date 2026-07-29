@@ -16,10 +16,6 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
         const val HOME_RECENT_LIMIT = 30
     }
     
-    val allPasswords: Flow<List<PasswordItem>> = passwordDao.getAllPasswords().map { entities ->
-        entities.map { it.toPasswordItem() }
-    }
-
     val recentPasswords: Flow<List<PasswordItem>> = passwordDao.getRecentPasswords(HOME_RECENT_LIMIT).map { entities ->
         entities.map { it.toPasswordItem() }
     }
@@ -114,22 +110,6 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
         }
     }
 
-    suspend fun getPasswordsPage(limit: Int, offset: Int): List<PasswordItem> {
-        return passwordDao.getPasswordsPage(limit, offset).map { it.toPasswordItem() }
-    }
-
-    suspend fun searchPasswordsPage(query: String, limit: Int, offset: Int): List<PasswordItem> {
-        val parsedSearch = PasswordSearchSyntax.parse(query)
-        if (parsedSearch.keyword.isBlank()) return emptyList()
-        return passwordDao.searchPasswordsPage(parsedSearch.contains, limit, offset).map { it.toPasswordItem() }
-    }
-
-    suspend fun getSearchPasswordCount(query: String): Int {
-        val parsedSearch = PasswordSearchSyntax.parse(query)
-        if (parsedSearch.keyword.isBlank()) return 0
-        return passwordDao.getSearchPasswordCount(parsedSearch.contains)
-    }
-    
     suspend fun getPasswordById(id: String): PasswordItem? {
         return passwordDao.getPasswordById(id)?.toPasswordItem()
     }
@@ -139,19 +119,23 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
     }
     
     suspend fun insertPassword(item: PasswordItem) {
-        passwordDao.insertPassword(item.toEntity())
+        passwordDao.insertPassword(item.toPasswordEntity())
     }
     
     suspend fun insertAllPasswords(items: List<PasswordItem>) {
-        passwordDao.insertAllPasswords(items.map { it.toEntity() })
+        passwordDao.insertAllPasswords(items.map { it.toPasswordEntity() })
+    }
+
+    suspend fun replaceAllPasswords(items: List<PasswordItem>) {
+        passwordDao.replaceAllPasswords(items.map { it.toPasswordEntity() })
     }
     
     suspend fun updatePassword(item: PasswordItem) {
-        passwordDao.updatePassword(item.toEntity())
+        passwordDao.updatePassword(item.toPasswordEntity())
     }
     
     suspend fun deletePassword(item: PasswordItem) {
-        passwordDao.deletePassword(item.toEntity())
+        passwordDao.deletePassword(item.toPasswordEntity())
     }
     
     suspend fun deletePasswordById(id: String) {
@@ -168,34 +152,4 @@ data class ReusedPasswordGroup(
 ) {
     val label: String = items.firstOrNull()?.password.orEmpty()
     val count: Int = items.size
-}
-
-private fun PasswordEntity.toPasswordItem(): PasswordItem {
-    return PasswordItem(
-        id = id,
-        name = name,
-        username = username,
-        phone = phone,
-        email = email,
-        password = password,
-        category = category,
-        note = note,
-        iconType = iconType,
-        iconValue = iconValue
-    )
-}
-
-private fun PasswordItem.toEntity(): PasswordEntity {
-    return PasswordEntity(
-        id = id,
-        name = name,
-        username = username,
-        phone = phone,
-        email = email,
-        password = password,
-        category = category,
-        note = note,
-        iconType = iconType,
-        iconValue = iconValue
-    )
 }

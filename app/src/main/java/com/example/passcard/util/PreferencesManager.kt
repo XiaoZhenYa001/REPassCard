@@ -4,14 +4,13 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import java.security.MessageDigest
+import java.util.UUID
 
 /**
  * 用户偏好设置管理器
  * 使用 SharedPreferences 持久化存储用户设置
  */
 class PreferencesManager(context: Context) {
-    private val appContext = context.applicationContext
-    
     private val prefs: SharedPreferences = context.getSharedPreferences(
         PREFS_NAME,
         Context.MODE_PRIVATE
@@ -26,7 +25,12 @@ class PreferencesManager(context: Context) {
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_CLIPBOARD_CLEAR_ENABLED = "clipboard_clear_enabled"
         private const val KEY_CLIPBOARD_CLEAR_DELAY = "clipboard_clear_delay"
+        private const val KEY_AUTO_LOCK_DELAY_SECONDS = "auto_lock_delay_seconds"
         private const val KEY_MASTER_PASSWORD_HASH = "master_password_hash"
+        private const val KEY_MASTER_PASSWORD_KDF_VERSION = "master_password_kdf_version"
+        private const val KEY_MASTER_PASSWORD_KDF_ITERATIONS = "master_password_kdf_iterations"
+        private const val KEY_MASTER_PASSWORD_SALT = "master_password_salt"
+        private const val KEY_MASTER_PASSWORD_VERIFIER = "master_password_verifier"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
         private const val KEY_SYNC_SECURITY_MODE = "sync_security_mode"
         private const val KEY_OBJECT_PREFIX = "cloud_object_prefix"
@@ -46,6 +50,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_CLOUD_UPDATED_AT = "last_cloud_updated_at"
         private const val KEY_LAST_CLOUD_ETAG = "last_cloud_etag"
         private const val KEY_LAST_LOCAL_SYNC_AT = "last_local_sync_at"
+        private const val KEY_INSTALLATION_ID = "installation_id"
         private const val KEY_RANDOM_PASSWORD_LENGTH = "random_password_length"
         private const val KEY_RANDOM_PASSWORD_UPPERCASE = "random_password_uppercase"
         private const val KEY_RANDOM_PASSWORD_LOWERCASE = "random_password_lowercase"
@@ -56,8 +61,9 @@ class PreferencesManager(context: Context) {
         private const val DEFAULT_THEME = "LIGHT"
         private const val DEFAULT_LANGUAGE = "CHINESE"
         private const val DEFAULT_SOUND_ENABLED = true
-        private const val DEFAULT_CLIPBOARD_CLEAR_ENABLED = false
+        private const val DEFAULT_CLIPBOARD_CLEAR_ENABLED = true
         private const val DEFAULT_CLIPBOARD_CLEAR_DELAY = 30
+        private const val DEFAULT_AUTO_LOCK_DELAY_SECONDS = 30
     }
     
     var theme: String
@@ -78,28 +84,56 @@ class PreferencesManager(context: Context) {
     
     var clipboardClearDelay: Int
         get() = prefs.getInt(KEY_CLIPBOARD_CLEAR_DELAY, DEFAULT_CLIPBOARD_CLEAR_DELAY)
-        set(value) = prefs.edit { putInt(KEY_CLIPBOARD_CLEAR_DELAY, value) }
+            .coerceIn(15, 300)
+        set(value) = prefs.edit { putInt(KEY_CLIPBOARD_CLEAR_DELAY, value.coerceIn(15, 300)) }
+
+    var autoLockDelaySeconds: Int
+        get() = prefs.getInt(KEY_AUTO_LOCK_DELAY_SECONDS, DEFAULT_AUTO_LOCK_DELAY_SECONDS)
+            .coerceIn(0, 300)
+        set(value) = prefs.edit { putInt(KEY_AUTO_LOCK_DELAY_SECONDS, value.coerceIn(0, 300)) }
     
     // ---- 主密码 ----
     
-    /** 是否已设置主密码 */
     val hasMasterPassword: Boolean
-        get() = prefs.getString(KEY_MASTER_PASSWORD_HASH, null) != null
+        get() = prefs.contains(KEY_MASTER_PASSWORD_VERIFIER) ||
+            prefs.contains(KEY_MASTER_PASSWORD_HASH)
     
-    /** 设置主密码（存储 SHA-256 哈希） */
     fun setMasterPassword(password: String) {
-        prefs.edit { putString(KEY_MASTER_PASSWORD_HASH, hashPassword(password)) }
+        val record = MasterPasswordKdf.create(password)
+        prefs.edit {
+            putInt(KEY_MASTER_PASSWORD_KDF_VERSION, record.version)
+            putInt(KEY_MASTER_PASSWORD_KDF_ITERATIONS, record.iterations)
+            putString(KEY_MASTER_PASSWORD_SALT, record.saltBase64)
+            putString(KEY_MASTER_PASSWORD_VERIFIER, record.verifierBase64)
+            remove(KEY_MASTER_PASSWORD_HASH)
+        }
     }
     
-    /** 验证主密码 */
     fun verifyMasterPassword(password: String): Boolean {
-        val storedHash = prefs.getString(KEY_MASTER_PASSWORD_HASH, null) ?: return false
-        return hashPassword(password) == storedHash
+        if (prefs.contains(KEY_MASTER_PASSWORD_VERIFIER)) {
+            val record = readMasterPasswordRecord() ?: return false
+            return MasterPasswordKdf.verify(password, record)
+        }
+
+        val legacyHash = prefs.getString(KEY_MASTER_PASSWORD_HASH, null) ?: return false
+        val matchesLegacy = MessageDigest.isEqual(
+            legacyHash.toByteArray(Charsets.US_ASCII),
+            hashLegacyPassword(password).toByteArray(Charsets.US_ASCII)
+        )
+        if (matchesLegacy) {
+            setMasterPassword(password)
+        }
+        return matchesLegacy
     }
     
-    /** 清除主密码 */
     fun clearMasterPassword() {
-        prefs.edit { remove(KEY_MASTER_PASSWORD_HASH) }
+        prefs.edit {
+            remove(KEY_MASTER_PASSWORD_HASH)
+            remove(KEY_MASTER_PASSWORD_KDF_VERSION)
+            remove(KEY_MASTER_PASSWORD_KDF_ITERATIONS)
+            remove(KEY_MASTER_PASSWORD_SALT)
+            remove(KEY_MASTER_PASSWORD_VERIFIER)
+        }
     }
     
     // ---- 指纹解锁 ----
@@ -192,6 +226,14 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_LAST_LOCAL_SYNC_AT, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_LOCAL_SYNC_AT, value.coerceAtLeast(0L)) }
 
+    @Synchronized
+    fun getOrCreateInstallationId(): String {
+        prefs.getString(KEY_INSTALLATION_ID, null)?.takeIf { it.isNotBlank() }?.let { return it }
+        return UUID.randomUUID().toString().also { generated ->
+            prefs.edit { putString(KEY_INSTALLATION_ID, generated) }
+        }
+    }
+
     var randomPasswordSpec: RandomPasswordSpec
         get() = RandomPasswordSpec(
             length = prefs.getInt(KEY_RANDOM_PASSWORD_LENGTH, RandomPasswordSpec.DEFAULT_LENGTH),
@@ -223,7 +265,18 @@ class PreferencesManager(context: Context) {
         prefs.edit { clear() }
     }
     
-    private fun hashPassword(password: String): String {
+    private fun readMasterPasswordRecord(): MasterPasswordRecord? {
+        val salt = prefs.getString(KEY_MASTER_PASSWORD_SALT, null) ?: return null
+        val verifier = prefs.getString(KEY_MASTER_PASSWORD_VERIFIER, null) ?: return null
+        return MasterPasswordRecord(
+            version = prefs.getInt(KEY_MASTER_PASSWORD_KDF_VERSION, -1),
+            iterations = prefs.getInt(KEY_MASTER_PASSWORD_KDF_ITERATIONS, -1),
+            saltBase64 = salt,
+            verifierBase64 = verifier
+        )
+    }
+
+    private fun hashLegacyPassword(password: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val hashBytes = digest.digest(password.toByteArray(Charsets.UTF_8))
         return hashBytes.joinToString("") { "%02x".format(it) }

@@ -12,8 +12,8 @@ import java.util.Arrays
 
 @Database(
     entities = [PasswordEntity::class],
-    version = 2,
-    exportSchema = false
+    version = 3,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun passwordDao(): PasswordDao
@@ -25,18 +25,33 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
+            return synchronized(this) {
                 INSTANCE ?: buildEncryptedDatabase(context.applicationContext).also {
                     INSTANCE = it
                 }
             }
         }
 
+        fun closeInstance() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
+
         private fun buildEncryptedDatabase(context: Context): AppDatabase {
             System.loadLibrary("sqlcipher")
 
-            val passphrase = DatabasePassphraseManager.getOrCreatePassphrase(context)
             val plaintextMigration = PlaintextDatabaseMigrator.prepareIfNeeded(context, DATABASE_NAME)
+            val passphrase = try {
+                DatabasePassphraseManager.getOrCreatePassphrase(
+                    context = context,
+                    hasExistingDatabase = context.getDatabasePath(DATABASE_NAME).exists()
+                )
+            } catch (error: Exception) {
+                PlaintextDatabaseMigrator.rollback(plaintextMigration)
+                throw error
+            }
 
             return try {
                 val instance = Room.databaseBuilder(
@@ -45,8 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                     DATABASE_NAME
                 )
                     .openHelperFactory(SupportOpenHelperFactory(passphrase.copyOf()))
-                    .addMigrations(MIGRATION_1_2)
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
 
                 if (plaintextMigration.shouldMigrate && plaintextMigration.passwords.isNotEmpty()) {
@@ -73,6 +87,33 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE passwords ADD COLUMN iconType TEXT NOT NULL DEFAULT 'generated'")
                 db.execSQL("ALTER TABLE passwords ADD COLUMN iconValue TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val columns = db.query("PRAGMA table_info(passwords)").use { cursor ->
+                    val nameIndex = cursor.getColumnIndexOrThrow("name")
+                    buildSet {
+                        while (cursor.moveToNext()) {
+                            add(cursor.getString(nameIndex))
+                        }
+                    }
+                }
+
+                if ("revision" !in columns) {
+                    db.execSQL("ALTER TABLE passwords ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+                }
+                if ("deviceId" !in columns) {
+                    db.execSQL("ALTER TABLE passwords ADD COLUMN deviceId TEXT NOT NULL DEFAULT ''")
+                }
+                if ("deletedAt" !in columns) {
+                    db.execSQL("ALTER TABLE passwords ADD COLUMN deletedAt INTEGER DEFAULT NULL")
+                }
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_passwords_updatedAt ON passwords(updatedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_passwords_category_updatedAt ON passwords(category, updatedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_passwords_password ON passwords(password)")
             }
         }
     }

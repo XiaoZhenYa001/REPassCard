@@ -2,6 +2,8 @@ package com.example.passcard.ui.screens
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.Gravity
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.padding
@@ -24,9 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import android.widget.Toast
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
+import com.example.passcard.util.ClipboardHelper
 import com.example.passcard.util.LocalIconImage
 import com.example.passcard.util.PasswordIconStorage
 import com.example.passcard.util.PasswordIconType
@@ -35,6 +37,7 @@ import com.example.passcard.util.RandomPasswordSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 private val ICON_PICKER_MIME_TYPES = arrayOf(
     "image/*",
@@ -89,14 +92,14 @@ val COMMON_CATEGORIES_EN = listOf("Social Media", "Work", "Finance", "Shopping",
 
 @Composable
 fun EditScreen(
-    password: PasswordItem? = null,
-    currentLanguage: AppLanguage = AppLanguage.CHINESE,
-    randomPasswordSpec: RandomPasswordSpec? = null,
-    loadAllPasswords: suspend () -> List<PasswordItem> = { emptyList() },
     onBack: () -> Unit,
     onSave: (PasswordItem) -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    password: PasswordItem? = null,
+    currentLanguage: AppLanguage = AppLanguage.CHINESE,
+    randomPasswordSpec: RandomPasswordSpec? = null,
+    loadAllPasswords: suspend () -> List<PasswordItem> = { emptyList() }
 ) {
     val themeColors = rememberThemeColors()
     val context = LocalContext.current
@@ -144,9 +147,28 @@ fun EditScreen(
         ).show()
     }
 
+    fun copyPassword() {
+        if (uiState.password.isEmpty()) return
+        ClipboardHelper.copyToClipboard(
+            context = context,
+            text = uiState.password,
+            label = "Password",
+            showToast = false
+        )
+        Toast.makeText(
+            context,
+            if (currentLanguage == AppLanguage.CHINESE) "已复制密码" else "Password copied",
+            Toast.LENGTH_SHORT
+        ).apply {
+            val topOffset = (context.resources.displayMetrics.density * 72).roundToInt()
+            setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, topOffset)
+        }.show()
+    }
+
     fun hasImageReadPermission(): Boolean {
-        val permission = PasswordIconStorage.requiredReadPermission() ?: return true
-        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        return PasswordIconStorage.requiredReadPermissions().any { permission ->
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        }
     }
 
     fun loadLocalImages() {
@@ -158,9 +180,9 @@ fun EditScreen(
     }
 
     val imagePermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (grants.values.any { it }) {
             loadLocalImages()
         } else {
             val message = if (currentLanguage == AppLanguage.CHINESE) {
@@ -173,9 +195,8 @@ fun EditScreen(
     }
 
     fun refreshLocalImages() {
-        val permission = PasswordIconStorage.requiredReadPermission()
-        if (permission != null && !hasImageReadPermission()) {
-            imagePermissionLauncher.launch(permission)
+        if (!hasImageReadPermission()) {
+            imagePermissionLauncher.launch(PasswordIconStorage.requiredReadPermissions())
         } else {
             loadLocalImages()
         }
@@ -257,6 +278,7 @@ fun EditScreen(
             return null
         }
 
+        val now = System.currentTimeMillis()
         return PasswordItem(
             id = uiState.id.ifEmpty { java.util.UUID.randomUUID().toString() },
             name = uiState.name,
@@ -267,7 +289,12 @@ fun EditScreen(
             category = uiState.category,
             note = uiState.note,
             iconType = uiState.iconType,
-            iconValue = uiState.iconValue
+            iconValue = uiState.iconValue,
+            createdAt = password?.createdAt ?: now,
+            updatedAt = now,
+            revision = password?.revision ?: 0L,
+            deviceId = password?.deviceId.orEmpty(),
+            deletedAt = password?.deletedAt
         )
     }
     
@@ -392,7 +419,11 @@ fun EditScreen(
                 value = uiState.password,
                 onValueChange = { uiState = uiState.copy(password = it) },
                 isPassword = true,
-                onCopy = { /* TODO: 复制密码到剪贴板 */ },
+                onCopy = if (uiState.password.isNotEmpty()) {
+                    { copyPassword() }
+                } else {
+                    null
+                },
                 placeholder = if (currentLanguage == AppLanguage.CHINESE) "输入密码" else "Enter password"
             )
             

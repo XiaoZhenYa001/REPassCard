@@ -1,9 +1,17 @@
 package com.example.passcard.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "passwords")
+@Entity(
+    tableName = "passwords",
+    indices = [
+        Index(value = ["updatedAt"]),
+        Index(value = ["category", "updatedAt"]),
+        Index(value = ["password"])
+    ]
+)
 data class PasswordEntity(
     @PrimaryKey
     val id: String,

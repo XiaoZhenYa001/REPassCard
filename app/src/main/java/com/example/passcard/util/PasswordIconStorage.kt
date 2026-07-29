@@ -16,6 +16,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.LruCache
+import androidx.annotation.RequiresApi
 import com.caverock.androidsvg.SVG
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -67,11 +68,16 @@ object PasswordIconStorage {
         }
     }
 
-    fun requiredReadPermission(): String? {
+    fun requiredReadPermissions(): Array<String> {
         return when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> Manifest.permission.READ_MEDIA_IMAGES
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> Manifest.permission.READ_EXTERNAL_STORAGE
-            else -> Manifest.permission.READ_EXTERNAL_STORAGE
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+            )
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES
+            )
+            else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
 
@@ -185,6 +191,7 @@ object PasswordIconStorage {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun saveMediaStoreBytes(
         context: Context,
         fileName: String,
@@ -345,6 +352,7 @@ object PasswordIconStorage {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun ensureMediaStoreFolder(context: Context) {
         if (findKeepFile(context) != null) return
         val values = ContentValues().apply {
@@ -358,6 +366,7 @@ object PasswordIconStorage {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun findKeepFile(context: Context): Uri? {
         val resolver = context.contentResolver
         val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -371,6 +380,7 @@ object PasswordIconStorage {
         return null
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun listMediaStoreImages(context: Context): List<LocalIconImage> {
         val resolver = context.contentResolver
         val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)

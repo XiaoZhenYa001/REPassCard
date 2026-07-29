@@ -14,9 +14,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.components.DropdownOption
 import com.example.passcard.ui.components.DropdownSelectMenu
@@ -24,14 +27,31 @@ import com.example.passcard.ui.components.ExportFormat
 import com.example.passcard.ui.components.FormatPickerSheet
 import com.example.passcard.ui.theme.LocalThemeColors
 
+@Immutable
+data class MainOverlayUiState(
+    val showThemeDropdown: Boolean,
+    val themeDropdownOffset: IntOffset,
+    val themeDropdownSize: IntSize,
+    val showLanguageDropdown: Boolean,
+    val languageDropdownOffset: IntOffset,
+    val languageDropdownSize: IntSize,
+    val showExportFormatPicker: Boolean,
+    val isImportBusy: Boolean
+)
+
+@Immutable
+data class DropdownOptionSet(
+    val items: List<DropdownOption>
+)
+
 @Composable
 fun MainOverlayLayer(
-    uiState: MainUiState,
+    state: MainOverlayUiState,
     currentLanguage: AppLanguage,
     currentTheme: String,
     languageKey: String,
-    themeOptions: List<DropdownOption>,
-    languageOptions: List<DropdownOption>,
+    themeOptions: DropdownOptionSet,
+    languageOptions: DropdownOptionSet,
     onDismissTheme: () -> Unit,
     onThemeSelected: (DropdownOption) -> Unit,
     onDismissLanguage: () -> Unit,
@@ -39,40 +59,40 @@ fun MainOverlayLayer(
     onExportFormatSelected: (ExportFormat) -> Unit,
     onDismissExportPicker: () -> Unit
 ) {
-    if (uiState.showThemeDropdown) {
+    if (state.showThemeDropdown) {
         DropdownSelectMenu(
             expanded = true,
             onDismissRequest = onDismissTheme,
-            options = themeOptions,
+            options = themeOptions.items,
             selectedValue = currentTheme,
             onOptionSelected = onThemeSelected,
-            offset = uiState.themeDropdownOffset,
-            itemWidth = uiState.themeDropdownSize.width,
-            itemHeight = uiState.themeDropdownSize.height
+            offset = state.themeDropdownOffset,
+            itemWidth = state.themeDropdownSize.width,
+            itemHeight = state.themeDropdownSize.height
         )
     }
 
-    if (uiState.showLanguageDropdown) {
+    if (state.showLanguageDropdown) {
         DropdownSelectMenu(
             expanded = true,
             onDismissRequest = onDismissLanguage,
-            options = languageOptions,
+            options = languageOptions.items,
             selectedValue = languageKey,
             onOptionSelected = onLanguageSelected,
-            offset = uiState.languageDropdownOffset,
-            itemWidth = uiState.languageDropdownSize.width,
-            itemHeight = uiState.languageDropdownSize.height
+            offset = state.languageDropdownOffset,
+            itemWidth = state.languageDropdownSize.width,
+            itemHeight = state.languageDropdownSize.height
         )
     }
 
     FormatPickerSheet(
-        visible = uiState.showExportFormatPicker,
+        visible = state.showExportFormatPicker,
         currentLanguage = currentLanguage,
         onFormatSelected = onExportFormatSelected,
         onDismiss = onDismissExportPicker
     )
 
-    if (uiState.isImportBusy) {
+    if (state.isImportBusy) {
         ImportBusyOverlay(currentLanguage = currentLanguage)
     }
 }

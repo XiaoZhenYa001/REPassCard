@@ -1,6 +1,7 @@
 package com.example.passcard.ui.screens
 
 import com.example.passcard.util.ImportParseResult
+import java.util.Locale
 
 fun buildImportKey(service: String, username: String): String {
     return "${service.trim().lowercase()}|${username.trim().lowercase()}"
@@ -8,7 +9,7 @@ fun buildImportKey(service: String, username: String): String {
 
 private fun formatImportDuration(durationMillis: Long): String {
     val seconds = durationMillis.coerceAtLeast(1) / 1000.0
-    return String.format("%.1fs", seconds)
+    return String.format(Locale.ROOT, "%.1fs", seconds)
 }
 
 fun buildParseReceipt(

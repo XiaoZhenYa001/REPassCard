@@ -1,10 +1,12 @@
 package com.example.passcard.ui.screens
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.example.passcard.ui.components.TabItem
 import com.example.passcard.util.ImportIssue
 
+@Immutable
 data class MainUiState(
     val selectedTab: TabItem = TabItem.HOME,
     val route: MainRoute = MainRoute.Tabs,
@@ -14,7 +16,6 @@ data class MainUiState(
     val importReceipt: ImportReceiptUi? = null,
     val showImportReceipt: Boolean = false,
     val isImportBusy: Boolean = false,
-    val passwords: List<PasswordItem> = emptyList(),
     val selectedCategory: String? = null,
     val searchQuery: String = "",
     val showThemeDropdown: Boolean = false,
@@ -26,6 +27,7 @@ data class MainUiState(
     val showExportFormatPicker: Boolean = false
 )
 
+@Immutable
 sealed interface MainRoute {
     data object Tabs : MainRoute
     data class EditPassword(
@@ -44,4 +46,33 @@ sealed interface MainRoute {
     data object RandomPasswordSettings : MainRoute
     data object WeakPasswords : MainRoute
     data object ReusedPasswords : MainRoute
+}
+
+internal enum class MainNavigationDirection {
+    FORWARD,
+    BACKWARD,
+    REPLACE
+}
+
+internal fun mainNavigationDirection(
+    initialRoute: MainRoute,
+    targetRoute: MainRoute
+): MainNavigationDirection {
+    val initialDepth = initialRoute.navigationDepth()
+    val targetDepth = targetRoute.navigationDepth()
+    return when {
+        targetDepth > initialDepth -> MainNavigationDirection.FORWARD
+        targetDepth < initialDepth -> MainNavigationDirection.BACKWARD
+        else -> MainNavigationDirection.REPLACE
+    }
+}
+
+private fun MainRoute.navigationDepth(): Int {
+    return when (this) {
+        MainRoute.Tabs -> 0
+        is MainRoute.EditPassword -> returnRoute.navigationDepth() + 1
+        MainRoute.SearchHelp,
+        MainRoute.CloudBackupHelp -> 2
+        else -> 1
+    }
 }

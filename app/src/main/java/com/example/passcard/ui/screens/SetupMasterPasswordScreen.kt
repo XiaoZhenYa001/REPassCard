@@ -35,6 +35,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.PreferencesManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 设置/修改主密码界面
@@ -50,6 +54,7 @@ fun SetupMasterPasswordScreen(
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
     val isEditing = preferencesManager.hasMasterPassword
+    val scope = rememberCoroutineScope()
 
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
@@ -59,22 +64,16 @@ fun SetupMasterPasswordScreen(
     var confirmPwdVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     // 密码强度评估
     val strength = remember(newPassword) { evaluatePasswordStrength(newPassword) }
 
     fun handleSave() {
+        if (isSaving) return
         errorMessage = null
         successMessage = null
-
-        // 如果已有密码，验证旧密码
-        if (isEditing) {
-            if (!preferencesManager.verifyMasterPassword(currentPassword)) {
-                errorMessage = if (isZh) "当前密码错误" else "Current password is incorrect"
-                return
-            }
-        }
 
         if (newPassword.length < 4) {
             errorMessage = if (isZh) "密码至少 4 个字符" else "Password must be at least 4 characters"
@@ -86,8 +85,41 @@ fun SetupMasterPasswordScreen(
             return
         }
 
-        preferencesManager.setMasterPassword(newPassword)
-        onPasswordSet()
+        val currentCandidate = currentPassword
+        val newCandidate = newPassword
+        isSaving = true
+        scope.launch {
+            var passwordSaved = false
+            try {
+                val currentPasswordValid = if (isEditing) {
+                    withContext(Dispatchers.Default) {
+                        preferencesManager.verifyMasterPassword(currentCandidate)
+                    }
+                } else {
+                    true
+                }
+
+                if (!currentPasswordValid) {
+                    currentPassword = ""
+                    errorMessage = if (isZh) "当前密码错误" else "Current password is incorrect"
+                } else {
+                    withContext(Dispatchers.Default) {
+                        preferencesManager.setMasterPassword(newCandidate)
+                    }
+                    passwordSaved = true
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                errorMessage = if (isZh) "暂时无法保存主密码，请重试" else "Unable to save master password. Try again."
+            } finally {
+                isSaving = false
+            }
+
+            if (passwordSaved) {
+                onPasswordSet()
+            }
+        }
     }
 
     Column(
@@ -248,19 +280,27 @@ fun SetupMasterPasswordScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary),
-                enabled = newPassword.isNotEmpty() && confirmPassword.isNotEmpty()
+                enabled = newPassword.isNotEmpty() && confirmPassword.isNotEmpty() && !isSaving
             ) {
-                Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (isEditing) {
-                        if (isZh) "更新密码" else "Update Password"
-                    } else {
-                        if (isZh) "设置密码" else "Set Password"
-                    },
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.W600
-                )
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isEditing) {
+                            if (isZh) "更新密码" else "Update Password"
+                        } else {
+                            if (isZh) "设置密码" else "Set Password"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.W600
+                    )
+                }
             }
 
             // 删除主密码按钮（仅修改时）

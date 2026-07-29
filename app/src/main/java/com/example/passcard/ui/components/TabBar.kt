@@ -46,40 +46,54 @@ enum class TabItem { HOME, SECURITY, CLOUD, SETTINGS }
 @Composable
 fun TabBar(
     selectedTab: TabItem,
+    isChinese: Boolean,
     onTabSelected: (TabItem) -> Unit,
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val themeColors = LocalThemeColors.current
     val haptic = LocalHapticFeedback.current
+    val barElevation by animateDpAsState(
+        targetValue = if (themeColors.isDark) 20.dp else 12.dp,
+        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
+        label = "tab_bar_elevation"
+    )
+    val ambientShadowColor by animateColorAsState(
+        targetValue = Color.Black.copy(alpha = if (themeColors.isDark) 0.35f else 0.06f),
+        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
+        label = "tab_bar_ambient_shadow"
+    )
+    val spotShadowColor by animateColorAsState(
+        targetValue = Color.Black.copy(alpha = if (themeColors.isDark) 0.45f else 0.1f),
+        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
+        label = "tab_bar_spot_shadow"
+    )
+    val topHighlightColor by animateColorAsState(
+        targetValue = if (themeColors.isDark) Color.White.copy(alpha = 0.08f) else Color.Transparent,
+        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
+        label = "tab_bar_top_highlight"
+    )
 
     Box(
         modifier = modifier
             .width(350.dp)
             .height(70.dp)
             .shadow(
-                elevation = if (themeColors.isDark) 20.dp else 12.dp,
+                elevation = barElevation,
                 shape = RoundedCornerShape(35.dp),
-                ambientColor = if (themeColors.isDark)
-                    Color.Black.copy(alpha = 0.35f)
-                else
-                    Color.Black.copy(alpha = 0.06f),
-                spotColor = if (themeColors.isDark)
-                    Color.Black.copy(alpha = 0.45f)
-                else
-                    Color.Black.copy(alpha = 0.1f)
+                ambientColor = ambientShadowColor,
+                spotColor = spotShadowColor
             )
             .clip(RoundedCornerShape(35.dp))
             .background(themeColors.tabBarBackground)
             .drawBehind {
-                // iOS 风格：暗色模式顶部微光线条
-                if (themeColors.isDark) {
+                if (topHighlightColor.alpha > 0f) {
                     drawLine(
                         brush = Brush.horizontalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.White.copy(alpha = 0.08f),
-                                Color.White.copy(alpha = 0.08f),
+                                topHighlightColor,
+                                topHighlightColor,
                                 Color.Transparent
                             )
                         ),
@@ -107,7 +121,7 @@ fun TabBar(
                 },
                 selectedIcon = Icons.Filled.Home,
                 unselectedIcon = Icons.Outlined.Home,
-                label = "首页",
+                label = if (isChinese) "首页" else "Home",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
                 modifier = Modifier.weight(1f)
@@ -123,7 +137,7 @@ fun TabBar(
                 },
                 selectedIcon = Icons.Filled.Shield,
                 unselectedIcon = Icons.Outlined.Shield,
-                label = "安全",
+                label = if (isChinese) "安全" else "Security",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
                 modifier = Modifier.weight(1f)
@@ -135,7 +149,8 @@ fun TabBar(
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onAddClick()
                 },
-                themeColors = themeColors
+                themeColors = themeColors,
+                contentDescription = if (isChinese) "添加密码" else "Add password"
             )
 
             // 加密
@@ -149,7 +164,7 @@ fun TabBar(
                 },
                 selectedIcon = Icons.Filled.Cloud,
                 unselectedIcon = Icons.Outlined.Cloud,
-                label = "加密",
+                label = if (isChinese) "加密" else "Cloud",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
                 modifier = Modifier.weight(1f)
@@ -165,7 +180,7 @@ fun TabBar(
                 },
                 selectedIcon = Icons.Filled.Settings,
                 unselectedIcon = Icons.Outlined.Settings,
-                label = "设置",
+                label = if (isChinese) "设置" else "Settings",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
                 modifier = Modifier.weight(1f)
@@ -287,7 +302,8 @@ private fun IOSTabButton(
 @Composable
 private fun IOSAddButton(
     onClick: () -> Unit,
-    themeColors: ThemeColors
+    themeColors: ThemeColors,
+    contentDescription: String
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -339,7 +355,7 @@ private fun IOSAddButton(
     ) {
         Icon(
             imageVector = Icons.Filled.Add,
-            contentDescription = "Add",
+            contentDescription = contentDescription,
             tint = Color.White,
             modifier = Modifier.size(26.dp)
         )

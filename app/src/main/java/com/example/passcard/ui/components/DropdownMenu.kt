@@ -1,8 +1,5 @@
 package com.example.passcard.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,13 +11,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.example.passcard.ui.theme.*
+import kotlin.math.max
 
 data class DropdownOption(
     val label: String,
@@ -37,49 +39,88 @@ fun DropdownSelectMenu(
     modifier: Modifier = Modifier,
     offset: IntOffset = IntOffset.Zero,
     itemWidth: Int = 0,
-    itemHeight: Int = 60
+    itemHeight: Int = 0
 ) {
+    if (!expanded) return
+
     val density = LocalDensity.current
     val themeColors = rememberThemeColors()
-    
-    AnimatedVisibility(
-        visible = expanded,
-        enter = fadeIn(),
-        exit = fadeOut()
+    val screenMarginPx = with(density) { Spacing8.roundToPx() }
+    val positionProvider = remember(offset, itemWidth, itemHeight, screenMarginPx) {
+        DropdownPopupPositionProvider(
+            anchorOffset = offset,
+            anchorSize = IntSize(itemWidth, itemHeight),
+            screenMarginPx = screenMarginPx
+        )
+    }
+
+    Popup(
+        popupPositionProvider = positionProvider,
+        onDismissRequest = onDismissRequest,
+        properties = PopupProperties(focusable = true)
     ) {
-        Box(modifier = modifier.fillMaxSize()) {
-            val menuWidthPx = with(density) { 180.dp.toPx().toInt() }
-            val adjustedOffset = IntOffset(
-                x = offset.x + itemWidth - menuWidthPx,
-                y = offset.y + itemHeight
-            )
-            
-            Popup(
-                offset = adjustedOffset,
-                onDismissRequest = onDismissRequest
+        Surface(
+            modifier = modifier.width(180.dp),
+            shape = RoundedCornerShape(Radius16),
+            color = themeColors.surface,
+            shadowElevation = Spacing8
+        ) {
+            Column(
+                modifier = Modifier.padding(Spacing8),
+                verticalArrangement = Arrangement.spacedBy(Spacing4)
             ) {
-                Box(
-                    modifier = Modifier.width(180.dp).clip(RoundedCornerShape(16.dp))
-                        .background(themeColors.surface)
-                        .padding(8.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        options.forEach { option ->
-                            DropdownMenuItem(
-                                option = option,
-                                isSelected = option.value == selectedValue,
-                                onClick = {
-                                    onOptionSelected(option)
-                                    onDismissRequest()
-                                },
-                                colors = themeColors
-                            )
-                        }
-                    }
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        option = option,
+                        isSelected = option.value == selectedValue,
+                        onClick = {
+                            onOptionSelected(option)
+                            onDismissRequest()
+                        },
+                        colors = themeColors
+                    )
                 }
             }
         }
     }
+}
+
+private class DropdownPopupPositionProvider(
+    private val anchorOffset: IntOffset,
+    private val anchorSize: IntSize,
+    private val screenMarginPx: Int
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize
+    ): IntOffset = calculateDropdownMenuPosition(
+        anchorOffset = anchorOffset,
+        anchorSize = anchorSize,
+        popupSize = popupContentSize,
+        windowSize = windowSize,
+        screenMarginPx = screenMarginPx
+    )
+}
+
+internal fun calculateDropdownMenuPosition(
+    anchorOffset: IntOffset,
+    anchorSize: IntSize,
+    popupSize: IntSize,
+    windowSize: IntSize,
+    screenMarginPx: Int
+): IntOffset {
+    val maxX = max(screenMarginPx, windowSize.width - popupSize.width - screenMarginPx)
+    val maxY = max(screenMarginPx, windowSize.height - popupSize.height - screenMarginPx)
+
+    return IntOffset(
+        x = (anchorOffset.x + anchorSize.width - popupSize.width)
+            .coerceIn(screenMarginPx, maxX),
+        // Context menus feel attached to their setting when their top edges align.
+        // This also removes the old extra full-row vertical offset.
+        y = anchorOffset.y.coerceIn(screenMarginPx, maxY)
+    )
 }
 
 @Composable

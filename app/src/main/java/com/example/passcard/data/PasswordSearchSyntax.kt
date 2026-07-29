@@ -4,8 +4,13 @@ data class PasswordSearch(
     val keyword: String,
     val field: PasswordSearchField? = null
 ) {
-    val prefix: String = "$keyword%"
-    val contains: String = "%$keyword%"
+    private val escapedKeyword = keyword
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+
+    val prefix: String = "$escapedKeyword%"
+    val contains: String = "%$escapedKeyword%"
 }
 
 enum class PasswordSearchField(val column: String) {
@@ -21,7 +26,9 @@ enum class PasswordSearchField(val column: String) {
 object PasswordSearchSyntax {
     fun parse(rawQuery: String): PasswordSearch {
         val trimmed = rawQuery.trim()
-        if (!trimmed.startsWith("/t", ignoreCase = true)) {
+        val hasTypeCommand = trimmed.startsWith("/t", ignoreCase = true) &&
+            (trimmed.length == 2 || trimmed[2].isWhitespace())
+        if (!hasTypeCommand) {
             return PasswordSearch(keyword = trimmed)
         }
 

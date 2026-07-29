@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -36,22 +35,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _startupError = MutableStateFlow<String?>(null)
     val startupError: StateFlow<String?> = _startupError.asStateFlow()
 
-    private val _passwords = MutableStateFlow<List<PasswordItem>>(emptyList())
-    val passwords: StateFlow<List<PasswordItem>> = _passwords.asStateFlow()
-
-    private val _passwordCount = MutableStateFlow(0)
-    val passwordCount: StateFlow<Int> = _passwordCount.asStateFlow()
-
     private val homeSearchQuery = MutableStateFlow("")
     private val allPasswordsSearchQuery = MutableStateFlow("")
 
     private val debouncedHomeSearchQuery = homeSearchQuery
-        .debounce(250)
+        .debounce { query -> if (query.isBlank()) 0L else 250L }
         .distinctUntilChanged()
 
     private val debouncedAllPasswordsSearchQuery = allPasswordsSearchQuery
-        .debounce(250)
+        .debounce { query -> if (query.isBlank()) 0L else 250L }
         .distinctUntilChanged()
+
+    val passwords: StateFlow<List<PasswordItem>> = combine(
+        debouncedHomeSearchQuery,
+        repositoryState.filterNotNull()
+    ) { query, repository -> query to repository }
+        .flatMapLatest { (query, repository) ->
+            if (query.isBlank()) {
+                repository.recentPasswords
+            } else {
+                repository.searchPasswords(query)
+            }
+        }
+        .catch { error ->
+            _startupError.value = buildErrorMessage("Home passwords failed", error)
+            emit(emptyList())
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    val passwordCount: StateFlow<Int> = repositoryState
+        .filterNotNull()
+        .flatMapLatest { repository -> repository.passwordCount }
+        .catch { error ->
+            _startupError.value = buildErrorMessage("Password count failed", error)
+            emit(0)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0
+        )
 
     val pagedPasswords: Flow<PagingData<PasswordItem>> = combine(
         debouncedAllPasswordsSearchQuery,
@@ -119,39 +146,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            combine(
-                debouncedHomeSearchQuery,
-                repositoryState.filterNotNull()
-            ) { query, repository -> query to repository }
-                .flatMapLatest { (query, repository) ->
-                    if (query.isBlank()) {
-                        repository.recentPasswords
-                    } else {
-                        repository.searchPasswords(query)
-                    }
-                }
-                .catch { error ->
-                    _startupError.value = buildErrorMessage("Home passwords failed", error)
-                    emit(emptyList())
-                }
-                .collectLatest { list ->
-                    _passwords.value = list
-                }
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
-            repositoryState
-                .filterNotNull()
-                .flatMapLatest { repository -> repository.passwordCount }
-                .catch { error ->
-                    _startupError.value = buildErrorMessage("Password count failed", error)
-                    emit(0)
-                }
-                .collectLatest { count ->
-                    _passwordCount.value = count
-                }
-        }
     }
 
     fun setAllPasswordsSearchQuery(query: String) {
@@ -183,9 +177,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun replaceAllPasswords(items: List<PasswordItem>) {
         viewModelScope.launch(Dispatchers.IO) {
-            val repository = awaitRepository()
-            repository.deleteAllPasswords()
-            repository.insertAllPasswords(items)
+            awaitRepository().replaceAllPasswords(items)
         }
     }
 
@@ -197,6 +189,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun getAllPasswordsSnapshot(): List<PasswordItem> {
         return awaitRepository().getAllPasswordItemsSnapshot()
+    }
+
+    override fun onCleared() {
+        repositoryState.value = null
+        _startupError.value = null
+        super.onCleared()
     }
 
     private suspend fun awaitRepository(): PasswordRepository {

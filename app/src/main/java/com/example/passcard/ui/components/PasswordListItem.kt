@@ -39,6 +39,7 @@ import com.example.passcard.ui.theme.Spacing14
 import com.example.passcard.ui.theme.ThemeColors
 import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.ui.theme.rememberThemeColors
+import com.example.passcard.util.ClipboardHelper
 import com.example.passcard.util.PasswordIconType
 import kotlin.math.roundToInt
 
@@ -48,12 +49,12 @@ fun PasswordListItem(
     email: String,
     password: String,
     iconText: String,
+    modifier: Modifier = Modifier,
     iconType: String = PasswordIconType.GENERATED,
     iconValue: String = "",
     copyContentDescription: String = "Copy password",
     copiedToastMessage: String = "Password copied",
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val themeColors = rememberThemeColors()
@@ -149,10 +150,10 @@ fun SimplePasswordListItem(
     name: String,
     email: String,
     iconText: String,
-    iconType: String = PasswordIconType.GENERATED,
-    iconValue: String = "",
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconType: String = PasswordIconType.GENERATED,
+    iconValue: String = ""
 ) {
     val themeColors = rememberThemeColors()
     val interactionSource = remember { MutableInteractionSource() }

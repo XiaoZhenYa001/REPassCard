@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private const val THEME_ANIMATION_DURATION_MS = 420
+internal const val THEME_ANIMATION_DURATION_MS = 420
 
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
@@ -92,6 +92,9 @@ private fun animateThemeColors(target: ThemeColors): ThemeColors {
     val muted by animateColorAsState(targetValue = target.muted, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_muted")
     val border by animateColorAsState(targetValue = target.border, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_border")
     val tabInactive by animateColorAsState(targetValue = target.tabInactive, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_tab_inactive")
+    val tabActive by animateColorAsState(targetValue = target.tabActive, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_tab_active")
+    val tabBarBackground by animateColorAsState(targetValue = target.tabBarBackground, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_tab_bar_bg")
+    val tabBarBorder by animateColorAsState(targetValue = target.tabBarBorder, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_tab_bar_border")
     val textPrimary by animateColorAsState(targetValue = target.textPrimary, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_text_primary")
     val textSecondary by animateColorAsState(targetValue = target.textSecondary, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_text_secondary")
     val textTertiary by animateColorAsState(targetValue = target.textTertiary, animationSpec = tween(THEME_ANIMATION_DURATION_MS), label = "theme_text_tertiary")
@@ -121,6 +124,9 @@ private fun animateThemeColors(target: ThemeColors): ThemeColors {
         muted = muted,
         border = border,
         tabInactive = tabInactive,
+        tabActive = tabActive,
+        tabBarBackground = tabBarBackground,
+        tabBarBorder = tabBarBorder,
         textPrimary = textPrimary,
         textSecondary = textSecondary,
         textTertiary = textTertiary,

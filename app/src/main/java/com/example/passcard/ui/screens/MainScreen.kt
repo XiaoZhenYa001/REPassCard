@@ -1,6 +1,17 @@
 package com.example.passcard.ui.screens
 
+import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.biometric.BiometricManager
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -22,11 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.paging.PagingData
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.passcard.data.PasswordSecurityStats
 import com.example.passcard.data.ReusedPasswordGroup
 import kotlinx.coroutines.delay
@@ -34,10 +47,16 @@ import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.PreferencesManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
+
+private val EmptyWeakPasswordsFlow: StateFlow<List<PasswordItem>> = MutableStateFlow(emptyList())
+private val EmptyReusedPasswordGroupsFlow: StateFlow<List<ReusedPasswordGroup>> = MutableStateFlow(emptyList())
 
 @Composable
 fun MainScreen(
+    modifier: Modifier = Modifier,
     preferencesManager: PreferencesManager? = null,
     onThemeChanged: (() -> Unit)? = null,
     currentTheme: String = "LIGHT",
@@ -46,16 +65,15 @@ fun MainScreen(
     passwordCount: Int = passwords.size,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
     securityStats: PasswordSecurityStats = PasswordSecurityStats(),
-    weakPasswords: List<PasswordItem> = emptyList(),
-    reusedPasswordGroups: List<ReusedPasswordGroup> = emptyList(),
+    weakPasswordsFlow: StateFlow<List<PasswordItem>> = EmptyWeakPasswordsFlow,
+    reusedPasswordGroupsFlow: StateFlow<List<ReusedPasswordGroup>> = EmptyReusedPasswordGroupsFlow,
     loadAllPasswords: suspend () -> List<PasswordItem> = { passwords },
     onHomeSearchQueryChange: (String) -> Unit = {},
     onAllPasswordsSearchQueryChange: (String) -> Unit = {},
     onSavePassword: ((PasswordItem) -> Unit)? = null,
     onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
     onReplacePasswords: ((List<PasswordItem>) -> Unit)? = null,
-    onDeletePassword: ((String) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onDeletePassword: ((String) -> Unit)? = null
 ) {
     MainContainer(
         preferencesManager = preferencesManager,
@@ -66,8 +84,8 @@ fun MainScreen(
         passwordCount = passwordCount,
         pagedPasswords = pagedPasswords,
         securityStats = securityStats,
-        weakPasswords = weakPasswords,
-        reusedPasswordGroups = reusedPasswordGroups,
+        weakPasswordsFlow = weakPasswordsFlow,
+        reusedPasswordGroupsFlow = reusedPasswordGroupsFlow,
         loadAllPasswords = loadAllPasswords,
         onHomeSearchQueryChange = onHomeSearchQueryChange,
         onAllPasswordsSearchQueryChange = onAllPasswordsSearchQueryChange,
@@ -81,6 +99,7 @@ fun MainScreen(
 
 @Composable
 fun MainContainer(
+    modifier: Modifier = Modifier,
     preferencesManager: PreferencesManager? = null,
     onThemeChanged: (() -> Unit)? = null,
     currentTheme: String = "LIGHT",
@@ -89,17 +108,17 @@ fun MainContainer(
     passwordCount: Int = passwords.size,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
     securityStats: PasswordSecurityStats = PasswordSecurityStats(),
-    weakPasswords: List<PasswordItem> = emptyList(),
-    reusedPasswordGroups: List<ReusedPasswordGroup> = emptyList(),
+    weakPasswordsFlow: StateFlow<List<PasswordItem>> = EmptyWeakPasswordsFlow,
+    reusedPasswordGroupsFlow: StateFlow<List<ReusedPasswordGroup>> = EmptyReusedPasswordGroupsFlow,
     loadAllPasswords: suspend () -> List<PasswordItem> = { passwords },
     onHomeSearchQueryChange: (String) -> Unit = {},
     onAllPasswordsSearchQueryChange: (String) -> Unit = {},
     onSavePassword: ((PasswordItem) -> Unit)? = null,
     onImportPasswords: ((List<PasswordItem>) -> Unit)? = null,
     onReplacePasswords: ((List<PasswordItem>) -> Unit)? = null,
-    onDeletePassword: ((String) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onDeletePassword: ((String) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val currentLanguage = remember(languageKey) {
         if (languageKey == "ENGLISH") AppLanguage.ENGLISH else AppLanguage.CHINESE
     }
@@ -122,18 +141,17 @@ fun MainContainer(
     )
 
     val themeColors = LocalThemeColors.current
+    val homeScrollState = rememberScrollState()
+    val securityScrollState = rememberScrollState()
+    val cloudScrollState = rememberLazyListState()
     val allPasswordsListState = rememberLazyListState()
     val settingsScrollState = rememberScrollState()
     val helpScrollState = rememberScrollState()
     var allPasswordsSearchQuery by remember { mutableStateOf("") }
     
-    var uiState by remember { mutableStateOf(MainUiState(passwords = passwords)) }
+    var uiState by remember { mutableStateOf(MainUiState()) }
     var biometricEnabled by remember { mutableStateOf(preferencesManager?.biometricEnabled ?: false) }
-    
-    // 同步外部密码数据
-    LaunchedEffect(passwords) {
-        uiState = uiState.copy(passwords = passwords)
-    }
+    val homePasswordSnapshot = remember(passwords) { PasswordListSnapshot(passwords) }
         // 计算字符串（非 Composable）
         val welcomeText = if (displayedLanguage == AppLanguage.CHINESE) "欢迎回来" else "Welcome Back"
         val searchPlaceholder = if (displayedLanguage == AppLanguage.CHINESE) "搜索密码..." else "Search passwords..."
@@ -142,15 +160,42 @@ fun MainContainer(
         val recentText = if (displayedLanguage == AppLanguage.CHINESE) "最近登录" else "Recent Logins"
         val viewAllText = if (displayedLanguage == AppLanguage.CHINESE) "查看全部" else "View All"
 
-        val themeOptions = listOf(
-            DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "浅色" else "Light", "LIGHT"),
-            DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "深色" else "Dark", "DARK"),
-            DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "跟随系统" else "System", "SYSTEM")
-        )
-        val languageOptions = listOf(
-            DropdownOption("中文", "CHINESE"),
-            DropdownOption("English", "ENGLISH")
-        )
+        val themeOptions = remember(displayedLanguage) {
+            listOf(
+                DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "浅色" else "Light", "LIGHT"),
+                DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "深色" else "Dark", "DARK"),
+                DropdownOption(if (displayedLanguage == AppLanguage.CHINESE) "跟随系统" else "System", "SYSTEM")
+            )
+        }
+        val languageOptions = remember {
+            listOf(
+                DropdownOption("中文", "CHINESE"),
+                DropdownOption("English", "ENGLISH")
+            )
+        }
+        val themeOptionSet = remember(themeOptions) { DropdownOptionSet(themeOptions) }
+        val languageOptionSet = remember(languageOptions) { DropdownOptionSet(languageOptions) }
+        val overlayState = remember(
+            uiState.showThemeDropdown,
+            uiState.themeDropdownOffset,
+            uiState.themeDropdownSize,
+            uiState.showLanguageDropdown,
+            uiState.languageDropdownOffset,
+            uiState.languageDropdownSize,
+            uiState.showExportFormatPicker,
+            uiState.isImportBusy
+        ) {
+            MainOverlayUiState(
+                showThemeDropdown = uiState.showThemeDropdown,
+                themeDropdownOffset = uiState.themeDropdownOffset,
+                themeDropdownSize = uiState.themeDropdownSize,
+                showLanguageDropdown = uiState.showLanguageDropdown,
+                languageDropdownOffset = uiState.languageDropdownOffset,
+                languageDropdownSize = uiState.languageDropdownSize,
+                showExportFormatPicker = uiState.showExportFormatPicker,
+                isImportBusy = uiState.isImportBusy
+            )
+        }
 
         val currentThemeLabel = themeOptions.find { it.value == currentTheme }?.label
             ?: (if (displayedLanguage == AppLanguage.CHINESE) "浅色" else "Light")
@@ -164,11 +209,19 @@ fun MainContainer(
         onSavePassword = onSavePassword
     )
 
-    when (val route = uiState.route) {
+    AnimatedContent(
+        targetState = uiState.route,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            mainRouteTransition(initialState, targetState)
+        },
+        label = "main_route_content"
+    ) routeContent@{ route ->
+        when (route) {
             is MainRoute.EditPassword -> {
                 BackHandler { uiState = uiState.copy(route = route.returnRoute) }
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
-                    val currentPassword = route.initialPassword ?: uiState.passwords.find { it.id == route.passwordId }
+                    val currentPassword = route.initialPassword ?: passwords.find { it.id == route.passwordId }
                     EditScreen(
                         password = currentPassword,
                         currentLanguage = displayedLanguage,
@@ -176,12 +229,7 @@ fun MainContainer(
                         loadAllPasswords = loadAllPasswords,
                         onBack = { uiState = uiState.copy(route = route.returnRoute) },
                         onSave = { updatedPassword ->
-                            val itemToSave = if (route.passwordId == null) {
-                                updatedPassword.copy(id = System.currentTimeMillis().toString())
-                            } else {
-                                updatedPassword
-                            }
-                            onSavePassword?.invoke(itemToSave)
+                            onSavePassword?.invoke(updatedPassword)
                             uiState = uiState.copy(route = route.returnRoute)
                         },
                         onDelete = {
@@ -299,7 +347,7 @@ fun MainContainer(
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
                     SetupMasterPasswordScreen(
-                        preferencesManager = preferencesManager ?: return,
+                        preferencesManager = preferencesManager ?: return@routeContent,
                         currentLanguage = displayedLanguage,
                         onBack = {
                             uiState = uiState.copy(route = MainRoute.Tabs)
@@ -325,6 +373,7 @@ fun MainContainer(
             }
 
             MainRoute.WeakPasswords -> {
+                val weakPasswords by weakPasswordsFlow.collectAsStateWithLifecycle()
                 WeakPasswordsScreen(
                     currentLanguage = displayedLanguage,
                     items = weakPasswords,
@@ -342,6 +391,7 @@ fun MainContainer(
             }
 
             MainRoute.ReusedPasswords -> {
+                val reusedPasswordGroups by reusedPasswordGroupsFlow.collectAsStateWithLifecycle()
                 ReusedPasswordsScreen(
                     currentLanguage = displayedLanguage,
                     groups = reusedPasswordGroups,
@@ -372,6 +422,7 @@ fun MainContainer(
                         ) {
                             TabBar(
                                 selectedTab = uiState.selectedTab,
+                                isChinese = displayedLanguage == AppLanguage.CHINESE,
                                 onTabSelected = { tab -> uiState = uiState.copy(selectedTab = tab) },
                                 onAddClick = { uiState = uiState.copy(route = MainRoute.EditPassword(null)) }
                             )
@@ -384,9 +435,24 @@ fun MainContainer(
                             .padding(innerPadding)
                             .background(themeColors.background)
                     ) {
-                        when (uiState.selectedTab) {
+                        AnimatedContent(
+                            targetState = uiState.selectedTab,
+                            modifier = Modifier.fillMaxSize(),
+                            transitionSpec = {
+                                fadeIn(
+                                    animationSpec = tween(
+                                        durationMillis = 160,
+                                        easing = FastOutSlowInEasing
+                                    )
+                                ) togetherWith fadeOut(
+                                    animationSpec = tween(durationMillis = 110)
+                                )
+                            },
+                            label = "main_tab_content"
+                        ) { selectedTab ->
+                            when (selectedTab) {
                             TabItem.HOME -> HomeContent(
-                                passwords = uiState.passwords,
+                                passwords = homePasswordSnapshot,
                                 selectedCategory = uiState.selectedCategory,
                                 searchQuery = uiState.searchQuery,
                                 currentLanguage = displayedLanguage,
@@ -406,11 +472,12 @@ fun MainContainer(
                                     uiState = uiState.copy(
                                         route = MainRoute.EditPassword(
                                             passwordId = id,
-                                            initialPassword = uiState.passwords.find { it.id == id }
+                                            initialPassword = passwords.find { it.id == id }
                                         )
                                     )
                                 },
-                                onAddPassword = { uiState = uiState.copy(route = MainRoute.EditPassword(null)) }
+                                onAddPassword = { uiState = uiState.copy(route = MainRoute.EditPassword(null)) },
+                                scrollState = homeScrollState
                             )
 
                             TabItem.SECURITY -> SecurityContent(
@@ -418,16 +485,26 @@ fun MainContainer(
                                 stats = securityStats,
                                 onOpenAllPasswords = { uiState = uiState.copy(route = MainRoute.AllPasswords) },
                                 onOpenWeakPasswords = { uiState = uiState.copy(route = MainRoute.WeakPasswords) },
-                                onOpenReusedPasswords = { uiState = uiState.copy(route = MainRoute.ReusedPasswords) }
+                                onOpenReusedPasswords = { uiState = uiState.copy(route = MainRoute.ReusedPasswords) },
+                                scrollState = securityScrollState
                             )
 
                             TabItem.SETTINGS -> SettingsContent(
                                 currentLanguage = displayedLanguage,
                                 preferencesManager = preferencesManager,
                                 biometricEnabled = biometricEnabled,
-                                onBiometricEnabledChange = {
-                                    biometricEnabled = it
-                                    preferencesManager?.biometricEnabled = it
+                                onBiometricEnabledChange = { enabled ->
+                                    val unavailableMessage = if (enabled) {
+                                        biometricUnavailableMessage(context, displayedLanguage)
+                                    } else {
+                                        null
+                                    }
+                                    if (unavailableMessage == null) {
+                                        biometricEnabled = enabled
+                                        preferencesManager?.biometricEnabled = enabled
+                                    } else {
+                                        Toast.makeText(context, unavailableMessage, Toast.LENGTH_LONG).show()
+                                    }
                                 },
                                 onNavigateToImport = {
                                     fileActions.launchImportPicker()
@@ -435,7 +512,6 @@ fun MainContainer(
                                 onNavigateToExport = {
                                     uiState = uiState.copy(showExportFormatPicker = true)
                                 },
-                                showThemeDropdown = uiState.showThemeDropdown,
                                 onThemeDropdownToggle = { offset, size ->
                                     uiState = uiState.copy(
                                         showThemeDropdown = !uiState.showThemeDropdown,
@@ -444,16 +520,7 @@ fun MainContainer(
                                         showLanguageDropdown = false
                                     )
                                 },
-                                onThemeDismiss = { uiState = uiState.copy(showThemeDropdown = false) },
-                                themeOptions = themeOptions,
-                                currentThemeValue = currentTheme,
-                                onThemeSelected = { option ->
-                                    preferencesManager?.theme = option.value
-                                    uiState = uiState.copy(showThemeDropdown = false)
-                                    onThemeChanged?.invoke()
-                                },
                                 currentThemeLabel = currentThemeLabel,
-                                showLanguageDropdown = uiState.showLanguageDropdown,
                                 onLanguageDropdownToggle = { offset, size ->
                                     uiState = uiState.copy(
                                         showLanguageDropdown = !uiState.showLanguageDropdown,
@@ -461,14 +528,6 @@ fun MainContainer(
                                         languageDropdownSize = size,
                                         showThemeDropdown = false
                                     )
-                                },
-                                onLanguageDismiss = { uiState = uiState.copy(showLanguageDropdown = false) },
-                                languageOptions = languageOptions,
-                                currentLanguageValue = languageKey,
-                                onLanguageSelected = { option ->
-                                    preferencesManager?.language = option.value
-                                    uiState = uiState.copy(showLanguageDropdown = false)
-                                    onThemeChanged?.invoke()
                                 },
                                 currentLanguageLabel = currentLanguageLabel,
                                 onNavigateToHelp = { uiState = uiState.copy(route = MainRoute.Help) },
@@ -483,24 +542,23 @@ fun MainContainer(
                                 currentLanguage = displayedLanguage,
                                 themeColors = themeColors,
                                 preferencesManager = preferencesManager,
-                                passwords = uiState.passwords,
+                                localItemCount = passwordCount,
                                 loadAllPasswords = loadAllPasswords,
                                 replaceVaultPasswords = { restored ->
                                     onReplacePasswords?.invoke(restored)
-                                    uiState = uiState.copy(passwords = restored)
-                                }
+                                },
+                                scrollState = cloudScrollState
                             )
                         }
-
-
+                        }
 
                         MainOverlayLayer(
-                            uiState = uiState,
+                            state = overlayState,
                             currentLanguage = displayedLanguage,
                             currentTheme = currentTheme,
                             languageKey = languageKey,
-                            themeOptions = themeOptions,
-                            languageOptions = languageOptions,
+                            themeOptions = themeOptionSet,
+                            languageOptions = languageOptionSet,
                             onDismissTheme = { uiState = uiState.copy(showThemeDropdown = false) },
                             onThemeSelected = { option ->
                                 preferencesManager?.theme = option.value
@@ -523,5 +581,64 @@ fun MainContainer(
                 }
             }
         }
+    }
+}
+
+private fun biometricUnavailableMessage(
+    context: Context,
+    language: AppLanguage
+): String? {
+    val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
+        BiometricManager.Authenticators.BIOMETRIC_WEAK
+    return when (BiometricManager.from(context).canAuthenticate(authenticators)) {
+        BiometricManager.BIOMETRIC_SUCCESS -> null
+        BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> if (language == AppLanguage.CHINESE) {
+            "请先在系统设置中录入指纹"
+        } else {
+            "Enroll a fingerprint in system settings first."
+        }
+        BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> if (language == AppLanguage.CHINESE) {
+            "此设备不支持指纹解锁"
+        } else {
+            "This device does not support fingerprint unlock."
+        }
+        else -> if (language == AppLanguage.CHINESE) {
+            "指纹功能暂时不可用，请稍后重试"
+        } else {
+            "Fingerprint is temporarily unavailable. Try again later."
+        }
+    }
+}
+
+private fun mainRouteTransition(
+    initialRoute: MainRoute,
+    targetRoute: MainRoute
+): ContentTransform {
+    return when (mainNavigationDirection(initialRoute, targetRoute)) {
+        MainNavigationDirection.FORWARD -> {
+            slideInHorizontally(
+                initialOffsetX = { width -> width / 4 },
+                animationSpec = tween(220, easing = FastOutSlowInEasing)
+            ) + fadeIn(tween(180)) togetherWith slideOutHorizontally(
+                targetOffsetX = { width -> -width / 10 },
+                animationSpec = tween(180, easing = FastOutSlowInEasing)
+            ) + fadeOut(tween(140))
+        }
+
+        MainNavigationDirection.BACKWARD -> {
+            slideInHorizontally(
+                initialOffsetX = { width -> -width / 10 },
+                animationSpec = tween(200, easing = FastOutSlowInEasing)
+            ) + fadeIn(tween(170)) togetherWith slideOutHorizontally(
+                targetOffsetX = { width -> width / 4 },
+                animationSpec = tween(180, easing = FastOutSlowInEasing)
+            ) + fadeOut(tween(130))
+        }
+
+        MainNavigationDirection.REPLACE -> {
+            fadeIn(tween(160, easing = FastOutSlowInEasing)) togetherWith
+                fadeOut(tween(110))
+        }
+    }
 }
 

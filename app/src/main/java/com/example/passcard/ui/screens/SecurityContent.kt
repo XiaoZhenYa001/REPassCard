@@ -1,6 +1,7 @@
 package com.example.passcard.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +41,8 @@ fun SecurityContent(
     stats: PasswordSecurityStats,
     onOpenAllPasswords: () -> Unit,
     onOpenWeakPasswords: () -> Unit,
-    onOpenReusedPasswords: () -> Unit
+    onOpenReusedPasswords: () -> Unit,
+    scrollState: ScrollState = rememberScrollState()
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
@@ -56,7 +58,7 @@ fun SecurityContent(
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = Spacing20, vertical = Spacing20),
         verticalArrangement = Arrangement.spacedBy(Spacing24)
     ) {

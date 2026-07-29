@@ -52,8 +52,8 @@ import com.example.passcard.ui.theme.softShadow
 fun SecurityScoreCard(
     score: Int,
     description: String,
-    currentLanguage: AppLanguage = AppLanguage.CHINESE,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    currentLanguage: AppLanguage = AppLanguage.CHINESE
 ) {
     val themeColors = rememberThemeColors()
     val safeScore = score.coerceIn(0, 100)

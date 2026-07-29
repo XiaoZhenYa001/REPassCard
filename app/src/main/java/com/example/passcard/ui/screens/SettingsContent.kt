@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.example.passcard.R
-import com.example.passcard.ui.components.DropdownOption
 import com.example.passcard.ui.components.ProfileCard
 import com.example.passcard.ui.components.SectionTitle
 import com.example.passcard.ui.components.SettingItem
@@ -58,7 +58,6 @@ import com.example.passcard.ui.theme.Spacing20
 import com.example.passcard.ui.theme.Spacing28
 import com.example.passcard.util.PreferencesManager
 
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun SettingsContent(
     currentLanguage: AppLanguage,
@@ -67,19 +66,9 @@ fun SettingsContent(
     onBiometricEnabledChange: (Boolean) -> Unit,
     onNavigateToImport: () -> Unit,
     onNavigateToExport: () -> Unit,
-    showThemeDropdown: Boolean,
     onThemeDropdownToggle: (offset: IntOffset, size: IntSize) -> Unit,
-    onThemeDismiss: () -> Unit,
-    themeOptions: List<DropdownOption>,
-    currentThemeValue: String,
-    onThemeSelected: (DropdownOption) -> Unit,
     currentThemeLabel: String,
-    showLanguageDropdown: Boolean,
     onLanguageDropdownToggle: (offset: IntOffset, size: IntSize) -> Unit,
-    onLanguageDismiss: () -> Unit,
-    languageOptions: List<DropdownOption>,
-    currentLanguageValue: String,
-    onLanguageSelected: (DropdownOption) -> Unit,
     currentLanguageLabel: String,
     onNavigateToHelp: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
@@ -96,8 +85,22 @@ fun SettingsContent(
     var languageItemSize by remember { mutableStateOf(IntSize.Zero) }
     var soundEnabled by remember { mutableStateOf(preferencesManager?.soundEnabled ?: true) }
     var clipboardClearEnabled by remember { mutableStateOf(preferencesManager?.clipboardClearEnabled ?: false) }
-    var clipboardClearDelay by remember { mutableStateOf(preferencesManager?.clipboardClearDelay ?: 30) }
+    var clipboardClearDelay by remember { mutableIntStateOf(preferencesManager?.clipboardClearDelay ?: 30) }
+    var autoLockDelaySeconds by remember { mutableIntStateOf(preferencesManager?.autoLockDelaySeconds ?: 30) }
     var showClipboardDelayPicker by remember { mutableStateOf(false) }
+    var showAutoLockDelayPicker by remember { mutableStateOf(false) }
+
+    val autoLockDelayOptions = listOf(
+        0 to (if (isZh) "立即" else "Immediately"),
+        15 to (if (isZh) "15 秒" else "15 sec"),
+        30 to (if (isZh) "30 秒" else "30 sec"),
+        60 to (if (isZh) "1 分钟" else "1 min"),
+        300 to (if (isZh) "5 分钟" else "5 min")
+    )
+    val currentAutoLockLabel = autoLockDelayOptions
+        .firstOrNull { it.first == autoLockDelaySeconds }
+        ?.second
+        ?: (if (isZh) "30 秒" else "30 sec")
 
     val clipboardDelayOptions = listOf(
         15 to (if (isZh) "15 秒" else "15 sec"),
@@ -126,7 +129,6 @@ fun SettingsContent(
             ProfileCard(
                 userName = if (isZh) "本地保险库" else "Local Vault",
                 userEmail = if (isZh) "数据仅由本机与加密备份保存" else "Local data with encrypted backups",
-                onClick = { },
                 avatarResId = R.drawable.empty_records_icon,
                 colors = themeColors
             )
@@ -183,6 +185,38 @@ fun SettingsContent(
                 iconBackgroundColor = IconBgCyan,
                 colors = themeColors
             )
+            Box {
+                SettingItem(
+                    icon = Icons.Outlined.Lock,
+                    label = if (isZh) "自动锁定" else "Auto Lock",
+                    trailingText = currentAutoLockLabel,
+                    onClick = { showAutoLockDelayPicker = !showAutoLockDelayPicker },
+                    iconBackgroundColor = IconBgBlue,
+                    colors = themeColors
+                )
+                DropdownMenu(
+                    expanded = showAutoLockDelayPicker,
+                    onDismissRequest = { showAutoLockDelayPicker = false },
+                    modifier = Modifier.background(themeColors.surface)
+                ) {
+                    autoLockDelayOptions.forEach { (seconds, label) ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = label,
+                                    color = if (seconds == autoLockDelaySeconds) themeColors.primary else themeColors.onBackground,
+                                    fontWeight = if (seconds == autoLockDelaySeconds) FontWeight.W700 else FontWeight.W400
+                                )
+                            },
+                            onClick = {
+                                autoLockDelaySeconds = seconds
+                                preferencesManager?.autoLockDelaySeconds = seconds
+                                showAutoLockDelayPicker = false
+                            }
+                        )
+                    }
+                }
+            }
             SettingToggleItem(
                 icon = Icons.AutoMirrored.Outlined.VolumeUp,
                 label = if (isZh) "声音反馈" else "Sound Feedback",

@@ -47,13 +47,13 @@ import kotlinx.coroutines.flow.flowOf
 @Composable
 fun AllPasswordsScreen(
     onBack: () -> Unit,
+    onPasswordClick: (PasswordItem) -> Unit,
+    modifier: Modifier = Modifier,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
-    onPasswordClick: (PasswordItem) -> Unit,
     currentLanguage: AppLanguage = AppLanguage.CHINESE,
-    listState: LazyListState = rememberLazyListState(),
-    modifier: Modifier = Modifier
+    listState: LazyListState = rememberLazyListState()
 ) {
     val themeColors = rememberThemeColors()
     val isZh = currentLanguage == AppLanguage.CHINESE
