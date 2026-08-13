@@ -1,8 +1,8 @@
 package com.example.passcard.ui.components
 
 import android.content.Context
-import android.view.Gravity
-import android.widget.Toast
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -19,21 +19,30 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.Radius13
 import com.example.passcard.ui.theme.Radius18
+import com.example.passcard.ui.theme.MotionDuration
+import com.example.passcard.ui.theme.MotionScale
 import com.example.passcard.ui.theme.Spacing12
 import com.example.passcard.ui.theme.Spacing14
 import com.example.passcard.ui.theme.ThemeColors
@@ -41,7 +50,7 @@ import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.ui.theme.rememberThemeColors
 import com.example.passcard.util.ClipboardHelper
 import com.example.passcard.util.PasswordIconType
-import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 @Composable
 fun PasswordListItem(
@@ -108,7 +117,8 @@ fun PasswordListItem(
         CopyPasswordButton(
             themeColors = themeColors,
             contentDescription = copyContentDescription,
-            onClick = { copyToClipboard(context, password, copiedToastMessage) }
+            copiedContentDescription = copiedToastMessage,
+            onClick = { copyToClipboard(context, password) }
         )
     }
 }
@@ -117,9 +127,27 @@ fun PasswordListItem(
 private fun CopyPasswordButton(
     themeColors: ThemeColors,
     contentDescription: String,
+    copiedContentDescription: String,
     onClick: () -> Unit
 ) {
-    PressableScale(onClick = onClick, pressScale = 0.92f) {
+    var copied by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(COPY_FEEDBACK_DURATION_MS)
+            copied = false
+        }
+    }
+
+    PressableScale(
+        onClick = {
+            onClick()
+            copied = true
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        },
+        pressScale = MotionScale.StrongPressed
+    ) {
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -127,23 +155,27 @@ private fun CopyPasswordButton(
                 .background(themeColors.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Outlined.ContentCopy,
-                contentDescription = contentDescription,
-                tint = themeColors.onSurfaceVariant,
-                modifier = Modifier.size(19.dp)
-            )
+            Crossfade(
+                targetState = copied,
+                animationSpec = tween(MotionDuration.Standard),
+                label = "copy_feedback"
+            ) { isCopied ->
+                Icon(
+                    imageVector = if (isCopied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                    contentDescription = if (isCopied) copiedContentDescription else contentDescription,
+                    tint = if (isCopied) themeColors.success else themeColors.onSurfaceVariant,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
         }
     }
 }
 
-private fun copyToClipboard(context: Context, text: String, toastMessage: String) {
+private fun copyToClipboard(context: Context, text: String) {
     ClipboardHelper.copyToClipboard(context, text, label = "Password", showToast = false)
-    Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT).apply {
-        val topOffset = (context.resources.displayMetrics.density * 72).roundToInt()
-        setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, topOffset)
-    }.show()
 }
+
+private const val COPY_FEEDBACK_DURATION_MS = 1_200L
 
 @Composable
 fun SimplePasswordListItem(

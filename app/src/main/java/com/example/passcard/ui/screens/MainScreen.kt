@@ -141,7 +141,7 @@ fun MainContainer(
     )
 
     val themeColors = LocalThemeColors.current
-    val homeScrollState = rememberScrollState()
+    val homeScrollState = rememberLazyListState()
     val securityScrollState = rememberScrollState()
     val cloudScrollState = rememberLazyListState()
     val allPasswordsListState = rememberLazyListState()

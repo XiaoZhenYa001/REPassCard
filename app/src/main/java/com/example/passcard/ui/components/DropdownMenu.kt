@@ -1,5 +1,7 @@
 package com.example.passcard.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -45,6 +49,18 @@ fun DropdownSelectMenu(
 
     val density = LocalDensity.current
     val themeColors = rememberThemeColors()
+    var isVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { isVisible = true }
+    val menuAlpha by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(MotionDuration.Fast),
+        label = "dropdown_alpha"
+    )
+    val menuScale by animateFloatAsState(
+        targetValue = if (isVisible) 1f else MotionScale.Enter,
+        animationSpec = tween(MotionDuration.Standard),
+        label = "dropdown_scale"
+    )
     val screenMarginPx = with(density) { Spacing8.roundToPx() }
     val positionProvider = remember(offset, itemWidth, itemHeight, screenMarginPx) {
         DropdownPopupPositionProvider(
@@ -60,7 +76,14 @@ fun DropdownSelectMenu(
         properties = PopupProperties(focusable = true)
     ) {
         Surface(
-            modifier = modifier.width(180.dp),
+            modifier = modifier
+                .width(180.dp)
+                .graphicsLayer {
+                    alpha = menuAlpha
+                    scaleX = menuScale
+                    scaleY = menuScale
+                    transformOrigin = TransformOrigin(1f, 0f)
+                },
             shape = RoundedCornerShape(Radius16),
             color = themeColors.surface,
             shadowElevation = Spacing8

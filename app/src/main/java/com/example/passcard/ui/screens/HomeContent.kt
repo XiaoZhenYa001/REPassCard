@@ -1,10 +1,10 @@
 package com.example.passcard.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Shield
@@ -74,7 +76,7 @@ fun HomeContent(
     onNavigateToAllPasswords: () -> Unit,
     onPasswordClick: (String) -> Unit,
     onAddPassword: () -> Unit,
-    scrollState: ScrollState = rememberScrollState()
+    scrollState: LazyListState = rememberLazyListState()
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
@@ -102,46 +104,57 @@ fun HomeContent(
         }.take(if (searchQuery.isBlank()) 5 else 20)
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
-            .verticalScroll(scrollState)
-            .padding(horizontal = Spacing20, vertical = Spacing20),
-        verticalArrangement = Arrangement.spacedBy(Spacing24)
+            .statusBarsPadding(),
+        state = scrollState,
+        contentPadding = PaddingValues(horizontal = Spacing20, vertical = Spacing20)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing4)) {
-            Text(text = welcomeText, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
-            Text(
-                text = if (isZh) "我的保险库" else "My Vault",
-                style = MaterialTheme.typography.headlineLarge,
-                color = themeColors.onBackground
-            )
+        item(key = "home_header", contentType = "header") {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing4)) {
+                Text(text = welcomeText, style = MaterialTheme.typography.bodyMedium, color = themeColors.onSurfaceVariant)
+                Text(
+                    text = if (isZh) "我的保险库" else "My Vault",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = themeColors.onBackground
+                )
+            }
         }
 
-        SearchBar(value = searchQuery, onValueChange = onSearchQueryChange, placeholder = searchPlaceholder)
-
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
-            HomeMetricCard(
-                text = pwdCountText,
-                icon = Icons.Outlined.VpnKey,
-                iconColor = IconBgBlue,
-                emphasized = false,
-                onClick = onNavigateToAllPasswords,
-                modifier = Modifier.weight(1f)
-            )
-            HomeMetricCard(
-                text = secScoreText,
-                icon = Icons.Outlined.Shield,
-                iconColor = Color.White.copy(alpha = 0.20f),
-                emphasized = true,
-                modifier = Modifier.weight(1f)
-            )
+        item(key = "header_search_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
+        item(key = "home_search", contentType = "search") {
+            SearchBar(value = searchQuery, onValueChange = onSearchQueryChange, placeholder = searchPlaceholder)
         }
 
-        CategoryTagRow(categories = categories, selectedCategory = selectedCategory, onCategorySelected = onCategorySelected)
+        item(key = "search_metrics_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
+        item(key = "home_metrics", contentType = "metrics") {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
+                HomeMetricCard(
+                    text = pwdCountText,
+                    icon = Icons.Outlined.VpnKey,
+                    iconColor = IconBgBlue,
+                    emphasized = false,
+                    onClick = onNavigateToAllPasswords,
+                    modifier = Modifier.weight(1f)
+                )
+                HomeMetricCard(
+                    text = secScoreText,
+                    icon = Icons.Outlined.Shield,
+                    iconColor = Color.White.copy(alpha = 0.20f),
+                    emphasized = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing12)) {
+        item(key = "metrics_categories_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
+        item(key = "home_categories", contentType = "categories") {
+            CategoryTagRow(categories = categories, selectedCategory = selectedCategory, onCategorySelected = onCategorySelected)
+        }
+
+        item(key = "categories_results_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
+        item(key = "home_results_header", contentType = "results_header") {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (isSearching) {
@@ -160,28 +173,35 @@ fun HomeContent(
                     )
                 }
             }
-            if (filteredPasswords.isEmpty()) {
+        }
+
+        if (filteredPasswords.isEmpty()) {
+            item(key = "results_empty_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing12)) }
+            item(key = "home_empty", contentType = "empty") {
                 HomeEmptyState(
                     isSearching = searchQuery.isNotBlank() || (selectedCategory != null && selectedCategory != allCategory),
                     isZh = isZh,
                     onAddPassword = onAddPassword
                 )
-            } else {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
-                    filteredPasswords.forEach { password ->
-                        PasswordListItem(
-                            name = password.name,
-                            email = password.email.ifEmpty { password.username },
-                            password = password.password,
-                            iconText = password.name.take(1).uppercase(),
-                            iconType = password.iconType,
-                            iconValue = password.iconValue,
-                            copyContentDescription = if (isZh) "复制密码" else "Copy password",
-                            copiedToastMessage = if (isZh) "已复制密码" else "Password copied",
-                            onClick = { onPasswordClick(password.id) }
-                        )
-                    }
-                }
+            }
+        } else {
+            itemsIndexed(
+                items = filteredPasswords,
+                key = { _, password -> password.id },
+                contentType = { _, _ -> "password" }
+            ) { index, password ->
+                PasswordListItem(
+                    name = password.name,
+                    email = password.email.ifEmpty { password.username },
+                    password = password.password,
+                    iconText = password.name.take(1).uppercase(),
+                    iconType = password.iconType,
+                    iconValue = password.iconValue,
+                    copyContentDescription = if (isZh) "复制密码" else "Copy password",
+                    copiedToastMessage = if (isZh) "已复制密码" else "Password copied",
+                    onClick = { onPasswordClick(password.id) },
+                    modifier = Modifier.padding(top = if (index == 0) Spacing12 else Spacing10)
+                )
             }
         }
     }

@@ -11,20 +11,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import com.example.passcard.ui.theme.MotionDuration
+import com.example.passcard.ui.theme.MotionScale
 
 @Composable
 fun PressableScale(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    pressScale: Float = 0.97f,
+    pressScale: Float = MotionScale.Pressed,
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) pressScale else 1f,
-        animationSpec = tween(durationMillis = 110),
+        animationSpec = tween(durationMillis = MotionDuration.Press),
         label = "press_scale"
     )
 

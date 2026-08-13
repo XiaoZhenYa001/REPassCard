@@ -53,26 +53,10 @@ fun TabBar(
 ) {
     val themeColors = LocalThemeColors.current
     val haptic = LocalHapticFeedback.current
-    val barElevation by animateDpAsState(
-        targetValue = if (themeColors.isDark) 20.dp else 12.dp,
-        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
-        label = "tab_bar_elevation"
-    )
-    val ambientShadowColor by animateColorAsState(
-        targetValue = Color.Black.copy(alpha = if (themeColors.isDark) 0.35f else 0.06f),
-        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
-        label = "tab_bar_ambient_shadow"
-    )
-    val spotShadowColor by animateColorAsState(
-        targetValue = Color.Black.copy(alpha = if (themeColors.isDark) 0.45f else 0.1f),
-        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
-        label = "tab_bar_spot_shadow"
-    )
-    val topHighlightColor by animateColorAsState(
-        targetValue = if (themeColors.isDark) Color.White.copy(alpha = 0.08f) else Color.Transparent,
-        animationSpec = tween(THEME_ANIMATION_DURATION_MS),
-        label = "tab_bar_top_highlight"
-    )
+    val barElevation = if (themeColors.isDark) 20.dp else 12.dp
+    val ambientShadowColor = Color.Black.copy(alpha = if (themeColors.isDark) 0.35f else 0.06f)
+    val spotShadowColor = Color.Black.copy(alpha = if (themeColors.isDark) 0.45f else 0.1f)
+    val topHighlightColor = if (themeColors.isDark) Color.White.copy(alpha = 0.08f) else Color.Transparent
 
     Box(
         modifier = modifier
@@ -205,50 +189,22 @@ private fun IOSTabButton(
 
     // 按压缩放（弹性回弹）
     val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
+        targetValue = if (isPressed) MotionScale.Pressed else 1f,
+        animationSpec = tween(durationMillis = MotionDuration.Press, easing = FastOutSlowInEasing),
         label = "pressScale"
-    )
-
-    // 选中弹性放大
-    val selectionScale by animateFloatAsState(
-        targetValue = if (selected) 1.02f else 1f,
-        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
-        label = "selectionScale"
-    )
-
-    // 选中时上移
-    val offsetY by animateFloatAsState(
-        targetValue = if (selected) -1f else 0f,
-        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
-        label = "offsetY"
     )
 
     // 颜色过渡
     val tintColor by animateColorAsState(
         targetValue = if (selected) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = MotionDuration.Standard, easing = FastOutSlowInEasing),
         label = "tintColor"
-    )
-
-    // 图标尺寸
-    val iconSize by animateFloatAsState(
-        targetValue = if (selected) 22f else 20f,
-        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
-        label = "iconSize"
-    )
-
-    // 标签透明度
-    val labelAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0.55f,
-        animationSpec = tween(140),
-        label = "labelAlpha"
     )
 
     // 圆点指示器弹出
     val dotScale by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = MotionDuration.Standard, easing = FastOutSlowInEasing),
         label = "dotScale"
     )
 
@@ -261,9 +217,8 @@ private fun IOSTabButton(
                 indication = null
             ) { onClick() }
             .graphicsLayer {
-                scaleX = pressScale * selectionScale
-                scaleY = pressScale * selectionScale
-                translationY = offsetY * density
+                scaleX = pressScale
+                scaleY = pressScale
             }
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -273,15 +228,14 @@ private fun IOSTabButton(
             imageVector = if (selected) selectedIcon else unselectedIcon,
             contentDescription = label,
             tint = tintColor,
-            modifier = Modifier.size(iconSize.dp)
+            modifier = Modifier.size(21.dp)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
-            color = tintColor,
-            modifier = Modifier.graphicsLayer { alpha = labelAlpha }
+            color = tintColor
         )
         Spacer(modifier = Modifier.height(3.dp))
         // iOS 风格圆点指示器
@@ -310,15 +264,15 @@ private fun IOSAddButton(
 
     // 按压弹性缩放
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing),
+        targetValue = if (isPressed) MotionScale.StrongPressed else 1f,
+        animationSpec = tween(durationMillis = MotionDuration.Press, easing = FastOutSlowInEasing),
         label = "addScale"
     )
 
     // 按压时阴影收缩
     val elevation by animateDpAsState(
         targetValue = if (isPressed) 3.dp else if (themeColors.isDark) 10.dp else 8.dp,
-        animationSpec = tween(120),
+        animationSpec = tween(MotionDuration.Fast),
         label = "addElevation"
     )
 

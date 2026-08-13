@@ -1,7 +1,8 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("kotlin-kapt")
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -23,7 +24,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -68,10 +70,8 @@ android {
     }
 }
 
-kapt {
-    arguments {
-        arg("room.schemaLocation", "$projectDir/schemas")
-    }
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 dependencies {
@@ -109,7 +109,7 @@ dependencies {
     implementation(libs.room.ktx)
     implementation(libs.room.paging)
     implementation(libs.sqlcipher.android)
-    kapt(libs.room.compiler)
+    ksp(libs.room.compiler)
     
     // Material (for legacy views if needed)
     implementation(libs.material)

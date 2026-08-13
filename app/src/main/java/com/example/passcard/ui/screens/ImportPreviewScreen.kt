@@ -203,7 +203,10 @@ fun ImportPreviewScreen(
                     }
                 }
             }
-            items(entries) { entry ->
+            items(
+                items = entries,
+                key = { entry -> entry.id }
+            ) { entry ->
                 ImportEntryItem(
                     entry = entry,
                     selected = entry.id in selectedIds,

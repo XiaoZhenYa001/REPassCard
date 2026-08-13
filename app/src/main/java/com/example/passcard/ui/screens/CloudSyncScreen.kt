@@ -58,6 +58,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -119,6 +120,73 @@ private data class CloudConfiguration(
     val vaultRevision: Long = 0L
 )
 
+@Stable
+private class CloudConfigurationState(initiallyLoaded: Boolean) {
+    var loaded by mutableStateOf(initiallyLoaded)
+    var securityMode by mutableStateOf(SyncSecurityMode.MAXIMUM_SECURITY)
+    var objectPrefix by mutableStateOf("repasscard/")
+    var endpoint by mutableStateOf("")
+    var region by mutableStateOf("")
+    var bucket by mutableStateOf("")
+    var accessKey by mutableStateOf("")
+    var secretKey by mutableStateOf("")
+    var sessionToken by mutableStateOf("")
+
+    val isComplete: Boolean
+        get() = endpoint.isNotBlank() && bucket.isNotBlank() &&
+            accessKey.isNotBlank() && secretKey.isNotBlank()
+
+    val value: CloudConfiguration
+        get() = CloudConfiguration(
+            securityMode = securityMode,
+            objectPrefix = objectPrefix,
+            endpoint = endpoint,
+            region = region,
+            bucket = bucket,
+            accessKey = accessKey,
+            secretKey = secretKey,
+            sessionToken = sessionToken
+        )
+
+    fun load(value: CloudConfiguration) {
+        securityMode = value.securityMode
+        objectPrefix = value.objectPrefix
+        endpoint = value.endpoint
+        region = value.region
+        bucket = value.bucket
+        accessKey = value.accessKey
+        secretKey = value.secretKey
+        sessionToken = value.sessionToken
+        loaded = true
+    }
+}
+
+@Stable
+private class CloudPhraseDialogState {
+    var visible by mutableStateOf(false)
+    var phrase by mutableStateOf("")
+    var isUpload by mutableStateOf(true)
+    var saveForBiometric by mutableStateOf(false)
+    var confirmEmptyOverwrite by mutableStateOf(false)
+
+    fun open(upload: Boolean) {
+        isUpload = upload
+        phrase = ""
+        confirmEmptyOverwrite = false
+        visible = true
+    }
+
+    fun dismiss() {
+        visible = false
+    }
+
+    fun finish() {
+        visible = false
+        phrase = ""
+        confirmEmptyOverwrite = false
+    }
+}
+
 private enum class CloudOperationStage {
     CHECKING,
     READING_LOCAL,
@@ -167,15 +235,9 @@ fun CloudSyncContent(
     val scope = rememberCoroutineScope()
     val applicationScope = (context.applicationContext as? PassCardApp)?.applicationScope
 
-    var configLoaded by remember(preferencesManager) { mutableStateOf(preferencesManager == null) }
-    var securityMode by remember(preferencesManager) { mutableStateOf(SyncSecurityMode.MAXIMUM_SECURITY) }
-    var objectPrefix by remember(preferencesManager) { mutableStateOf("repasscard/") }
-    var s3Endpoint by remember(preferencesManager) { mutableStateOf("") }
-    var s3Region by remember(preferencesManager) { mutableStateOf("") }
-    var s3Bucket by remember(preferencesManager) { mutableStateOf("") }
-    var s3AccessKey by remember(preferencesManager) { mutableStateOf("") }
-    var s3SecretKey by remember(preferencesManager) { mutableStateOf("") }
-    var s3SessionToken by remember(preferencesManager) { mutableStateOf("") }
+    val configuration = remember(preferencesManager) {
+        CloudConfigurationState(initiallyLoaded = preferencesManager == null)
+    }
 
     var connectionExpanded by rememberSaveable { mutableStateOf(false) }
     var securityExpanded by rememberSaveable { mutableStateOf(false) }
@@ -186,50 +248,28 @@ fun CloudSyncContent(
     var cloudHasData by remember { mutableStateOf(false) }
     var localRevision by remember { mutableLongStateOf(0L) }
     var lastCheckedAt by remember { mutableLongStateOf(0L) }
-    var confirmEmptyOverwrite by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var stage by remember { mutableStateOf<CloudOperationStage?>(null) }
     var statusText by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
-    var syncPhrase by remember { mutableStateOf("") }
-    var showPhraseDialog by remember { mutableStateOf(false) }
-    var phraseIsUpload by remember { mutableStateOf(true) }
-    var savePhraseForBiometric by remember { mutableStateOf(false) }
+    val phraseDialogState = remember { CloudPhraseDialogState() }
     var hasSavedPhrase by remember { mutableStateOf(BiometricKeyStore.hasWrappedSyncKey(context)) }
 
-    val currentConfiguration = CloudConfiguration(
-        securityMode = securityMode,
-        objectPrefix = objectPrefix,
-        endpoint = s3Endpoint,
-        region = s3Region,
-        bucket = s3Bucket,
-        accessKey = s3AccessKey,
-        secretKey = s3SecretKey,
-        sessionToken = s3SessionToken
-    )
+    val currentConfiguration = configuration.value
     val latestConfiguration by rememberUpdatedState(currentConfiguration)
-    val useRealCloud = s3Endpoint.isNotBlank() && s3Bucket.isNotBlank() &&
-        s3AccessKey.isNotBlank() && s3SecretKey.isNotBlank()
-    val repo = remember(
-        preferencesManager,
-        s3Endpoint,
-        s3Region,
-        s3Bucket,
-        s3AccessKey,
-        s3SecretKey,
-        s3SessionToken
-    ) {
+    val useRealCloud = configuration.isComplete
+    val repo = remember(preferencesManager, currentConfiguration) {
         preferencesManager?.takeIf { useRealCloud }?.let { manager ->
             CloudSyncRepository(
                 context.applicationContext,
                 manager,
                 S3CloudStorage(
-                    endpoint = s3Endpoint,
-                    region = s3Region,
-                    bucketName = s3Bucket,
-                    accessKey = s3AccessKey,
-                    secretKey = s3SecretKey,
-                    sessionToken = s3SessionToken
+                    endpoint = currentConfiguration.endpoint,
+                    region = currentConfiguration.region,
+                    bucketName = currentConfiguration.bucket,
+                    accessKey = currentConfiguration.accessKey,
+                    secretKey = currentConfiguration.secretKey,
+                    sessionToken = currentConfiguration.sessionToken
                 )
             )
         }
@@ -299,9 +339,7 @@ fun CloudSyncContent(
                     statusIsError = true
                     statusText = if (zh) "云端还没有可恢复的备份" else "No cloud backup is available."
                 } else {
-                    phraseIsUpload = upload
-                    syncPhrase = ""
-                    showPhraseDialog = true
+                    phraseDialogState.open(upload)
                 }
             }.onFailure {
                 statusIsError = true
@@ -358,7 +396,7 @@ fun CloudSyncContent(
             subtitle = if (zh) "只会解锁保存在本机的内容" else "Unlocks only the phrase stored on this device.",
             onSuccess = { authenticated ->
                 BiometricKeyStore.unwrapStringWithCipher(context, authenticated)?.takeIf { it.isNotBlank() }?.let {
-                    syncPhrase = it
+                    phraseDialogState.phrase = it
                 }
             },
             onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
@@ -376,7 +414,7 @@ fun CloudSyncContent(
             onSuccess = {
                 BiometricKeyStore.wrapStringWithCipher(context, it, phrase)
                 hasSavedPhrase = true
-                savePhraseForBiometric = false
+                phraseDialogState.saveForBiometric = false
             },
             onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
         )
@@ -385,29 +423,21 @@ fun CloudSyncContent(
     LaunchedEffect(preferencesManager) {
         val manager = preferencesManager ?: return@LaunchedEffect
         val value = withContext(Dispatchers.IO) { readCloudConfiguration(manager) }
-        securityMode = value.securityMode
-        objectPrefix = value.objectPrefix
-        s3Endpoint = value.endpoint
-        s3Region = value.region
-        s3Bucket = value.bucket
-        s3AccessKey = value.accessKey
-        s3SecretKey = value.secretKey
-        s3SessionToken = value.sessionToken
+        configuration.load(value)
         localRevision = value.vaultRevision
-        configLoaded = true
     }
 
-    LaunchedEffect(configLoaded, currentConfiguration) {
+    LaunchedEffect(configuration.loaded, currentConfiguration) {
         val manager = preferencesManager ?: return@LaunchedEffect
-        if (!configLoaded) return@LaunchedEffect
+        if (!configuration.loaded) return@LaunchedEffect
         delay(350)
         withContext(Dispatchers.IO) { runCatching { persistCloudConfiguration(manager, currentConfiguration) } }
     }
 
-    DisposableEffect(preferencesManager, configLoaded, applicationScope) {
+    DisposableEffect(preferencesManager, configuration.loaded, applicationScope) {
         val manager = preferencesManager
         onDispose {
-            if (manager != null && configLoaded) {
+            if (manager != null && configuration.loaded) {
                 applicationScope?.launch { runCatching { persistCloudConfiguration(manager, latestConfiguration) } }
             }
         }
@@ -466,8 +496,8 @@ fun CloudSyncContent(
             CloudDisclosureCard(
                 title = if (zh) "云端连接" else "Cloud Connection",
                 summary = when {
-                    !configLoaded -> if (zh) "正在读取配置" else "Loading settings"
-                    useRealCloud -> if (zh) "已配置 · ${s3Bucket.trim()}" else "Configured · ${s3Bucket.trim()}"
+                    !configuration.loaded -> if (zh) "正在读取配置" else "Loading settings"
+                    useRealCloud -> if (zh) "已配置 · ${configuration.bucket.trim()}" else "Configured · ${configuration.bucket.trim()}"
                     else -> if (zh) "需要完成设置" else "Setup required"
                 },
                 icon = Icons.Outlined.CloudDone,
@@ -480,25 +510,27 @@ fun CloudSyncContent(
                     zh = zh,
                     themeColors = themeColors,
                     busy = busy,
-                    endpoint = s3Endpoint,
-                    onEndpointChange = { s3Endpoint = it },
-                    region = s3Region,
-                    onRegionChange = { s3Region = it },
-                    bucket = s3Bucket,
-                    onBucketChange = { s3Bucket = it },
-                    accessKey = s3AccessKey,
-                    onAccessKeyChange = { s3AccessKey = it },
-                    secretKey = s3SecretKey,
-                    onSecretKeyChange = { s3SecretKey = it },
-                    sessionToken = s3SessionToken,
-                    onSessionTokenChange = { s3SessionToken = it },
-                    objectPrefix = objectPrefix,
-                    onObjectPrefixChange = { objectPrefix = it },
+                    endpoint = configuration.endpoint,
+                    onEndpointChange = { configuration.endpoint = it },
+                    region = configuration.region,
+                    onRegionChange = { configuration.region = it },
+                    bucket = configuration.bucket,
+                    onBucketChange = { configuration.bucket = it },
+                    accessKey = configuration.accessKey,
+                    onAccessKeyChange = { configuration.accessKey = it },
+                    secretKey = configuration.secretKey,
+                    onSecretKeyChange = { configuration.secretKey = it },
+                    sessionToken = configuration.sessionToken,
+                    onSessionTokenChange = { configuration.sessionToken = it },
+                    objectPrefix = configuration.objectPrefix,
+                    onObjectPrefixChange = { configuration.objectPrefix = it },
                     onUseTencentDefaults = {
-                        val nextRegion = s3Region.ifBlank { "ap-guangzhou" }
-                        s3Region = nextRegion
-                        s3Endpoint = "cos.$nextRegion.myqcloud.com"
-                        objectPrefix = normalizePrefixInput(objectPrefix.ifBlank { "repasscard/" })
+                        val nextRegion = configuration.region.ifBlank { "ap-guangzhou" }
+                        configuration.region = nextRegion
+                        configuration.endpoint = "cos.$nextRegion.myqcloud.com"
+                        configuration.objectPrefix = normalizePrefixInput(
+                            configuration.objectPrefix.ifBlank { "repasscard/" }
+                        )
                     },
                     onTestConnection = ::testConnection,
                     canTest = useRealCloud
@@ -508,7 +540,7 @@ fun CloudSyncContent(
         item(key = "security", contentType = "disclosure") {
             CloudDisclosureCard(
                 title = if (zh) "安全与恢复" else "Security & Recovery",
-                summary = if (securityMode == SyncSecurityMode.MAXIMUM_SECURITY) {
+                summary = if (configuration.securityMode == SyncSecurityMode.MAXIMUM_SECURITY) {
                     if (zh) "每次输入恢复助记词" else "Recovery phrase every time"
                 } else {
                     if (zh) "支持生物识别填入" else "Biometric-assisted entry"
@@ -522,8 +554,8 @@ fun CloudSyncContent(
                 CloudSecurityEditor(
                     zh = zh,
                     themeColors = themeColors,
-                    mode = securityMode,
-                    onModeChange = { securityMode = it },
+                    mode = configuration.securityMode,
+                    onModeChange = { configuration.securityMode = it },
                     hasSavedPhrase = hasSavedPhrase,
                     onRemoveSavedPhrase = {
                         BiometricKeyStore.clear(context)
@@ -568,150 +600,181 @@ fun CloudSyncContent(
         }
     }
 
-    if (showPhraseDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!busy) showPhraseDialog = false },
-            title = {
-                Text(if (phraseIsUpload) {
+    CloudPhraseDialog(
+        state = phraseDialogState,
+        zh = zh,
+        themeColors = themeColors,
+        busy = busy,
+        stage = stage,
+        localHasData = snapshot.localHasData,
+        cloudHasData = snapshot.cloudHasData,
+        hasSavedPhrase = hasSavedPhrase,
+        onUseBiometric = ::fillPhraseFromBiometric,
+        onConfirm = {
+            val phrase = phraseDialogState.phrase
+            val isUpload = phraseDialogState.isUpload
+            val confirmEmptyOverwrite = phraseDialogState.confirmEmptyOverwrite
+            val saveForBiometric = phraseDialogState.saveForBiometric
+            scope.launch {
+                busy = true
+                statusIsError = false
+                try {
+                    stage = CloudOperationStage.READING_LOCAL
+                    val latestPasswords = withContext(Dispatchers.IO) { loadAllPasswords() }
+                    withContext(Dispatchers.IO) {
+                        persistCloudConfiguration(preferencesManager, currentConfiguration)
+                    }
+                    val deviceId = preferencesManager.getOrCreateInstallationId()
+                    val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
+                    val entities = latestPasswords.map { it.toPasswordEntity() }
+                    stage = if (isUpload) CloudOperationStage.UPLOADING else CloudOperationStage.DOWNLOADING
+                    val result = if (isUpload) {
+                        withContext(Dispatchers.IO) {
+                            repo?.uploadEncryptedVault(
+                                recoveryPhrase = phrase,
+                                passwords = entities,
+                                deviceId = deviceId,
+                                deviceName = deviceName,
+                                userConfirmedEmptyOverwrite = confirmEmptyOverwrite
+                            ) ?: Result.failure(IllegalStateException("Cloud repository is unavailable"))
+                        }
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            repo?.downloadAndRestoreVault(
+                                recoveryPhrase = phrase,
+                                currentLocalPasswords = entities,
+                                deviceId = deviceId,
+                                deviceName = deviceName
+                            ) ?: Result.failure(IllegalStateException("Cloud repository is unavailable"))
+                        }.map { restored -> replaceVaultPasswords(restored.map { it.toPasswordItem() }) }
+                    }
+                    stage = CloudOperationStage.FINALIZING
+                    result.getOrThrow()
+                    if (saveForBiometric && phrase.isNotBlank()) {
+                        savePhraseWithBiometric(phrase)
+                    }
+                    withContext(Dispatchers.IO) { fetchSnapshot() }.onSuccess(::applySnapshot)
+                    statusText = if (isUpload) {
+                        if (zh) "加密备份已上传" else "Encrypted backup uploaded"
+                    } else {
+                        if (zh) "云端备份已恢复" else "Cloud backup restored"
+                    }
+                    phraseDialogState.finish()
+                } catch (error: Throwable) {
+                    statusIsError = true
+                    statusText = error.message ?: if (zh) "同步失败" else "Sync failed"
+                    Toast.makeText(context, statusText, Toast.LENGTH_LONG).show()
+                } finally {
+                    stage = null
+                    busy = false
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CloudPhraseDialog(
+    state: CloudPhraseDialogState,
+    zh: Boolean,
+    themeColors: ThemeColors,
+    busy: Boolean,
+    stage: CloudOperationStage?,
+    localHasData: Boolean,
+    cloudHasData: Boolean,
+    hasSavedPhrase: Boolean,
+    onUseBiometric: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (!state.visible) return
+
+    AlertDialog(
+        onDismissRequest = { if (!busy) state.dismiss() },
+        title = {
+            Text(
+                if (state.isUpload) {
                     if (zh) "加密并上传" else "Encrypt & Upload"
                 } else {
                     if (zh) "恢复云端备份" else "Restore Cloud Backup"
-                })
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing12)) {
-                    Text(
-                        text = if (zh) "恢复助记词只在本次操作期间保留在内存中。" else
-                            "Your recovery phrase stays in memory only for this operation.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = themeColors.onSurfaceVariant
-                    )
-                    OutlinedTextField(
-                        value = syncPhrase,
-                        onValueChange = { syncPhrase = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(if (zh) "24 词恢复助记词" else "24-word recovery phrase") },
-                        minLines = 3,
-                        enabled = !busy,
-                        visualTransformation = PasswordVisualTransformation()
-                    )
-                    if (phraseIsUpload && !snapshot.localHasData && snapshot.cloudHasData) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = confirmEmptyOverwrite,
-                                onCheckedChange = { confirmEmptyOverwrite = it },
-                                enabled = !busy
-                            )
-                            Text(
-                                if (zh) "确认使用空的本地库覆盖云端" else "Confirm replacing cloud data with an empty local vault",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                }
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing12)) {
+                Text(
+                    text = if (zh) "恢复助记词只在本次操作期间保留在内存中。" else
+                        "Your recovery phrase stays in memory only for this operation.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeColors.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = state.phrase,
+                    onValueChange = { state.phrase = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(if (zh) "24 词恢复助记词" else "24-word recovery phrase") },
+                    minLines = 3,
+                    enabled = !busy,
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                if (state.isUpload && !localHasData && cloudHasData) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
-                            checked = savePhraseForBiometric,
-                            onCheckedChange = { savePhraseForBiometric = it },
+                            checked = state.confirmEmptyOverwrite,
+                            onCheckedChange = { state.confirmEmptyOverwrite = it },
                             enabled = !busy
                         )
                         Text(
-                            if (zh) "成功后使用生物识别保护并保存在本机" else
-                                "Protect and save on this device after success",
+                            if (zh) "确认使用空的本地库覆盖云端" else "Confirm replacing cloud data with an empty local vault",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
-                    if (hasSavedPhrase && !busy) {
-                        TextButton(onClick = ::fillPhraseFromBiometric) {
-                            Icon(Icons.Outlined.Fingerprint, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (zh) "使用生物识别填入" else "Use biometric")
-                        }
-                    }
-                    AnimatedVisibility(visible = busy, enter = fadeIn(), exit = fadeOut()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                            Text(
-                                stageLabel(stage, zh),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = themeColors.onSurfaceVariant
-                            )
-                        }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = state.saveForBiometric,
+                        onCheckedChange = { state.saveForBiometric = it },
+                        enabled = !busy
+                    )
+                    Text(
+                        if (zh) "成功后使用生物识别保护并保存在本机" else
+                            "Protect and save on this device after success",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (hasSavedPhrase && !busy) {
+                    TextButton(onClick = onUseBiometric) {
+                        Icon(Icons.Outlined.Fingerprint, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (zh) "使用生物识别填入" else "Use biometric")
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            busy = true
-                            statusIsError = false
-                            try {
-                                stage = CloudOperationStage.READING_LOCAL
-                                val latestPasswords = withContext(Dispatchers.IO) { loadAllPasswords() }
-                                withContext(Dispatchers.IO) {
-                                    persistCloudConfiguration(preferencesManager, currentConfiguration)
-                                }
-                                val deviceId = preferencesManager.getOrCreateInstallationId()
-                                val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-                                val entities = latestPasswords.map { it.toPasswordEntity() }
-                                stage = if (phraseIsUpload) CloudOperationStage.UPLOADING else CloudOperationStage.DOWNLOADING
-                                val result = if (phraseIsUpload) {
-                                    withContext(Dispatchers.IO) {
-                                        repo?.uploadEncryptedVault(
-                                            recoveryPhrase = syncPhrase,
-                                            passwords = entities,
-                                            deviceId = deviceId,
-                                            deviceName = deviceName,
-                                            userConfirmedEmptyOverwrite = confirmEmptyOverwrite
-                                        ) ?: Result.failure(IllegalStateException("Cloud repository is unavailable"))
-                                    }
-                                } else {
-                                    withContext(Dispatchers.IO) {
-                                        repo?.downloadAndRestoreVault(
-                                            recoveryPhrase = syncPhrase,
-                                            currentLocalPasswords = entities,
-                                            deviceId = deviceId,
-                                            deviceName = deviceName
-                                        ) ?: Result.failure(IllegalStateException("Cloud repository is unavailable"))
-                                    }.map { restored -> replaceVaultPasswords(restored.map { it.toPasswordItem() }) }
-                                }
-                                stage = CloudOperationStage.FINALIZING
-                                result.getOrThrow()
-                                if (savePhraseForBiometric && syncPhrase.isNotBlank()) {
-                                    savePhraseWithBiometric(syncPhrase)
-                                }
-                                withContext(Dispatchers.IO) { fetchSnapshot() }.onSuccess(::applySnapshot)
-                                statusText = if (phraseIsUpload) {
-                                    if (zh) "加密备份已上传" else "Encrypted backup uploaded"
-                                } else {
-                                    if (zh) "云端备份已恢复" else "Cloud backup restored"
-                                }
-                                showPhraseDialog = false
-                                syncPhrase = ""
-                                confirmEmptyOverwrite = false
-                            } catch (error: Throwable) {
-                                statusIsError = true
-                                statusText = error.message ?: if (zh) "同步失败" else "Sync failed"
-                                Toast.makeText(context, statusText, Toast.LENGTH_LONG).show()
-                            } finally {
-                                stage = null
-                                busy = false
-                            }
-                        }
-                    },
-                    enabled = !busy && syncPhrase.isNotBlank() &&
-                        (!phraseIsUpload || snapshot.localHasData || !snapshot.cloudHasData || confirmEmptyOverwrite)
-                ) {
-                    Text(if (zh) "继续" else "Continue")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPhraseDialog = false }, enabled = !busy) {
-                    Text(if (zh) "取消" else "Cancel")
+                AnimatedVisibility(visible = busy, enter = fadeIn(), exit = fadeOut()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text(
+                            stageLabel(stage, zh),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeColors.onSurfaceVariant
+                        )
+                    }
                 }
             }
-        )
-    }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !busy && state.phrase.isNotBlank() &&
+                    (!state.isUpload || localHasData || !cloudHasData || state.confirmEmptyOverwrite)
+            ) {
+                Text(if (zh) "继续" else "Continue")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = state::dismiss, enabled = !busy) {
+                Text(if (zh) "取消" else "Cancel")
+            }
+        }
+    )
 }
 
 @Composable
