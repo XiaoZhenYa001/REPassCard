@@ -7,19 +7,22 @@ junitVersion = "1.3.0"
 espressoCore = "3.7.0"
 appcompat = "1.7.0"
 material = "1.12.0"
-coreKtx = "1.12.0"
+coreKtx = "1.13.0"
 composeBom = "2024.02.00"
 activityCompose = "1.8.2"
 navigationCompose = "2.7.7"
 # Lifecycle 2.11 Compose artifacts require a newer Compose/AGP toolchain.
 # noinspection GradleDependency
 lifecycle = "2.7.0"
-coroutines = "1.7.3"
+coroutines = "1.8.1"
 room = "2.6.1"
 biometric = "1.1.0"
 sqlcipher = "4.13.0"
 paging = "3.3.6"
 androidsvg = "1.4"
+benchmark = "1.4.1"
+profileinstaller = "1.4.1"
+uiautomator = "2.3.0"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -63,9 +66,14 @@ sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version
 paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
 androidsvg = { group = "com.caverock", name = "androidsvg-aar", version.ref = "androidsvg" }
+benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
+profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-test = { id = "com.android.test", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "room" }
+baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }

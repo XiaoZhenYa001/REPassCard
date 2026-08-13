@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PassCard"
 include(":app")
+include(":benchmark")

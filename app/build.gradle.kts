@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    alias(libs.plugins.baselineprofile)
 }
 
 android {
@@ -119,6 +120,10 @@ dependencies {
 
     // SVG icon import support
     implementation(libs.androidsvg)
+
+    // Installs generated Baseline Profiles for sideloaded builds.
+    implementation(libs.profileinstaller)
+    baselineProfile(project(":benchmark"))
 
     // Testing
     testImplementation(libs.junit)
