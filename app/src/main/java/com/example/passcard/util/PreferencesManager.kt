@@ -50,6 +50,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_CLOUD_UPDATED_AT = "last_cloud_updated_at"
         private const val KEY_LAST_CLOUD_ETAG = "last_cloud_etag"
         private const val KEY_LAST_LOCAL_SYNC_AT = "last_local_sync_at"
+        private const val KEY_AUTO_UPLOAD_FREQUENCY = "auto_upload_frequency"
+        private const val KEY_LAST_AUTO_UPLOAD_AT = "last_auto_upload_at"
+        private const val KEY_LAST_AUTO_UPLOAD_STATUS = "last_auto_upload_status"
+        private const val KEY_LAST_AUTO_UPLOAD_MESSAGE = "last_auto_upload_message"
         private const val KEY_INSTALLATION_ID = "installation_id"
         private const val KEY_RANDOM_PASSWORD_LENGTH = "random_password_length"
         private const val KEY_RANDOM_PASSWORD_UPPERCASE = "random_password_uppercase"
@@ -226,6 +230,30 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_LAST_LOCAL_SYNC_AT, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_LOCAL_SYNC_AT, value.coerceAtLeast(0L)) }
 
+    var autoUploadFrequency: AutoUploadFrequency
+        get() = enumPreference(KEY_AUTO_UPLOAD_FREQUENCY, AutoUploadFrequency.OFF)
+        set(value) = prefs.edit { putString(KEY_AUTO_UPLOAD_FREQUENCY, value.name) }
+
+    var lastAutoUploadAt: Long
+        get() = prefs.getLong(KEY_LAST_AUTO_UPLOAD_AT, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_AUTO_UPLOAD_AT, value.coerceAtLeast(0L)) }
+
+    var lastAutoUploadStatus: AutoUploadStatus
+        get() = enumPreference(KEY_LAST_AUTO_UPLOAD_STATUS, AutoUploadStatus.NEVER)
+        set(value) = prefs.edit { putString(KEY_LAST_AUTO_UPLOAD_STATUS, value.name) }
+
+    var lastAutoUploadMessage: String
+        get() = prefs.getString(KEY_LAST_AUTO_UPLOAD_MESSAGE, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_LAST_AUTO_UPLOAD_MESSAGE, value.take(240)) }
+
+    fun recordAutoUpload(status: AutoUploadStatus, message: String, occurredAt: Long = System.currentTimeMillis()) {
+        prefs.edit {
+            putLong(KEY_LAST_AUTO_UPLOAD_AT, occurredAt.coerceAtLeast(0L))
+            putString(KEY_LAST_AUTO_UPLOAD_STATUS, status.name)
+            putString(KEY_LAST_AUTO_UPLOAD_MESSAGE, message.take(240))
+        }
+    }
+
     @Synchronized
     fun getOrCreateInstallationId(): String {
         prefs.getString(KEY_INSTALLATION_ID, null)?.takeIf { it.isNotBlank() }?.let { return it }
@@ -282,6 +310,11 @@ class PreferencesManager(context: Context) {
         return hashBytes.joinToString("") { "%02x".format(it) }
     }
 
+    private inline fun <reified T : Enum<T>> enumPreference(key: String, default: T): T {
+        val stored = prefs.getString(key, default.name) ?: default.name
+        return enumValues<T>().firstOrNull { it.name == stored } ?: default
+    }
+
     private fun normalizePrefix(value: String): String {
         val trimmed = value.trim().trimStart('/')
         if (trimmed.isBlank()) return "repasscard/"
@@ -333,4 +366,19 @@ class PreferencesManager(context: Context) {
 enum class SyncSecurityMode {
     MAXIMUM_SECURITY,
     CONVENIENCE
+}
+
+enum class AutoUploadFrequency(val intervalDays: Long) {
+    OFF(0),
+    DAILY(1),
+    WEEKLY(7),
+    MONTHLY(30)
+}
+
+enum class AutoUploadStatus {
+    NEVER,
+    SUCCESS,
+    SKIPPED_EMPTY,
+    CONFLICT,
+    ERROR
 }

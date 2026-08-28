@@ -104,6 +104,9 @@ dependencies {
     
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+
+    // Persistent, constrained automatic cloud backups.
+    implementation(libs.work.runtime.ktx)
     
     // Room Database
     implementation(libs.room.runtime)

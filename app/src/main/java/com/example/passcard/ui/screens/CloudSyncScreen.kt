@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -80,12 +81,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.example.passcard.PassCardApp
+import com.example.passcard.crypto.RecoveryPhraseManager
+import com.example.passcard.data.AutomaticBackupKeyStore
 import com.example.passcard.data.BiometricKeyStore
 import com.example.passcard.data.CloudSyncSafety
 import com.example.passcard.data.CloudSyncSnapshot
 import com.example.passcard.data.SyncDirection
 import com.example.passcard.data.toPasswordEntity
 import com.example.passcard.data.toPasswordItem
+import com.example.passcard.sync.AutomaticBackupScheduler
 import com.example.passcard.sync.CloudSyncRepository
 import com.example.passcard.sync.S3CloudStorage
 import com.example.passcard.ui.theme.ElevationLevel
@@ -98,6 +102,8 @@ import com.example.passcard.ui.theme.Spacing24
 import com.example.passcard.ui.theme.ThemeColors
 import com.example.passcard.ui.theme.softShadow
 import com.example.passcard.util.AuthHelper
+import com.example.passcard.util.AutoUploadFrequency
+import com.example.passcard.util.AutoUploadStatus
 import com.example.passcard.util.PreferencesManager
 import com.example.passcard.util.SyncSecurityMode
 import java.text.SimpleDateFormat
@@ -254,6 +260,13 @@ fun CloudSyncContent(
     var statusIsError by remember { mutableStateOf(false) }
     val phraseDialogState = remember { CloudPhraseDialogState() }
     var hasSavedPhrase by remember { mutableStateOf(BiometricKeyStore.hasWrappedSyncKey(context)) }
+    var autoUploadFrequency by remember {
+        mutableStateOf(preferencesManager?.autoUploadFrequency ?: AutoUploadFrequency.OFF)
+    }
+    var autoUploadDialogVisible by remember { mutableStateOf(false) }
+    var pendingAutoUploadFrequency by remember { mutableStateOf(AutoUploadFrequency.OFF) }
+    var autoUploadPhrase by remember { mutableStateOf("") }
+    var autoUploadConsent by remember { mutableStateOf(false) }
 
     val currentConfiguration = configuration.value
     val latestConfiguration by rememberUpdatedState(currentConfiguration)
@@ -420,11 +433,46 @@ fun CloudSyncContent(
         )
     }
 
+    fun disableAutomaticUpload() {
+        AutomaticBackupKeyStore.clear(context)
+        autoUploadFrequency = AutoUploadFrequency.OFF
+        preferencesManager?.autoUploadFrequency = AutoUploadFrequency.OFF
+        AutomaticBackupScheduler.reconcile(context, AutoUploadFrequency.OFF)
+    }
+
+    fun selectAutomaticUploadFrequency(frequency: AutoUploadFrequency) {
+        if (frequency == AutoUploadFrequency.OFF) {
+            disableAutomaticUpload()
+            statusIsError = false
+            statusText = if (zh) "自动上传已关闭，后台密钥已移除" else
+                "Automatic upload is off and its background key was removed."
+            return
+        }
+        if (!useRealCloud) {
+            connectionExpanded = true
+            statusIsError = true
+            statusText = if (zh) "请先完成并测试云端连接" else "Complete and test the cloud connection first."
+            return
+        }
+        if (configuration.securityMode != SyncSecurityMode.CONVENIENCE) {
+            securityExpanded = true
+            statusIsError = true
+            statusText = if (zh) "自动上传需要先选择便捷模式" else
+                "Automatic upload requires Convenience mode."
+            return
+        }
+        pendingAutoUploadFrequency = frequency
+        autoUploadPhrase = ""
+        autoUploadConsent = false
+        autoUploadDialogVisible = true
+    }
+
     LaunchedEffect(preferencesManager) {
         val manager = preferencesManager ?: return@LaunchedEffect
         val value = withContext(Dispatchers.IO) { readCloudConfiguration(manager) }
         configuration.load(value)
         localRevision = value.vaultRevision
+        autoUploadFrequency = manager.autoUploadFrequency
     }
 
     LaunchedEffect(configuration.loaded, currentConfiguration) {
@@ -555,12 +603,31 @@ fun CloudSyncContent(
                     zh = zh,
                     themeColors = themeColors,
                     mode = configuration.securityMode,
-                    onModeChange = { configuration.securityMode = it },
+                    onModeChange = {
+                        configuration.securityMode = it
+                        if (it == SyncSecurityMode.MAXIMUM_SECURITY && autoUploadFrequency != AutoUploadFrequency.OFF) {
+                            disableAutomaticUpload()
+                            statusIsError = false
+                            statusText = if (zh) "已切换到每次输入模式，自动上传同步关闭" else
+                                "Automatic upload was disabled for Every time mode."
+                        }
+                    },
                     hasSavedPhrase = hasSavedPhrase,
                     onRemoveSavedPhrase = {
                         BiometricKeyStore.clear(context)
                         hasSavedPhrase = false
                     }
+                )
+                HorizontalDivider(color = themeColors.onSurfaceVariant.copy(alpha = 0.22f))
+                AutomaticUploadEditor(
+                    zh = zh,
+                    themeColors = themeColors,
+                    frequency = autoUploadFrequency,
+                    onFrequencyChange = ::selectAutomaticUploadFrequency,
+                    enabled = !busy,
+                    lastRunAt = preferencesManager.lastAutoUploadAt,
+                    lastStatus = preferencesManager.lastAutoUploadStatus,
+                    lastMessage = preferencesManager.lastAutoUploadMessage
                 )
             }
         }
@@ -570,7 +637,12 @@ fun CloudSyncContent(
                 summary = if (lastCheckedAt > 0) {
                     if (zh) "上次检查 ${formatTime(lastCheckedAt)}" else "Checked ${formatTime(lastCheckedAt)}"
                 } else {
-                    if (zh) "按需检查，不在后台自动访问" else "Checked only when requested"
+                    if (autoUploadFrequency == AutoUploadFrequency.OFF) {
+                        if (zh) "按需检查，自动上传已关闭" else "On-demand checks; automatic upload is off"
+                    } else {
+                        if (zh) "自动上传：${autoUploadFrequencyLabel(autoUploadFrequency, true)}" else
+                            "Automatic upload: ${autoUploadFrequencyLabel(autoUploadFrequency, false)}"
+                    }
                 },
                 icon = Icons.Outlined.Info,
                 accent = themeColors.warning,
@@ -591,8 +663,13 @@ fun CloudSyncContent(
         }
         item(key = "footer", contentType = "footer") {
             Text(
-                text = if (zh) "完整保险库只会在你确认上传或恢复后读取。" else
-                    "The full vault is read only after you confirm an upload or restore.",
+                text = if (zh) {
+                    if (autoUploadFrequency == AutoUploadFrequency.OFF) "完整保险库只会在你确认上传或恢复后读取。" else
+                        "启用自动上传后，系统仅在网络、电量和存储条件允许时于所选周期附近读取并加密上传。"
+                } else {
+                    if (autoUploadFrequency == AutoUploadFrequency.OFF) "The full vault is read only after you confirm an upload or restore." else
+                        "When enabled, Android reads and encrypts the vault near the selected interval when system constraints allow."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.muted,
                 modifier = Modifier.padding(horizontal = Spacing12, vertical = Spacing12)
@@ -671,6 +748,96 @@ fun CloudSyncContent(
             }
         }
     )
+
+    if (autoUploadDialogVisible) {
+        AlertDialog(
+            onDismissRequest = {
+                autoUploadDialogVisible = false
+                autoUploadPhrase = ""
+                autoUploadConsent = false
+            },
+            icon = { Icon(Icons.Outlined.Schedule, contentDescription = null) },
+            title = { Text(if (zh) "授权自动加密上传" else "Authorize automatic encrypted uploads") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing12)) {
+                    Text(
+                        if (zh) "后台任务无法弹出生物识别。启用后，恢复助记词会由本设备 Android Keystore 密钥加密保存，供后台加密保险库使用。" else
+                            "Background work cannot show biometric authentication. Your recovery phrase will be encrypted with this device's Android Keystore key for unattended vault encryption.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeColors.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = autoUploadPhrase,
+                        onValueChange = { autoUploadPhrase = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (zh) "24 词恢复助记词" else "24-word recovery phrase") },
+                        minLines = 3,
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = autoUploadPhrase.isNotBlank() && !RecoveryPhraseManager.isValidWords(autoUploadPhrase),
+                        supportingText = if (autoUploadPhrase.isNotBlank() && !RecoveryPhraseManager.isValidWords(autoUploadPhrase)) {
+                            { Text(if (zh) "请输入完整且有效的 24 词助记词" else "Enter a complete, valid 24-word phrase") }
+                        } else null
+                    )
+                    Row(verticalAlignment = Alignment.Top) {
+                        Checkbox(
+                            checked = autoUploadConsent,
+                            onCheckedChange = { autoUploadConsent = it }
+                        )
+                        Text(
+                            if (zh) "我了解：解锁本机的应用进程可在无需再次生物识别的情况下使用该密钥。关闭自动上传会移除保存内容。" else
+                                "I understand that the unlocked app process can use this key without another biometric prompt. Turning this off removes the saved material.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeColors.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = RecoveryPhraseManager.isValidWords(autoUploadPhrase) && autoUploadConsent,
+                    onClick = {
+                        runCatching {
+                            persistCloudConfiguration(preferencesManager, currentConfiguration)
+                            AutomaticBackupKeyStore.save(
+                                context,
+                                RecoveryPhraseManager.normalize(autoUploadPhrase)
+                            )
+                            preferencesManager.autoUploadFrequency = pendingAutoUploadFrequency
+                            AutomaticBackupScheduler.reconcile(
+                                context,
+                                pendingAutoUploadFrequency,
+                                replace = true
+                            )
+                        }.onSuccess {
+                            autoUploadFrequency = pendingAutoUploadFrequency
+                            statusIsError = false
+                            statusText = if (zh) {
+                                "自动上传已设为${autoUploadFrequencyLabel(pendingAutoUploadFrequency, true)}"
+                            } else {
+                                "Automatic upload set to ${autoUploadFrequencyLabel(pendingAutoUploadFrequency, false)}"
+                            }
+                            autoUploadDialogVisible = false
+                            autoUploadPhrase = ""
+                            autoUploadConsent = false
+                        }.onFailure {
+                            statusIsError = true
+                            statusText = it.message ?: if (zh) "无法启用自动上传" else "Could not enable automatic upload"
+                        }
+                    }
+                ) { Text(if (zh) "授权并启用" else "Authorize & enable") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    autoUploadDialogVisible = false
+                    autoUploadPhrase = ""
+                    autoUploadConsent = false
+                }) {
+                    Text(if (zh) "取消" else "Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -1121,6 +1288,73 @@ private fun CloudSecurityEditor(
             Text(if (zh) "移除本机保存的助记词" else "Remove saved phrase")
         }
     }
+}
+
+@Composable
+private fun AutomaticUploadEditor(
+    zh: Boolean,
+    themeColors: ThemeColors,
+    frequency: AutoUploadFrequency,
+    onFrequencyChange: (AutoUploadFrequency) -> Unit,
+    enabled: Boolean,
+    lastRunAt: Long,
+    lastStatus: AutoUploadStatus,
+    lastMessage: String
+) {
+    Text(
+        if (zh) "密码自动上传" else "Automatic password upload",
+        style = MaterialTheme.typography.titleSmall,
+        color = themeColors.onBackground
+    )
+    Text(
+        if (zh) "选择周期后，Android 会在周期附近运行；具体时间由系统统一调度。" else
+            "Android runs near the selected interval; the exact time is system-managed.",
+        style = MaterialTheme.typography.bodySmall,
+        color = themeColors.onSurfaceVariant
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        listOf(AutoUploadFrequency.OFF, AutoUploadFrequency.DAILY).forEach { option ->
+            FilterChip(
+                selected = frequency == option,
+                onClick = { onFrequencyChange(option) },
+                enabled = enabled,
+                label = { Text(autoUploadFrequencyLabel(option, zh)) }
+            )
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        listOf(AutoUploadFrequency.WEEKLY, AutoUploadFrequency.MONTHLY).forEach { option ->
+            FilterChip(
+                selected = frequency == option,
+                onClick = { onFrequencyChange(option) },
+                enabled = enabled,
+                label = { Text(autoUploadFrequencyLabel(option, zh)) }
+            )
+        }
+    }
+    if (lastStatus != AutoUploadStatus.NEVER || lastRunAt > 0L) {
+        val statusColor = when (lastStatus) {
+            AutoUploadStatus.ERROR, AutoUploadStatus.CONFLICT -> themeColors.error
+            AutoUploadStatus.SUCCESS -> themeColors.success
+            else -> themeColors.onSurfaceVariant
+        }
+        Text(
+            buildString {
+                append(if (zh) "上次后台任务：" else "Last background run: ")
+                append(formatTime(lastRunAt))
+                if (lastMessage.isNotBlank()) append(" · ").append(lastMessage)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = statusColor
+        )
+    }
+}
+
+private fun autoUploadFrequencyLabel(frequency: AutoUploadFrequency, zh: Boolean): String = when (frequency) {
+    AutoUploadFrequency.OFF -> if (zh) "关闭" else "Off"
+    AutoUploadFrequency.DAILY -> if (zh) "每天" else "Daily"
+    AutoUploadFrequency.WEEKLY -> if (zh) "每周" else "Weekly"
+    AutoUploadFrequency.MONTHLY -> if (zh) "每月" else "Monthly"
 }
 
 @Composable

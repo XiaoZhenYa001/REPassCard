@@ -22,6 +22,7 @@ paging = "3.3.6"
 androidsvg = "1.4"
 benchmark = "1.4.1"
 profileinstaller = "1.4.1"
+work = "2.9.1"
 uiautomator = "2.3.0"
 
 [libraries]
@@ -68,6 +69,7 @@ paging-compose = { group = "androidx.paging", name = "paging-compose", version.r
 androidsvg = { group = "com.caverock", name = "androidsvg-aar", version.ref = "androidsvg" }
 benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
 profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
+work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 
 [plugins]
