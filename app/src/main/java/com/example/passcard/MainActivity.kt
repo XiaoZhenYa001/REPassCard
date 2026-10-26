@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +30,7 @@ import com.example.passcard.ui.screens.LockScreen
 import com.example.passcard.ui.screens.MainScreen
 import com.example.passcard.ui.theme.PassCardTheme
 import com.example.passcard.util.PreferencesManager
+import com.example.passcard.util.ClipboardHelper
 
 /**
  * 使用 FragmentActivity 以支持 BiometricPrompt
@@ -79,26 +82,37 @@ class MainActivity : FragmentActivity() {
                             )
                             val passwords by viewModel.passwords.collectAsStateWithLifecycle()
                             val passwordCount by viewModel.passwordCount.collectAsStateWithLifecycle()
-                            val securityStats by viewModel.securityStats.collectAsStateWithLifecycle()
+                            val categories by viewModel.categories.collectAsStateWithLifecycle()
+                            val healthState by viewModel.healthState.collectAsStateWithLifecycle()
                             val startupError by viewModel.startupError.collectAsStateWithLifecycle()
+                            val isHomeLoading by viewModel.isHomeLoading.collectAsStateWithLifecycle()
+                            val homeErrorMessage by viewModel.homeErrorMessage.collectAsStateWithLifecycle()
 
-                            if (startupError != null && passwords.isEmpty()) {
-                                StartupErrorContent(startupError.orEmpty())
+                            if (startupError != null) {
+                                StartupErrorContent(startupError.orEmpty(), languageKey == "CHINESE", viewModel::retryLoading)
                             } else {
                                 MainScreen(
+                                    navigationState = viewModel.navigationState,
                                     preferencesManager = preferencesManager,
                                     currentTheme = themeMode,
                                     onThemeChanged = refreshPreferencesState,
                                     languageKey = languageKey,
                                     passwords = passwords,
                                     passwordCount = passwordCount,
+                                    isHomeLoading = isHomeLoading,
                                     pagedPasswords = viewModel.pagedPasswords,
-                                    securityStats = securityStats,
-                                    weakPasswordsFlow = viewModel.weakPasswords,
-                                    reusedPasswordGroupsFlow = viewModel.reusedPasswordGroups,
+                                    categories = categories,
+                                    securityStats = healthState.data?.stats ?: com.example.passcard.data.PasswordSecurityStats(),
+                                    healthSnapshot = healthState.data,
+                                    isHealthLoading = healthState.isLoading,
+                                    healthErrorMessage = healthState.errorMessage,
+                                    homeErrorMessage = homeErrorMessage,
+                                    onRetryData = viewModel::retryLoading,
                                     loadAllPasswords = viewModel::getAllPasswordsSnapshot,
                                     onHomeSearchQueryChange = viewModel::setHomeSearchQuery,
+                                    onHomeCategoryChange = viewModel::setHomeCategory,
                                     onAllPasswordsSearchQueryChange = viewModel::setAllPasswordsSearchQuery,
+                                    onAllPasswordsCategoryChange = viewModel::setAllPasswordsCategory,
                                     onSavePassword = { item -> viewModel.addPassword(item) },
                                     onImportPasswords = { items -> viewModel.importPasswords(items) },
                                     onReplacePasswords = { items -> viewModel.replaceAllPasswords(items) },
@@ -122,7 +136,13 @@ class MainActivity : FragmentActivity() {
         )
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        ClipboardHelper.onWindowFocusChanged(this, hasFocus)
+    }
+
     override fun onStop() {
+        ClipboardHelper.onAppBackgrounded()
         if (!isChangingConfigurations &&
             this::preferencesManager.isInitialized
         ) {
@@ -137,24 +157,21 @@ class MainActivity : FragmentActivity() {
 }
 
 @Composable
-private fun StartupErrorContent(message: String) {
+private fun StartupErrorContent(message: String, zh: Boolean, onRetry: () -> Unit) {
+    var showDetails by remember(message) { mutableStateOf(false) }
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
     ) {
-        Text(
-            text = "应用启动数据失败",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(top = 12.dp)
-        )
+        Text(if (zh) "暂时无法读取保险库" else "Unable to read your vault",
+            style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+        Text(if (zh) "请重试；如果仍无法读取，可展开详情检查原因。" else "Try again, or view the details to check what happened.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Button(onClick = onRetry) { Text(if (zh) "重新加载" else "Try again") }
+        TextButton(onClick = { showDetails = !showDetails }) {
+            Text(if (zh) { if (showDetails) "收起详情" else "查看详情" } else { if (showDetails) "Hide details" else "View details" })
+        }
+        if (showDetails) Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
 }

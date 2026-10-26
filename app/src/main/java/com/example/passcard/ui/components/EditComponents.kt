@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -23,8 +24,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.*
+import com.example.passcard.data.PasswordCategories
 
 /**
  * 统一输入框组件
@@ -40,6 +44,10 @@ fun InputField(
     isPassword: Boolean = false,
     isMultiline: Boolean = false,
     onCopy: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    copyDescription: String = "复制密码",
+    showDescription: String = "显示密码",
+    hideDescription: String = "隐藏密码",
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     trailingIcons: @Composable RowScope.() -> Unit = {}
@@ -89,9 +97,13 @@ fun InputField(
                 
                 BasicTextField(
                     value = value,
+                    enabled = enabled,
                     onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = label }.padding(end = if (isPassword) {
+                        if (onCopy != null) 88.dp else 44.dp
+                    } else 0.dp),
                     textStyle = textStyle,
+                    cursorBrush = SolidColor(themeColors.primary),
                     visualTransformation = if (isPassword && !passwordVisible) {
                         PasswordVisualTransformation()
                     } else {
@@ -122,25 +134,25 @@ fun InputField(
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = Spacing16),
-                horizontalArrangement = Arrangement.spacedBy(Spacing12),
+                    .padding(end = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isPassword) {
                     onCopy?.let { copyAction ->
-                        PressableScale(onClick = copyAction) {
+                        IconButton(onClick = copyAction, enabled = enabled) {
                             Icon(
                                 imageVector = Icons.Outlined.ContentCopy,
-                                contentDescription = "复制",
+                                contentDescription = copyDescription,
                                 tint = themeColors.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
-                    PressableScale(onClick = { passwordVisible = !passwordVisible }) {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = enabled) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = if (passwordVisible) "隐藏" else "显示",
+                            contentDescription = if (passwordVisible) hideDescription else showDescription,
                             tint = themeColors.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -154,7 +166,7 @@ fun InputField(
 
 /**
  * 分类选择器组件
- * 包含分类标签行和当前选择显示
+ * 分类标签与新建入口
  */
 @Composable
 fun CategorySelector(
@@ -163,7 +175,10 @@ fun CategorySelector(
     categories: List<String>,
     onCategorySelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    currentLanguageLabel: String = "当前: "
+    categoryLabel: (String) -> String = { it },
+    enabled: Boolean = true,
+    onAddCategory: (() -> Unit)? = null,
+    addCategoryText: String = "添加分类"
 ) {
     val themeColors = rememberThemeColors()
     
@@ -171,49 +186,33 @@ fun CategorySelector(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Spacing8)
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = themeColors.onSurfaceVariant
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = themeColors.onSurfaceVariant
+            )
+            Spacer(Modifier.weight(1f))
+            onAddCategory?.let { addCategory ->
+                TextButton(onClick = addCategory, enabled = enabled) { Text(addCategoryText) }
+            }
+        }
         
         // 分类标签行
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(Spacing8)
         ) {
             items(categories) { category ->
-                val isSelected = selectedCategory == category
+                val isSelected = PasswordCategories.matches(selectedCategory, category)
                 CategoryTag(
-                    label = category,
+                    label = categoryLabel(category),
                     selected = isSelected,
-                    onClick = { onCategorySelected(if (isSelected) "" else category) }
+                    enabled = enabled,
+                    onClick = { if (enabled) onCategorySelected(if (isSelected) "" else category) }
                 )
             }
         }
         
-        // 当前选择显示
-        if (selectedCategory.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(Spacing8))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .appleSurface(colors = themeColors, radius = Radius14)
-                    .padding(horizontal = Spacing16),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = currentLanguageLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = themeColors.onSurfaceVariant
-                )
-                Text(
-                    text = selectedCategory,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.W600),
-                    color = themeColors.primary
-                )
-            }
-        }
     }
 }
 

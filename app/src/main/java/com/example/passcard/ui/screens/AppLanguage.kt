@@ -54,8 +54,8 @@ object AppStrings {
 
     @Composable
     fun recentLogins(language: AppLanguage = AppLanguage.CHINESE): String = when (language) {
-        AppLanguage.CHINESE -> "最近登录"
-        AppLanguage.ENGLISH -> "Recent Logins"
+        AppLanguage.CHINESE -> "最近更新"
+        AppLanguage.ENGLISH -> "Recently updated"
     }
 
     @Composable

@@ -36,10 +36,16 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.theme.*
+import com.example.passcard.util.playPassCardClick
 
 enum class TabItem { HOME, SECURITY, CLOUD, SETTINGS }
 
@@ -53,6 +59,7 @@ fun TabBar(
 ) {
     val themeColors = LocalThemeColors.current
     val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
     val barElevation = if (themeColors.isDark) 20.dp else 12.dp
     val ambientShadowColor = Color.Black.copy(alpha = if (themeColors.isDark) 0.35f else 0.06f)
     val spotShadowColor = Color.Black.copy(alpha = if (themeColors.isDark) 0.45f else 0.1f)
@@ -60,7 +67,8 @@ fun TabBar(
 
     Box(
         modifier = modifier
-            .width(350.dp)
+            .widthIn(max = 350.dp)
+            .fillMaxWidth()
             .height(70.dp)
             .shadow(
                 elevation = barElevation,
@@ -99,6 +107,7 @@ fun TabBar(
                 selected = selectedTab == TabItem.HOME,
                 onClick = {
                     if (selectedTab != TabItem.HOME) {
+                        view.playPassCardClick()
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTabSelected(TabItem.HOME)
                     }
@@ -115,6 +124,7 @@ fun TabBar(
                 selected = selectedTab == TabItem.SECURITY,
                 onClick = {
                     if (selectedTab != TabItem.SECURITY) {
+                        view.playPassCardClick()
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTabSelected(TabItem.SECURITY)
                     }
@@ -130,6 +140,7 @@ fun TabBar(
             // 中间 + 按钮
             IOSAddButton(
                 onClick = {
+                    view.playPassCardClick()
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onAddClick()
                 },
@@ -142,13 +153,14 @@ fun TabBar(
                 selected = selectedTab == TabItem.CLOUD,
                 onClick = {
                     if (selectedTab != TabItem.CLOUD) {
+                        view.playPassCardClick()
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTabSelected(TabItem.CLOUD)
                     }
                 },
                 selectedIcon = Icons.Filled.Cloud,
                 unselectedIcon = Icons.Outlined.Cloud,
-                label = if (isChinese) "加密" else "Cloud",
+                label = if (isChinese) "备份" else "Backup",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
                 modifier = Modifier.weight(1f)
@@ -158,6 +170,7 @@ fun TabBar(
                 selected = selectedTab == TabItem.SETTINGS,
                 onClick = {
                     if (selectedTab != TabItem.SETTINGS) {
+                        view.playPassCardClick()
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onTabSelected(TabItem.SETTINGS)
                     }
@@ -212,7 +225,9 @@ private fun IOSTabButton(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(20.dp))
+            .semantics { this.selected = selected }
             .clickable(
+                role = Role.Tab,
                 interactionSource = interactionSource,
                 indication = null
             ) { onClick() }
@@ -234,6 +249,8 @@ private fun IOSTabButton(
         Text(
             text = label,
             fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
             color = tintColor
         )
@@ -310,7 +327,7 @@ private fun IOSAddButton(
         Icon(
             imageVector = Icons.Filled.Add,
             contentDescription = contentDescription,
-            tint = Color.White,
+            tint = themeColors.onPrimary,
             modifier = Modifier.size(26.dp)
         )
     }

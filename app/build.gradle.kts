@@ -130,6 +130,8 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    // Real JSON codec enables password-backup AES/GCM round trips on the JVM.
+    testImplementation(libs.org.json)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
     

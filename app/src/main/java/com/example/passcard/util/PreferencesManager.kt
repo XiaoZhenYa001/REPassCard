@@ -130,15 +130,20 @@ class PreferencesManager(context: Context) {
         return matchesLegacy
     }
     
-    fun clearMasterPassword() {
-        prefs.edit {
-            remove(KEY_MASTER_PASSWORD_HASH)
-            remove(KEY_MASTER_PASSWORD_KDF_VERSION)
-            remove(KEY_MASTER_PASSWORD_KDF_ITERATIONS)
-            remove(KEY_MASTER_PASSWORD_SALT)
-            remove(KEY_MASTER_PASSWORD_VERIFIER)
+    fun clearMasterPassword(currentPassword: String): Boolean = MasterPasswordRemoval.remove(
+        currentPassword = currentPassword,
+        verify = ::verifyMasterPassword,
+        clearProtection = {
+            prefs.edit {
+                remove(KEY_MASTER_PASSWORD_HASH)
+                remove(KEY_MASTER_PASSWORD_KDF_VERSION)
+                remove(KEY_MASTER_PASSWORD_KDF_ITERATIONS)
+                remove(KEY_MASTER_PASSWORD_SALT)
+                remove(KEY_MASTER_PASSWORD_VERIFIER)
+                putBoolean(KEY_BIOMETRIC_ENABLED, false)
+            }
         }
-    }
+    )
     
     // ---- 指纹解锁 ----
     
@@ -225,6 +230,16 @@ class PreferencesManager(context: Context) {
     var lastCloudEtag: String
         get() = prefs.getString(KEY_LAST_CLOUD_ETAG, "") ?: ""
         set(value) = prefs.edit { putString(KEY_LAST_CLOUD_ETAG, value) }
+
+    fun recordCloudSync(revision: Long, updatedAt: Long, etag: String) {
+        prefs.edit {
+            putLong(KEY_VAULT_REVISION, revision.coerceAtLeast(0L))
+            putLong(KEY_LAST_SYNCED_CLOUD_VAULT_REVISION, revision.coerceAtLeast(0L))
+            putLong(KEY_LAST_CLOUD_UPDATED_AT, updatedAt.coerceAtLeast(0L))
+            putString(KEY_LAST_CLOUD_ETAG, etag)
+            putLong(KEY_LAST_LOCAL_SYNC_AT, System.currentTimeMillis())
+        }
+    }
 
     var lastLocalSyncAt: Long
         get() = prefs.getLong(KEY_LAST_LOCAL_SYNC_AT, 0L)

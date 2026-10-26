@@ -22,12 +22,16 @@ import com.example.passcard.util.CsvImporter
 import com.example.passcard.util.ExportPasswordEntry
 import com.example.passcard.util.FileFormatDetector
 import com.example.passcard.util.ImportIssue
+import com.example.passcard.util.ImportDeduplication
+import com.example.passcard.util.ImportRecordContent
+import com.example.passcard.util.PasswordEntryCsv
 import com.example.passcard.util.JsonExporter
 import com.example.passcard.util.JsonImporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 
 class MainFileActions(
     val launchImportPicker: () -> Unit,
@@ -43,8 +47,8 @@ fun rememberMainFileActions(
     currentLanguage: AppLanguage,
     updateUiState: ((MainUiState) -> MainUiState) -> Unit,
     loadAllPasswords: suspend () -> List<PasswordItem>,
-    onImportPasswords: ((List<PasswordItem>) -> Unit)?,
-    onSavePassword: ((PasswordItem) -> Unit)?
+    onImportPasswords: (suspend (List<PasswordItem>) -> Unit)?,
+    onSavePassword: (suspend (PasswordItem) -> Unit)?
 ): MainFileActions {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -58,6 +62,11 @@ fun rememberMainFileActions(
     ) { }
     var pendingExportFormat by remember { mutableStateOf<ExportFormat?>(null) }
     var isImportCommitRunning by remember { mutableStateOf(false) }
+    var isFilePreparationRunning by remember { mutableStateOf(false) }
+    var isExportRunning by remember { mutableStateOf(false) }
+
+    fun isFileOperationRunning(): Boolean = isImportCommitRunning || isFilePreparationRunning ||
+        isExportRunning || latestState.isImportBusy || latestState.isExportBusy
 
     fun closeImportPreview() {
         updateUiState {
@@ -68,68 +77,69 @@ fun rememberMainFileActions(
                 importIssues = emptyList(),
                 importReceipt = null,
                 showImportReceipt = false,
-                isImportBusy = false
+                isImportBusy = false,
+                fileOperationStage = null
             )
         }
     }
 
     fun commitSelectedImports(closeAfterSuccess: Boolean) {
+        if (isFileOperationRunning()) return
         val state = latestState
         val language = latestLanguage
-        val selectedEntries = state.importEntries.filter { it.id in state.importSelectedIds }
-        if (selectedEntries.isEmpty()) {
+        if (state.importSelectedIds.isEmpty()) {
             updateUiState {
-                it.copy(
-                    showImportReceipt = true,
-                    importReceipt = buildNoSelectionReceipt(language)
-                )
+                it.copy(showImportReceipt = true, importReceipt = buildNoSelectionReceipt(language))
             }
             return
         }
-        if (isImportCommitRunning) return
 
         isImportCommitRunning = true
-        updateUiState { it.copy(isImportBusy = true) }
+        updateUiState { it.copy(isImportBusy = true, fileOperationStage = FileOperationStage.IMPORTING) }
         scope.launch {
             val startedAt = System.currentTimeMillis()
             try {
-                val passwordSnapshot = withContext(Dispatchers.IO) {
-                    latestLoadAllPasswords()
+                val passwordSnapshot = withContext(Dispatchers.IO) { latestLoadAllPasswords() }
+                val selectedEntries = withContext(Dispatchers.Default) {
+                    state.importEntries.filter { it.id in state.importSelectedIds }
                 }
-                val existingKeys = passwordSnapshot
-                    .map { buildImportKey(it.name, it.username) }
-                    .toMutableSet()
-                val toInsert = mutableListOf<PasswordItem>()
-                var duplicateSkipped = 0
-                val importIdSeed = System.currentTimeMillis()
-
-                selectedEntries.forEachIndexed { index, entry ->
-                    val key = buildImportKey(entry.service, entry.username)
-                    if (key in existingKeys) {
-                        duplicateSkipped++
-                    } else {
-                        existingKeys.add(key)
-                        toInsert.add(
-                            PasswordItem(
-                                id = "import_${importIdSeed}_$index",
-                                name = entry.service,
-                                username = entry.username,
-                                phone = entry.phone,
-                                email = entry.email,
-                                password = entry.password,
-                                category = entry.category,
-                                note = entry.note
-                            )
+                if (selectedEntries.isEmpty()) {
+                    updateUiState {
+                        it.copy(showImportReceipt = true, importReceipt = buildNoSelectionReceipt(language))
+                    }
+                    return@launch
+                }
+                val (toInsert, duplicateSkipped) = withContext(Dispatchers.Default) {
+                    val flags = ImportDeduplication.duplicateFlags(
+                        passwordSnapshot.map { it.importContent() }, selectedEntries.map { it.importContent() }
+                    )
+                    val newPasswords = selectedEntries.filterIndexed { index, _ -> !flags[index] }.map { entry ->
+                        PasswordItem(
+                            id = "import_${UUID.randomUUID()}",
+                            name = entry.service,
+                            username = entry.username,
+                            phone = entry.phone,
+                            email = entry.email,
+                            password = entry.password,
+                            category = entry.category,
+                            note = entry.note,
+                            iconType = entry.iconType,
+                            iconValue = entry.iconValue
                         )
                     }
+                    newPasswords to flags.count { it }
                 }
 
                 if (toInsert.isNotEmpty()) {
-                    val importPasswords = latestOnImportPasswords
-                    if (importPasswords != null) {
-                        importPasswords(toInsert)
-                    } else {
-                        toInsert.forEach { latestOnSavePassword?.invoke(it) }
+                    withContext(Dispatchers.IO) {
+                        val importPasswords = latestOnImportPasswords
+                        if (importPasswords != null) {
+                            importPasswords(toInsert)
+                        } else {
+                            val savePassword = latestOnSavePassword
+                                ?: error("Vault is not available for import")
+                            toInsert.forEach { savePassword(it) }
+                        }
                     }
                 }
 
@@ -141,7 +151,6 @@ fun rememberMainFileActions(
                     durationMillis = System.currentTimeMillis() - startedAt,
                     language = language
                 )
-
                 if (toInsert.isNotEmpty()) {
                     val successMessage = if (language == AppLanguage.CHINESE) {
                         "导入成功：${toInsert.size} 条"
@@ -150,39 +159,35 @@ fun rememberMainFileActions(
                     }
                     Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
                 }
-
                 if (toInsert.isNotEmpty() && closeAfterSuccess) {
                     closeImportPreview()
                 } else {
-                    updateUiState {
-                        it.copy(
-                            importReceipt = receipt,
-                            showImportReceipt = true,
-                            isImportBusy = false
-                        )
-                    }
+                    updateUiState { it.copy(importReceipt = receipt, showImportReceipt = true) }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
                 val message = if (language == AppLanguage.CHINESE) {
-                    "导入失败，无法读取当前保险库，请重试"
+                    "导入未完成，请重试。"
                 } else {
-                    "Import failed. Unable to read the current vault. Try again."
+                    "Import did not complete. Please try again."
                 }
                 Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                updateUiState { it.copy(isImportBusy = false) }
             } finally {
                 isImportCommitRunning = false
+                updateUiState { it.copy(isImportBusy = false, fileOperationStage = null) }
             }
         }
     }
 
     fun exportPasswords(format: ExportFormat) {
+        if (isFileOperationRunning()) return
         val language = latestLanguage
+        isExportRunning = true
+        updateUiState { it.copy(isExportBusy = true, fileOperationStage = FileOperationStage.EXPORTING) }
         scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
+            try {
+                val uri = withContext(Dispatchers.IO) {
                     val exportData = latestLoadAllPasswords().map { password ->
                         ExportPasswordEntry(
                             service = password.name,
@@ -191,7 +196,9 @@ fun rememberMainFileActions(
                             email = password.email,
                             password = password.password,
                             note = password.note,
-                            category = password.category
+                            category = password.category,
+                            iconType = password.iconType,
+                            iconValue = password.iconValue
                         )
                     }
                     when (format) {
@@ -199,8 +206,6 @@ fun rememberMainFileActions(
                         ExportFormat.JSON -> JsonExporter.exportToJson(context, exportData).getOrThrow()
                     }
                 }
-            }
-            result.onSuccess { uri ->
                 val successMessage = if (language == AppLanguage.CHINESE) {
                     "导出成功，已保存到 Documents/PassCard"
                 } else {
@@ -211,14 +216,20 @@ fun rememberMainFileActions(
                     ExportFormat.CSV -> CsvExporter.createShareIntent(uri)
                     ExportFormat.JSON -> JsonExporter.createShareIntent(uri)
                 }
-                shareLauncher.launch(Intent.createChooser(shareIntent, "Export Passwords"))
-            }.onFailure {
+                val chooserTitle = if (language == AppLanguage.CHINESE) "分享导出文件" else "Share export"
+                shareLauncher.launch(Intent.createChooser(shareIntent, chooserTitle))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
                 val failureMessage = if (language == AppLanguage.CHINESE) {
                     "导出失败，无法读取保险库或写入 Documents/PassCard"
                 } else {
                     "Export failed. Unable to read the vault or write to Documents/PassCard."
                 }
                 Toast.makeText(context, failureMessage, Toast.LENGTH_SHORT).show()
+            } finally {
+                isExportRunning = false
+                updateUiState { it.copy(isExportBusy = false, fileOperationStage = null) }
             }
         }
     }
@@ -226,88 +237,77 @@ fun rememberMainFileActions(
     val importFilePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-
+        if (uri == null || isFileOperationRunning()) return@rememberLauncherForActivityResult
         val language = latestLanguage
+        isFilePreparationRunning = true
+        updateUiState { it.copy(isImportBusy = true, fileOperationStage = FileOperationStage.PARSING_IMPORT) }
         scope.launch {
             val startedAt = System.currentTimeMillis()
-            updateUiState { it.copy(isImportBusy = true) }
-            val preparationResult = withContext(Dispatchers.IO) {
-                try {
+            try {
+                val prepared = withContext(Dispatchers.IO) {
                     val passwordSnapshot = latestLoadAllPasswords()
                     val (format, content) = FileFormatDetector.detectFromUri(context, uri)
-                    val parsedResult = when (format) {
-                        FileFormatDetector.FileFormat.JSON -> JsonImporter.parseJsonContent(content).let { Result.success(it) }
-                        FileFormatDetector.FileFormat.CSV -> CsvImporter.parseCsv(context, uri)
+                    val parsed = when (format) {
+                        FileFormatDetector.FileFormat.JSON -> JsonImporter.parseJsonContent(content)
+                        FileFormatDetector.FileFormat.CSV -> CsvImporter.parseCsvContent(content)
                     }
-                    parsedResult.map { parsed -> passwordSnapshot to parsed }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    Result.failure(error)
-                }
-            }
-
-            preparationResult.onSuccess { (passwordSnapshot, parsed) ->
-                val existingKeys = passwordSnapshot.map { buildImportKey(it.name, it.username) }.toSet()
-                val importKeys = mutableSetOf<String>()
-                val entries = parsed.entries.mapIndexed { index, entry ->
-                    val key = buildImportKey(entry.service, entry.username)
-                    val duplicated = key in existingKeys || !importKeys.add(key)
-                    ImportEntry(
-                        id = "preview_${System.currentTimeMillis()}_$index",
-                        service = entry.service,
-                        username = entry.username,
-                        phone = entry.phone,
-                        email = entry.email,
-                        password = entry.password,
-                        note = entry.note,
-                        category = entry.category,
-                        sourceRow = entry.sourceRow,
-                        isDuplicate = duplicated
+                    val flags = ImportDeduplication.duplicateFlags(
+                        passwordSnapshot.map { it.importContent() }, parsed.entries.map { it.importContent() }
+                    )
+                    val batchId = UUID.randomUUID().toString()
+                    val entries = parsed.entries.mapIndexed { index, entry ->
+                        ImportEntry(
+                            id = "preview_${batchId}_$index",
+                            service = entry.service,
+                            username = entry.username,
+                            phone = entry.phone,
+                            email = entry.email,
+                            password = entry.password,
+                            note = entry.note,
+                            category = entry.category,
+                            sourceRow = entry.sourceRow,
+                            isDuplicate = flags[index],
+                            iconType = entry.iconType,
+                            iconValue = entry.iconValue
+                        )
+                    }
+                    val selectedIds = entries.filterNot { it.isDuplicate }.map { it.id }.toSet()
+                    val fileName = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "file"
+                    PreparedImport(
+                        entries = entries,
+                        selectedIds = selectedIds,
+                        issues = parsed.issues,
+                        receipt = buildParseReceipt(parsed, flags.count { it }, fileName,
+                            System.currentTimeMillis() - startedAt, language)
                     )
                 }
-
-                val selectedIds = entries.filterNot { it.isDuplicate }.map { it.id }.toSet()
-                val fileNameDisplay = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: "file"
                 updateUiState {
                     it.copy(
-                        isImportBusy = false,
                         route = MainRoute.ImportPreview,
-                        importEntries = entries,
-                        importSelectedIds = selectedIds,
-                        importIssues = parsed.issues,
-                        importReceipt = buildParseReceipt(
-                            parseResult = parsed,
-                            duplicateCount = entries.count { entry -> entry.isDuplicate },
-                            fileName = fileNameDisplay,
-                            durationMillis = System.currentTimeMillis() - startedAt,
-                            language = language
-                        ),
+                        importEntries = prepared.entries,
+                        importSelectedIds = prepared.selectedIds,
+                        importIssues = prepared.issues,
+                        importReceipt = prepared.receipt,
                         showImportReceipt = true
                     )
                 }
-            }.onFailure { error ->
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                val reason = error.message ?: if (language == AppLanguage.CHINESE) "无法解析文件" else "Unable to parse file"
                 updateUiState {
                     it.copy(
-                        isImportBusy = false,
                         route = MainRoute.ImportPreview,
                         importEntries = emptyList(),
                         importSelectedIds = emptySet(),
-                        importIssues = listOf(
-                            ImportIssue(
-                                rowNumber = 0,
-                                reason = error.message ?: "无法解析文件",
-                                rawRow = ""
-                            )
-                        ),
-                        importReceipt = buildParseFailureReceipt(
-                            reason = error.message ?: "无法解析文件",
-                            language = language
-                        ),
+                        importIssues = listOf(ImportIssue(rowNumber = 0, reason = reason, rawRow = "")),
+                        importReceipt = buildParseFailureReceipt(reason, language),
                         showImportReceipt = true
                     )
                 }
+            } finally {
+                isFilePreparationRunning = false
+                updateUiState { it.copy(isImportBusy = false, fileOperationStage = null) }
             }
         }
     }
@@ -332,9 +332,10 @@ fun rememberMainFileActions(
     return remember(importFilePickerLauncher, storagePermissionLauncher) {
         MainFileActions(
             launchImportPicker = {
-                importFilePickerLauncher.launch(IMPORT_MIME_TYPES)
+                if (!isFileOperationRunning()) importFilePickerLauncher.launch(IMPORT_MIME_TYPES)
             },
-            requestExport = { format ->
+            requestExport = requestExport@ { format ->
+                if (isFileOperationRunning()) return@requestExport
                 if (
                     Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
                     ContextCompat.checkSelfPermission(
@@ -348,9 +349,10 @@ fun rememberMainFileActions(
                     exportPasswords(format)
                 }
             },
-            closeImportPreview = ::closeImportPreview,
+            closeImportPreview = { if (!isFileOperationRunning()) closeImportPreview() },
             commitSelectedImports = ::commitSelectedImports,
-            handleReceiptAction = { action ->
+            handleReceiptAction = handleReceiptAction@ { action ->
+                if (isFileOperationRunning()) return@handleReceiptAction
                 when (action) {
                     ImportReceiptActionType.START_IMPORT -> commitSelectedImports(true)
                     ImportReceiptActionType.PICK_FILE -> {
@@ -378,4 +380,23 @@ private val IMPORT_MIME_TYPES = arrayOf(
     "application/json",
     "text/json",
     "*/*"
+)
+
+private data class PreparedImport(
+    val entries: List<ImportEntry>,
+    val selectedIds: Set<String>,
+    val issues: List<ImportIssue>,
+    val receipt: ImportReceiptUi
+)
+
+private fun PasswordItem.importContent() = ImportRecordContent(
+    name, username, phone, email, password, note, category, iconType, iconValue
+)
+
+private fun PasswordEntryCsv.importContent() = ImportRecordContent(
+    service, username, phone, email, password, note, category, iconType, iconValue
+)
+
+private fun ImportEntry.importContent() = ImportRecordContent(
+    service, username, phone, email, password, note, category, iconType, iconValue
 )

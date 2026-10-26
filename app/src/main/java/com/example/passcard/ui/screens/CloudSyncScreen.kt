@@ -7,6 +7,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +30,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudDownload
@@ -44,13 +49,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -77,11 +80,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.example.passcard.PassCardApp
-import com.example.passcard.crypto.RecoveryPhraseManager
+import com.example.passcard.crypto.BackupPasswordPolicy
 import com.example.passcard.data.AutomaticBackupKeyStore
 import com.example.passcard.data.BiometricKeyStore
 import com.example.passcard.data.CloudSyncSafety
@@ -91,6 +100,10 @@ import com.example.passcard.data.toPasswordEntity
 import com.example.passcard.data.toPasswordItem
 import com.example.passcard.sync.AutomaticBackupScheduler
 import com.example.passcard.sync.CloudSyncRepository
+import com.example.passcard.sync.VaultBackupSummary
+import com.example.passcard.sync.VaultBackupSource
+import com.example.passcard.sync.CloudConditionalWriteCheckException
+import com.example.passcard.sync.CloudWriteConflictException
 import com.example.passcard.sync.S3CloudStorage
 import com.example.passcard.ui.theme.ElevationLevel
 import com.example.passcard.ui.theme.Radius18
@@ -109,9 +122,11 @@ import com.example.passcard.util.SyncSecurityMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.example.passcard.ui.components.LoadingIndicator
 import kotlinx.coroutines.withContext
 
 private data class CloudConfiguration(
@@ -167,33 +182,8 @@ private class CloudConfigurationState(initiallyLoaded: Boolean) {
     }
 }
 
-@Stable
-private class CloudPhraseDialogState {
-    var visible by mutableStateOf(false)
-    var phrase by mutableStateOf("")
-    var isUpload by mutableStateOf(true)
-    var saveForBiometric by mutableStateOf(false)
-    var confirmEmptyOverwrite by mutableStateOf(false)
-
-    fun open(upload: Boolean) {
-        isUpload = upload
-        phrase = ""
-        confirmEmptyOverwrite = false
-        visible = true
-    }
-
-    fun dismiss() {
-        visible = false
-    }
-
-    fun finish() {
-        visible = false
-        phrase = ""
-        confirmEmptyOverwrite = false
-    }
-}
-
 private enum class CloudOperationStage {
+    AUTHENTICATING,
     CHECKING,
     READING_LOCAL,
     UPLOADING,
@@ -231,7 +221,7 @@ fun CloudSyncContent(
     themeColors: ThemeColors,
     preferencesManager: PreferencesManager?,
     localItemCount: Int,
-    replaceVaultPasswords: (List<PasswordItem>) -> Unit,
+    replaceVaultPasswords: suspend (List<PasswordItem>) -> Unit,
     loadAllPasswords: suspend () -> List<PasswordItem>,
     modifier: Modifier = Modifier,
     scrollState: LazyListState = rememberLazyListState()
@@ -258,32 +248,43 @@ fun CloudSyncContent(
     var stage by remember { mutableStateOf<CloudOperationStage?>(null) }
     var statusText by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
-    val phraseDialogState = remember { CloudPhraseDialogState() }
-    var hasSavedPhrase by remember { mutableStateOf(BiometricKeyStore.hasWrappedSyncKey(context)) }
+    var statusWarnings by remember { mutableStateOf(emptyList<String>()) }
+    var showHistory by remember { mutableStateOf(false) }
+    var selectedHistoryBackup by remember { mutableStateOf<VaultBackupSummary?>(null) }
+    val passwordDialogState = remember { BackupPasswordDialogState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val supportsBiometric = remember(context) {
+        BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    }
+    var activePrompt by remember { mutableStateOf<BiometricPrompt?>(null) }
+    val authentication = remember { BackupAuthenticationSession() }
+    var hasSavedPassword by remember { mutableStateOf(BiometricKeyStore.hasWrappedSyncKey(context)) }
     var autoUploadFrequency by remember {
         mutableStateOf(preferencesManager?.autoUploadFrequency ?: AutoUploadFrequency.OFF)
     }
     var autoUploadDialogVisible by remember { mutableStateOf(false) }
     var pendingAutoUploadFrequency by remember { mutableStateOf(AutoUploadFrequency.OFF) }
-    var autoUploadPhrase by remember { mutableStateOf("") }
+    var autoUploadPassword by remember { mutableStateOf("") }
     var autoUploadConsent by remember { mutableStateOf(false) }
+    var autoUploadUsesBiometric by remember { mutableStateOf(false) }
+    var autoUploadError by remember { mutableStateOf<String?>(null) }
 
     val currentConfiguration = configuration.value
     val latestConfiguration by rememberUpdatedState(currentConfiguration)
     val useRealCloud = configuration.isComplete
     val repo = remember(preferencesManager, currentConfiguration) {
-        preferencesManager?.takeIf { useRealCloud }?.let { manager ->
+        preferencesManager?.let { manager ->
             CloudSyncRepository(
                 context.applicationContext,
                 manager,
-                S3CloudStorage(
+                if (useRealCloud) S3CloudStorage(
                     endpoint = currentConfiguration.endpoint,
                     region = currentConfiguration.region,
                     bucketName = currentConfiguration.bucket,
                     accessKey = currentConfiguration.accessKey,
                     secretKey = currentConfiguration.secretKey,
                     sessionToken = currentConfiguration.sessionToken
-                )
+                ) else null
             )
         }
     }
@@ -325,7 +326,7 @@ fun CloudSyncContent(
                 if (showToast) Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show()
             }.onFailure {
                 statusIsError = true
-                statusText = it.message ?: if (zh) "无法读取云端状态" else "Unable to read cloud status"
+                statusText = cloudOperationFailureMessage(it, zh)
                 if (showToast) Toast.makeText(context, statusText, Toast.LENGTH_LONG).show()
             }
             stage = null
@@ -333,33 +334,237 @@ fun CloudSyncContent(
         }
     }
 
+    fun resetAuthentication() {
+        authentication.invalidate()
+        val prompt = activePrompt
+        activePrompt = null
+        prompt?.cancelAuthentication()
+        if (stage == CloudOperationStage.AUTHENTICATING) {
+            stage = null
+            busy = false
+        }
+    }
+
+    fun authenticationFailed(message: String) {
+        stage = null
+        busy = false
+        if (passwordDialogState.visible) passwordDialogState.errorMessage = message
+        if (autoUploadDialogVisible) autoUploadError = message
+    }
+
+    fun unlockBackupPassword(onReady: (String) -> Unit) {
+        if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        busy = true
+        stage = CloudOperationStage.AUTHENTICATING
+        val token = authentication.begin()
+        scope.launch {
+            val activity = context as? FragmentActivity
+            val cipher = withContext(Dispatchers.IO) { BiometricKeyStore.getDecryptionCipher(context) }
+            if (!authentication.isCurrent(token)) return@launch
+            if (activity == null || cipher == null || !supportsBiometric) {
+                authentication.claim(token)
+                BiometricKeyStore.clear(context)
+                hasSavedPassword = false
+                passwordDialogState.usePassword()
+                autoUploadUsesBiometric = false
+                authenticationFailed(if (zh) "指纹凭据暂不可用，请输入备份密码。" else "Biometric credentials are unavailable. Enter the backup password.")
+                return@launch
+            }
+            runCatching {
+                activePrompt = AuthHelper.authenticateWithCipher(
+                    activity = activity, cipher = cipher,
+                    title = if (zh) "验证指纹" else "Verify biometrics",
+                    subtitle = if (zh) "授权使用本机保护的备份密码" else "Authorize the protected backup password on this device",
+                    negativeButtonText = if (zh) "取消" else "Cancel",
+                    onSuccess = authenticated@ { authenticated ->
+                        if (!authentication.claim(token)) return@authenticated
+                        activePrompt = null
+                        val password = BiometricKeyStore.unwrapStringWithCipher(context, authenticated)
+                        if (password.isNullOrEmpty()) {
+                            BiometricKeyStore.clear(context)
+                            hasSavedPassword = false
+                            passwordDialogState.usePassword()
+                            autoUploadUsesBiometric = false
+                            authenticationFailed(if (zh) "无法解锁备份密码，请手动输入。" else "Unable to unlock the backup password. Enter it manually.")
+                        } else {
+                            stage = null
+                            busy = false
+                            onReady(password)
+                        }
+                    },
+                    onError = failed@ { message ->
+                        if (!authentication.claim(token)) return@failed
+                        activePrompt = null
+                        authenticationFailed(message)
+                    }
+                )
+            }.onFailure {
+                if (authentication.claim(token)) authenticationFailed(if (zh) "暂时无法启动指纹验证，请改用备份密码。" else "Unable to start biometrics. Use the backup password.")
+            }
+        }
+    }
+
+    fun savePasswordForBiometric(password: String, operationToken: Long) {
+        if (!supportsBiometric || !authentication.isCurrent(operationToken) ||
+            !lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        val activity = context as? FragmentActivity ?: return
+        busy = true
+        stage = CloudOperationStage.AUTHENTICATING
+        val token = authentication.begin()
+        fun notSaved() {
+            statusWarnings = statusWarnings + if (zh) "本次未启用指纹，下次仍可输入备份密码。" else "Biometrics were not enabled. You can enter the backup password next time."
+            busy = false
+            stage = null
+        }
+        scope.launch {
+            val cipher = withContext(Dispatchers.IO) { BiometricKeyStore.getEncryptionCipher() }
+            if (!authentication.isCurrent(token)) return@launch
+            if (cipher == null) {
+                authentication.claim(token)
+                notSaved()
+                return@launch
+            }
+            runCatching {
+                activePrompt = AuthHelper.authenticateWithCipher(
+                    activity = activity, cipher = cipher,
+                    title = if (zh) "启用备份指纹确认" else "Enable biometric confirmation",
+                    subtitle = if (zh) "以后上传和恢复时可用指纹确认" else "Use biometrics for future uploads and restores",
+                    negativeButtonText = if (zh) "暂不启用" else "Not now",
+                    onSuccess = authenticated@ { authenticated ->
+                        if (!authentication.claim(token)) return@authenticated
+                        activePrompt = null
+                        runCatching { BiometricKeyStore.wrapStringWithCipher(context, authenticated, password) }
+                            .onSuccess { hasSavedPassword = true; busy = false; stage = null }
+                            .onFailure { notSaved() }
+                    },
+                    onError = failed@ {
+                        if (!authentication.claim(token)) return@failed
+                        activePrompt = null
+                        notSaved()
+                    }
+                )
+            }.onFailure { if (authentication.claim(token)) notSaved() }
+        }
+    }
+
+    fun runSync(backupPassword: String) {
+        if (busy) return
+        val operationToken = authentication.version
+        val targetBackup = selectedHistoryBackup
+        val isUpload = passwordDialogState.isUpload
+        val confirmEmptyOverwrite = passwordDialogState.confirmEmptyOverwrite
+        val saveForBiometric = passwordDialogState.manualEntry && passwordDialogState.saveForBiometric && supportsBiometric
+        // Keep manually entered text for an in-dialog retry; backgrounding and dismissal still clear it.
+        // A biometric secret is passed directly to the operation and never placed in these fields.
+        if (!passwordDialogState.manualEntry) passwordDialogState.clearCredentials()
+        passwordDialogState.errorMessage = null
+        statusWarnings = emptyList()
+        busy = true
+        scope.launch {
+            var completed = false
+            statusIsError = false
+            try {
+                val manager = preferencesManager ?: error(if (zh) "设置尚未就绪，请重试。" else "Settings are not ready. Try again.")
+                val activeRepo = repo ?: error(if (zh) "备份尚未就绪，请重试。" else "Backup is not ready. Try again.")
+                stage = CloudOperationStage.READING_LOCAL
+                val currentItems = if (isUpload) emptyList() else withContext(Dispatchers.IO) { loadAllPasswords() }
+                withContext(Dispatchers.IO) { persistCloudConfiguration(manager, currentConfiguration) }
+                val deviceId = manager.getOrCreateInstallationId()
+                val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
+                val entities = withContext(Dispatchers.Default) { currentItems.map { it.toPasswordEntity() } }
+                stage = if (isUpload) CloudOperationStage.UPLOADING else CloudOperationStage.DOWNLOADING
+                if (isUpload) {
+                    activeRepo.uploadEncryptedVault(
+                        backupPassword = backupPassword, passwords = entities,
+                        deviceId = deviceId, deviceName = deviceName,
+                        userConfirmedEmptyOverwrite = confirmEmptyOverwrite,
+                        loadPasswords = {
+                            val latest = loadAllPasswords()
+                            withContext(Dispatchers.Default) { latest.map { it.toPasswordEntity() } }
+                        }
+                    ).getOrThrow()
+                } else {
+                    if (targetBackup != null) activeRepo.restoreBackup(
+                        summary = targetBackup, backupPassword = backupPassword,
+                        currentLocalPasswords = entities, deviceId = deviceId, deviceName = deviceName,
+                        replaceLocalVault = { restored -> replaceVaultPasswords(restored.map { it.toPasswordItem() }) }
+                    ).getOrThrow() else activeRepo.downloadAndRestoreVault(
+                        backupPassword = backupPassword, currentLocalPasswords = entities,
+                        deviceId = deviceId, deviceName = deviceName,
+                        replaceLocalVault = { restored -> replaceVaultPasswords(restored.map { it.toPasswordItem() }) }
+                    ).getOrThrow()
+                }
+                stage = CloudOperationStage.FINALIZING
+                if (useRealCloud && targetBackup == null) withContext(Dispatchers.IO) { fetchSnapshot() }.onSuccess(::applySnapshot)
+                localRevision = manager.vaultRevision
+                if (!isUpload) statusWarnings = activeRepo.lastRestoreWarnings
+                statusText = if (isUpload) {
+                    if (zh) "加密备份已上传" else "Encrypted backup uploaded"
+                } else if (targetBackup != null) {
+                    if (zh) "历史备份已恢复到本机，云端备份未更改" else "History restored on this device; cloud data is unchanged"
+                } else {
+                    if (zh) "云端备份已恢复" else "Cloud backup restored"
+                }
+                completed = true
+                passwordDialogState.finish()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                statusIsError = true
+                statusText = cloudOperationFailureMessage(error, zh)
+                passwordDialogState.errorMessage = statusText
+                Toast.makeText(context, statusText, Toast.LENGTH_LONG).show()
+            } finally {
+                stage = null
+                busy = false
+            }
+            if (completed && saveForBiometric) savePasswordForBiometric(backupPassword, operationToken)
+        }
+    }
+
+    fun confirmSync() {
+        if (busy) return
+        if (!passwordDialogState.manualEntry && hasSavedPassword) {
+            unlockBackupPassword(::runSync)
+        } else {
+            passwordDialogState.passwordError()?.let {
+                passwordDialogState.errorMessage = backupPasswordErrorMessage(it, zh)
+                return
+            }
+            if (passwordDialogState.password.isEmpty()) {
+                passwordDialogState.errorMessage = if (zh) "请输入备份密码。" else "Enter the backup password."
+                return
+            }
+            runSync(passwordDialogState.password)
+        }
+    }
+
     fun prepareSync(upload: Boolean) {
+        if (busy) return
+        selectedHistoryBackup = null
+        statusWarnings = emptyList()
         if (!useRealCloud) {
             connectionExpanded = true
             statusIsError = true
             statusText = if (zh) "请先完成云端连接" else "Complete cloud connection first."
             return
         }
-        if (busy) return
         scope.launch {
             busy = true
             stage = CloudOperationStage.CHECKING
             statusIsError = false
-            val result = withContext(Dispatchers.IO) { fetchSnapshot() }
-            result.onSuccess { latest ->
-                applySnapshot(latest)
-                if (!upload && !latest.cloudHasData) {
+            try {
+                withContext(Dispatchers.IO) { fetchSnapshot() }.onSuccess { latest ->
+                    applySnapshot(latest)
+                    if (!upload && !latest.cloudHasData) {
+                        statusIsError = true
+                        statusText = if (zh) "云端还没有可恢复的备份" else "No cloud backup is available."
+                    } else passwordDialogState.open(upload, hasSavedPassword && supportsBiometric)
+                }.onFailure {
                     statusIsError = true
-                    statusText = if (zh) "云端还没有可恢复的备份" else "No cloud backup is available."
-                } else {
-                    phraseDialogState.open(upload)
+                    statusText = cloudOperationFailureMessage(it, zh)
                 }
-            }.onFailure {
-                statusIsError = true
-                statusText = it.message ?: if (zh) "连接云端失败" else "Cloud connection failed"
-            }
-            stage = null
-            busy = false
+            } finally { stage = null; busy = false }
         }
     }
 
@@ -383,54 +588,17 @@ fun CloudSyncContent(
                 }
             }
             result.onSuccess {
-                statusText = if (zh) "连接成功" else "Connection successful"
+                statusText = if (zh) "连接与上传保护验证通过" else "Connection and upload protection verified"
                 stage = null
                 busy = false
                 refreshSnapshot()
             }.onFailure {
                 statusIsError = true
-                statusText = it.message ?: if (zh) "连接失败" else "Connection failed"
+                statusText = cloudOperationFailureMessage(it, zh)
                 stage = null
                 busy = false
             }
         }
-    }
-
-    fun fillPhraseFromBiometric() {
-        val activity = context as? FragmentActivity ?: return
-        val cipher = BiometricKeyStore.getDecryptionCipher(context) ?: run {
-            Toast.makeText(context, if (zh) "本机没有已保存的恢复助记词" else "No saved recovery phrase.", Toast.LENGTH_LONG).show()
-            return
-        }
-        AuthHelper.authenticateWithCipher(
-            activity = activity,
-            cipher = cipher,
-            title = if (zh) "使用生物识别填入助记词" else "Unlock Recovery Phrase",
-            subtitle = if (zh) "只会解锁保存在本机的内容" else "Unlocks only the phrase stored on this device.",
-            onSuccess = { authenticated ->
-                BiometricKeyStore.unwrapStringWithCipher(context, authenticated)?.takeIf { it.isNotBlank() }?.let {
-                    phraseDialogState.phrase = it
-                }
-            },
-            onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-        )
-    }
-
-    fun savePhraseWithBiometric(phrase: String) {
-        val activity = context as? FragmentActivity ?: return
-        val cipher = BiometricKeyStore.getEncryptionCipher() ?: return
-        AuthHelper.authenticateWithCipher(
-            activity = activity,
-            cipher = cipher,
-            title = if (zh) "保护恢复助记词" else "Protect Recovery Phrase",
-            subtitle = if (zh) "使用 Android Keystore 加密保存在本机" else "Encrypt and store it with Android Keystore.",
-            onSuccess = {
-                BiometricKeyStore.wrapStringWithCipher(context, it, phrase)
-                hasSavedPhrase = true
-                phraseDialogState.saveForBiometric = false
-            },
-            onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-        )
     }
 
     fun disableAutomaticUpload() {
@@ -438,6 +606,45 @@ fun CloudSyncContent(
         autoUploadFrequency = AutoUploadFrequency.OFF
         preferencesManager?.autoUploadFrequency = AutoUploadFrequency.OFF
         AutomaticBackupScheduler.reconcile(context, AutoUploadFrequency.OFF)
+    }
+
+    fun authorizeAutomaticUpload(backupPassword: String) {
+        if (busy || !autoUploadConsent) return
+        val manager = preferencesManager ?: return
+        val activeRepo = repo ?: return
+        busy = true
+        autoUploadError = null
+        stage = CloudOperationStage.CHECKING
+        autoUploadPassword = ""
+        scope.launch {
+            try {
+                activeRepo.verifyBackupPassword(backupPassword).getOrThrow()
+                configuration.securityMode = SyncSecurityMode.CONVENIENCE
+                withContext(Dispatchers.IO) {
+                    persistCloudConfiguration(manager, currentConfiguration.copy(securityMode = SyncSecurityMode.CONVENIENCE))
+                    AutomaticBackupKeyStore.save(context, backupPassword)
+                    val previousFrequency = manager.autoUploadFrequency
+                    manager.autoUploadFrequency = pendingAutoUploadFrequency
+                    try {
+                        AutomaticBackupScheduler.reconcile(context, pendingAutoUploadFrequency, replace = true)
+                    } catch (error: Exception) {
+                        manager.autoUploadFrequency = previousFrequency
+                        if (previousFrequency == AutoUploadFrequency.OFF) AutomaticBackupKeyStore.clear(context)
+                        throw error
+                    }
+                }
+                autoUploadFrequency = pendingAutoUploadFrequency
+                statusIsError = false
+                statusText = if (zh) "自动上传已设为${autoUploadFrequencyLabel(pendingAutoUploadFrequency, true)}"
+                    else "Automatic upload set to ${autoUploadFrequencyLabel(pendingAutoUploadFrequency, false)}"
+                autoUploadDialogVisible = false
+                autoUploadConsent = false
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                autoUploadError = cloudOperationFailureMessage(error, zh)
+            } finally { busy = false; stage = null }
+        }
     }
 
     fun selectAutomaticUploadFrequency(frequency: AutoUploadFrequency) {
@@ -454,17 +661,35 @@ fun CloudSyncContent(
             statusText = if (zh) "请先完成并测试云端连接" else "Complete and test the cloud connection first."
             return
         }
-        if (configuration.securityMode != SyncSecurityMode.CONVENIENCE) {
-            securityExpanded = true
+        if ((preferencesManager?.lastSyncedCloudVaultRevision ?: 0L) <= 0L) {
             statusIsError = true
-            statusText = if (zh) "自动上传需要先选择便捷模式" else
-                "Automatic upload requires Convenience mode."
+            statusText = if (zh) "请先手动上传或恢复一次，确认本机与云端版本后再开启自动上传。" else
+                "Upload or restore once to establish the current cloud version before enabling automatic uploads."
             return
         }
         pendingAutoUploadFrequency = frequency
-        autoUploadPhrase = ""
+        autoUploadPassword = ""
         autoUploadConsent = false
+        autoUploadError = null
+        autoUploadUsesBiometric = hasSavedPassword && supportsBiometric
         autoUploadDialogVisible = true
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                resetAuthentication()
+                passwordDialogState.clearCredentials()
+                autoUploadPassword = ""
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            resetAuthentication()
+            passwordDialogState.finish()
+            autoUploadPassword = ""
+        }
     }
 
     LaunchedEffect(preferencesManager) {
@@ -536,8 +761,17 @@ fun CloudSyncContent(
                     busy = busy,
                     stage = stage,
                     message = statusText,
-                    isError = statusIsError
+                    isError = statusIsError,
+                    warnings = statusWarnings
                 )
+            }
+        }
+        item(key = "history", contentType = "history") {
+            OutlinedButton(onClick = { showHistory = true }, enabled = !busy && repo != null,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                Icon(Icons.Outlined.History, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (zh) "查看历史备份" else "View backup history")
             }
         }
         item(key = "connection", contentType = "disclosure") {
@@ -588,10 +822,10 @@ fun CloudSyncContent(
         item(key = "security", contentType = "disclosure") {
             CloudDisclosureCard(
                 title = if (zh) "安全与恢复" else "Security & Recovery",
-                summary = if (configuration.securityMode == SyncSecurityMode.MAXIMUM_SECURITY) {
-                    if (zh) "每次输入恢复助记词" else "Recovery phrase every time"
+                summary = if (hasSavedPassword) {
+                    if (zh) "指纹确认 · 备份密码可用于换机恢复" else "Biometric confirmation · password recovery on a new device"
                 } else {
-                    if (zh) "支持生物识别填入" else "Biometric-assisted entry"
+                    if (zh) "独立备份密码 · 可启用指纹确认" else "Separate backup password · optional biometrics"
                 },
                 icon = Icons.Outlined.Security,
                 accent = themeColors.success,
@@ -602,20 +836,13 @@ fun CloudSyncContent(
                 CloudSecurityEditor(
                     zh = zh,
                     themeColors = themeColors,
-                    mode = configuration.securityMode,
-                    onModeChange = {
-                        configuration.securityMode = it
-                        if (it == SyncSecurityMode.MAXIMUM_SECURITY && autoUploadFrequency != AutoUploadFrequency.OFF) {
-                            disableAutomaticUpload()
-                            statusIsError = false
-                            statusText = if (zh) "已切换到每次输入模式，自动上传同步关闭" else
-                                "Automatic upload was disabled for Every time mode."
+                    hasSavedPassword = hasSavedPassword,
+                    busy = busy,
+                    onRemoveSavedPassword = {
+                        if (!busy) {
+                            BiometricKeyStore.clear(context)
+                            hasSavedPassword = false
                         }
-                    },
-                    hasSavedPhrase = hasSavedPhrase,
-                    onRemoveSavedPhrase = {
-                        BiometricKeyStore.clear(context)
-                        hasSavedPhrase = false
                     }
                 )
                 HorizontalDivider(color = themeColors.onSurfaceVariant.copy(alpha = 0.22f))
@@ -664,7 +891,7 @@ fun CloudSyncContent(
         item(key = "footer", contentType = "footer") {
             Text(
                 text = if (zh) {
-                    if (autoUploadFrequency == AutoUploadFrequency.OFF) "完整保险库只会在你确认上传或恢复后读取。" else
+                    if (autoUploadFrequency == AutoUploadFrequency.OFF) "本机完整记录只会在你确认上传或恢复后读取。" else
                         "启用自动上传后，系统仅在网络、电量和存储条件允许时于所选周期附近读取并加密上传。"
                 } else {
                     if (autoUploadFrequency == AutoUploadFrequency.OFF) "The full vault is read only after you confirm an upload or restore." else
@@ -677,270 +904,170 @@ fun CloudSyncContent(
         }
     }
 
-    CloudPhraseDialog(
-        state = phraseDialogState,
-        zh = zh,
-        themeColors = themeColors,
-        busy = busy,
-        stage = stage,
-        localHasData = snapshot.localHasData,
-        cloudHasData = snapshot.cloudHasData,
-        hasSavedPhrase = hasSavedPhrase,
-        onUseBiometric = ::fillPhraseFromBiometric,
-        onConfirm = {
-            val phrase = phraseDialogState.phrase
-            val isUpload = phraseDialogState.isUpload
-            val confirmEmptyOverwrite = phraseDialogState.confirmEmptyOverwrite
-            val saveForBiometric = phraseDialogState.saveForBiometric
-            scope.launch {
-                busy = true
+    if (showHistory && repo != null) {
+        BackupHistorySheet(repository = repo, cloudAvailable = useRealCloud, zh = zh,
+            onDismiss = { showHistory = false },
+            onSelect = { summary ->
+                selectedHistoryBackup = summary
+                statusWarnings = emptyList()
                 statusIsError = false
-                try {
-                    stage = CloudOperationStage.READING_LOCAL
-                    val latestPasswords = withContext(Dispatchers.IO) { loadAllPasswords() }
-                    withContext(Dispatchers.IO) {
-                        persistCloudConfiguration(preferencesManager, currentConfiguration)
-                    }
-                    val deviceId = preferencesManager.getOrCreateInstallationId()
-                    val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
-                    val entities = latestPasswords.map { it.toPasswordEntity() }
-                    stage = if (isUpload) CloudOperationStage.UPLOADING else CloudOperationStage.DOWNLOADING
-                    val result = if (isUpload) {
-                        withContext(Dispatchers.IO) {
-                            repo?.uploadEncryptedVault(
-                                recoveryPhrase = phrase,
-                                passwords = entities,
-                                deviceId = deviceId,
-                                deviceName = deviceName,
-                                userConfirmedEmptyOverwrite = confirmEmptyOverwrite
-                            ) ?: Result.failure(IllegalStateException("Cloud repository is unavailable"))
-                        }
-                    } else {
-                        withContext(Dispatchers.IO) {
-                            repo?.downloadAndRestoreVault(
-                                recoveryPhrase = phrase,
-                                currentLocalPasswords = entities,
-                                deviceId = deviceId,
-                                deviceName = deviceName
-                            ) ?: Result.failure(IllegalStateException("Cloud repository is unavailable"))
-                        }.map { restored -> replaceVaultPasswords(restored.map { it.toPasswordItem() }) }
-                    }
-                    stage = CloudOperationStage.FINALIZING
-                    result.getOrThrow()
-                    if (saveForBiometric && phrase.isNotBlank()) {
-                        savePhraseWithBiometric(phrase)
-                    }
-                    withContext(Dispatchers.IO) { fetchSnapshot() }.onSuccess(::applySnapshot)
-                    statusText = if (isUpload) {
-                        if (zh) "加密备份已上传" else "Encrypted backup uploaded"
-                    } else {
-                        if (zh) "云端备份已恢复" else "Cloud backup restored"
-                    }
-                    phraseDialogState.finish()
-                } catch (error: Throwable) {
-                    statusIsError = true
-                    statusText = error.message ?: if (zh) "同步失败" else "Sync failed"
-                    Toast.makeText(context, statusText, Toast.LENGTH_LONG).show()
-                } finally {
-                    stage = null
-                    busy = false
-                }
-            }
-        }
+                showHistory = false
+                passwordDialogState.open(upload = false, hasSavedPassword = hasSavedPassword && supportsBiometric)
+            })
+    }
+    BackupPasswordDialog(
+        state = passwordDialogState, selectedBackup = selectedHistoryBackup, zh = zh,
+        themeColors = themeColors, busy = busy, stage = stage,
+        localHasData = snapshot.localHasData, cloudHasData = snapshot.cloudHasData,
+        hasSavedPassword = hasSavedPassword, supportsBiometric = supportsBiometric,
+        onConfirm = ::confirmSync
     )
 
     if (autoUploadDialogVisible) {
         AlertDialog(
-            onDismissRequest = {
+            onDismissRequest = { if (!busy) {
                 autoUploadDialogVisible = false
-                autoUploadPhrase = ""
+                autoUploadPassword = ""
                 autoUploadConsent = false
-            },
+                autoUploadError = null
+            } },
             icon = { Icon(Icons.Outlined.Schedule, contentDescription = null) },
             title = { Text(if (zh) "授权自动加密上传" else "Authorize automatic encrypted uploads") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(Spacing12)) {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing12)) {
                     Text(
-                        if (zh) "后台任务无法弹出生物识别。启用后，恢复助记词会由本设备 Android Keystore 密钥加密保存，供后台加密保险库使用。" else
-                            "Background work cannot show biometric authentication. Your recovery phrase will be encrypted with this device's Android Keystore key for unattended vault encryption.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = themeColors.onSurfaceVariant
+                        if (zh) "后台无法弹出指纹窗口。启用后，备份密码会由本设备密钥加密保存，供后台加密上传；关闭后会移除这份授权。" else
+                            "Background tasks cannot show a biometric prompt. Enabling this stores a separate device-encrypted copy of your backup password for unattended uploads. Turning it off removes that authorization.",
+                        style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant
                     )
-                    OutlinedTextField(
-                        value = autoUploadPhrase,
-                        onValueChange = { autoUploadPhrase = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(if (zh) "24 词恢复助记词" else "24-word recovery phrase") },
-                        minLines = 3,
-                        visualTransformation = PasswordVisualTransformation(),
-                        isError = autoUploadPhrase.isNotBlank() && !RecoveryPhraseManager.isValidWords(autoUploadPhrase),
-                        supportingText = if (autoUploadPhrase.isNotBlank() && !RecoveryPhraseManager.isValidWords(autoUploadPhrase)) {
-                            { Text(if (zh) "请输入完整且有效的 24 词助记词" else "Enter a complete, valid 24-word phrase") }
-                        } else null
-                    )
-                    Row(verticalAlignment = Alignment.Top) {
-                        Checkbox(
-                            checked = autoUploadConsent,
-                            onCheckedChange = { autoUploadConsent = it }
-                        )
-                        Text(
-                            if (zh) "我了解：解锁本机的应用进程可在无需再次生物识别的情况下使用该密钥。关闭自动上传会移除保存内容。" else
-                                "I understand that the unlocked app process can use this key without another biometric prompt. Turning this off removes the saved material.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = themeColors.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 12.dp)
+                    if (autoUploadUsesBiometric) {
+                        Text(if (zh) "确认后使用指纹授权，不需要再次输入备份密码。" else
+                            "Confirm with biometrics; your backup password does not need to be entered again.", style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = { autoUploadUsesBiometric = false; autoUploadError = null }, enabled = !busy) {
+                            Text(if (zh) "改用备份密码" else "Use backup password")
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = autoUploadPassword, onValueChange = { autoUploadPassword = it; autoUploadError = null },
+                            modifier = Modifier.fillMaxWidth(), label = { Text(if (zh) "备份密码" else "Backup password") },
+                            singleLine = true, enabled = !busy,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            visualTransformation = PasswordVisualTransformation()
                         )
                     }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Checkbox(checked = autoUploadConsent, onCheckedChange = { autoUploadConsent = it }, enabled = !busy)
+                        Text(if (zh) "允许后台无需再次指纹确认执行加密上传。" else
+                            "Allow encrypted uploads in the background without another biometric prompt.",
+                            style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 12.dp))
+                    }
+                    autoUploadError?.let { Text(it, color = themeColors.error, style = MaterialTheme.typography.bodySmall) }
+                    if (busy) LoadingIndicator(stageLabel(stage, zh), compact = true)
                 }
             },
             confirmButton = {
-                Button(
-                    enabled = RecoveryPhraseManager.isValidWords(autoUploadPhrase) && autoUploadConsent,
+                Button(enabled = !busy && autoUploadConsent && (autoUploadUsesBiometric || autoUploadPassword.isNotEmpty()),
                     onClick = {
-                        runCatching {
-                            persistCloudConfiguration(preferencesManager, currentConfiguration)
-                            AutomaticBackupKeyStore.save(
-                                context,
-                                RecoveryPhraseManager.normalize(autoUploadPhrase)
-                            )
-                            preferencesManager.autoUploadFrequency = pendingAutoUploadFrequency
-                            AutomaticBackupScheduler.reconcile(
-                                context,
-                                pendingAutoUploadFrequency,
-                                replace = true
-                            )
-                        }.onSuccess {
-                            autoUploadFrequency = pendingAutoUploadFrequency
-                            statusIsError = false
-                            statusText = if (zh) {
-                                "自动上传已设为${autoUploadFrequencyLabel(pendingAutoUploadFrequency, true)}"
-                            } else {
-                                "Automatic upload set to ${autoUploadFrequencyLabel(pendingAutoUploadFrequency, false)}"
-                            }
-                            autoUploadDialogVisible = false
-                            autoUploadPhrase = ""
-                            autoUploadConsent = false
-                        }.onFailure {
-                            statusIsError = true
-                            statusText = it.message ?: if (zh) "无法启用自动上传" else "Could not enable automatic upload"
-                        }
-                    }
-                ) { Text(if (zh) "授权并启用" else "Authorize & enable") }
+                        if (autoUploadUsesBiometric) unlockBackupPassword(::authorizeAutomaticUpload)
+                        else authorizeAutomaticUpload(autoUploadPassword)
+                    }) { Text(if (zh) "授权并启用" else "Authorize & enable") }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(enabled = !busy, onClick = {
                     autoUploadDialogVisible = false
-                    autoUploadPhrase = ""
+                    autoUploadPassword = ""
                     autoUploadConsent = false
-                }) {
-                    Text(if (zh) "取消" else "Cancel")
-                }
+                    autoUploadError = null
+                }) { Text(if (zh) "取消" else "Cancel") }
             }
         )
     }
 }
 
 @Composable
-private fun CloudPhraseDialog(
-    state: CloudPhraseDialogState,
+private fun BackupPasswordDialog(
+    state: BackupPasswordDialogState,
+    selectedBackup: VaultBackupSummary?,
     zh: Boolean,
     themeColors: ThemeColors,
     busy: Boolean,
     stage: CloudOperationStage?,
     localHasData: Boolean,
     cloudHasData: Boolean,
-    hasSavedPhrase: Boolean,
-    onUseBiometric: () -> Unit,
+    hasSavedPassword: Boolean,
+    supportsBiometric: Boolean,
     onConfirm: () -> Unit
 ) {
     if (!state.visible) return
-
+    val manual = state.manualEntry || !hasSavedPassword
+    val creating = state.isUpload && !cloudHasData
     AlertDialog(
-        onDismissRequest = { if (!busy) state.dismiss() },
-        title = {
-            Text(
-                if (state.isUpload) {
-                    if (zh) "加密并上传" else "Encrypt & Upload"
-                } else {
-                    if (zh) "恢复云端备份" else "Restore Cloud Backup"
-                }
-            )
-        },
+        onDismissRequest = { if (!busy) state.finish() },
+        icon = { Icon(if (manual) Icons.Outlined.Lock else Icons.Outlined.Fingerprint, contentDescription = null) },
+        title = { Text(if (state.isUpload) {
+            if (creating && manual) { if (zh) "设置备份密码并上传" else "Set backup password & upload" }
+            else { if (zh) "上传加密备份" else "Upload encrypted backup" }
+        } else if (selectedBackup != null) { if (zh) "恢复历史备份" else "Restore history backup" }
+            else { if (zh) "恢复云端备份" else "Restore cloud backup" }) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing12)) {
-                Text(
-                    text = if (zh) "恢复助记词只在本次操作期间保留在内存中。" else
-                        "Your recovery phrase stays in memory only for this operation.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = themeColors.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = state.phrase,
-                    onValueChange = { state.phrase = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (zh) "24 词恢复助记词" else "24-word recovery phrase") },
-                    minLines = 3,
-                    enabled = !busy,
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                if (state.isUpload && !localHasData && cloudHasData) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = state.confirmEmptyOverwrite,
-                            onCheckedChange = { state.confirmEmptyOverwrite = it },
-                            enabled = !busy
-                        )
-                        Text(
-                            if (zh) "确认使用空的本地库覆盖云端" else "Confirm replacing cloud data with an empty local vault",
-                            style = MaterialTheme.typography.bodySmall
-                        )
+            Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing12)) {
+                Text(if (manual) {
+                    if (state.isUpload) {
+                        if (zh) "备份密码独立于应用主密码。请妥善记住，换机或重装后恢复需要它；密码不会发送到云端。"
+                        else "This password is separate from your app password. Keep it for recovery on a new device or after reinstalling. It is never sent to the cloud."
+                    } else {
+                        if (zh) "请输入创建此备份时使用的备份密码。密码错误时不会替换本机记录。"
+                        else "Enter the password used to create this backup. A wrong password will not replace your records."
                     }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = state.saveForBiometric,
-                        onCheckedChange = { state.saveForBiometric = it },
-                        enabled = !busy
-                    )
-                    Text(
-                        if (zh) "成功后使用生物识别保护并保存在本机" else
-                            "Protect and save on this device after success",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                if (hasSavedPhrase && !busy) {
-                    TextButton(onClick = onUseBiometric) {
-                        Icon(Icons.Outlined.Fingerprint, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (zh) "使用生物识别填入" else "Use biometric")
+                } else {
+                    if (zh) "确认后使用指纹授权，本机保护的备份密码不会显示在输入框中。"
+                    else "Confirm with biometrics. The password protected on this device will not appear in a text field."
+                }, style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+                selectedBackup?.let { Text(backupDate(it.updatedAt, zh) + " · " + backupSize(it.sizeBytes), style = MaterialTheme.typography.bodyMedium) }
+                if (manual) {
+                    OutlinedTextField(value = state.password, onValueChange = { state.password = it; state.errorMessage = null },
+                        modifier = Modifier.fillMaxWidth(), label = { Text(if (zh) "备份密码" else "Backup password") },
+                        singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        supportingText = if (state.isUpload) { { Text(if (zh) "至少 15 个字符，空格和大小写会原样保留。" else "At least 15 characters. Spaces and letter case are preserved exactly.") } } else null)
+                    if (state.isUpload) {
+                        OutlinedTextField(value = state.confirmation, onValueChange = { state.confirmation = it; state.errorMessage = null },
+                            modifier = Modifier.fillMaxWidth(), label = { Text(if (zh) "再次输入备份密码" else "Confirm backup password") },
+                            singleLine = true, enabled = !busy, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                     }
-                }
-                AnimatedVisibility(visible = busy, enter = fadeIn(), exit = fadeOut()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        Text(
-                            stageLabel(stage, zh),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = themeColors.onSurfaceVariant
-                        )
+                    if (supportsBiometric) Row(verticalAlignment = Alignment.Top) {
+                        Checkbox(checked = state.saveForBiometric, onCheckedChange = { state.saveForBiometric = it }, enabled = !busy)
+                        Text(if (zh) "成功后启用指纹，下次无需重复输入。" else "Enable biometrics after success so you do not need to type this again.",
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
                     }
+                } else if (!busy) {
+                    TextButton(onClick = state::usePassword) { Text(if (zh) "改用备份密码" else "Use backup password") }
                 }
+                if (!state.isUpload) Row(verticalAlignment = Alignment.Top) {
+                    Checkbox(checked = state.confirmRestore, onCheckedChange = { state.confirmRestore = it }, enabled = !busy)
+                    Text(if (zh) "确认替换本机记录。恢复前保存当前记录的加密副本，云端不会被改写。"
+                        else "Replace this device's records. An encrypted copy is saved first; cloud data is not changed.",
+                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
+                }
+                if (state.isUpload && !localHasData && cloudHasData) Row(verticalAlignment = Alignment.Top) {
+                    Checkbox(checked = state.confirmEmptyOverwrite, onCheckedChange = { state.confirmEmptyOverwrite = it }, enabled = !busy)
+                    Text(if (zh) "确认使用空的本机保险库覆盖云端。" else "Confirm replacing cloud data with an empty local vault.",
+                        style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
+                }
+                state.errorMessage?.let { Text(it, color = themeColors.error, style = MaterialTheme.typography.bodySmall) }
+                if (busy) LoadingIndicator(stageLabel(stage, zh), compact = true)
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = !busy && state.phrase.isNotBlank() &&
-                    (!state.isUpload || localHasData || !cloudHasData || state.confirmEmptyOverwrite)
-            ) {
-                Text(if (zh) "继续" else "Continue")
+            TextButton(onClick = onConfirm,
+                enabled = !busy && (!manual || state.password.isNotEmpty()) && (state.isUpload || state.confirmRestore) &&
+                    (!state.isUpload || localHasData || !cloudHasData || state.confirmEmptyOverwrite)) {
+                Text(if (!manual) { if (zh) "指纹确认" else "Confirm with biometrics" } else { if (zh) "继续" else "Continue" })
             }
         },
-        dismissButton = {
-            TextButton(onClick = state::dismiss, enabled = !busy) {
-                Text(if (zh) "取消" else "Cancel")
-            }
-        }
+        dismissButton = { TextButton(onClick = state::finish, enabled = !busy) { Text(if (zh) "取消" else "Cancel") } }
     )
 }
 
@@ -949,7 +1076,7 @@ private fun CloudHeader(zh: Boolean, themeColors: ThemeColors) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = if (zh) "加密备份" else "Encrypted Backup",
-            style = MaterialTheme.typography.displayLarge,
+            style = MaterialTheme.typography.headlineLarge,
             color = themeColors.onBackground
         )
         Text(
@@ -997,7 +1124,7 @@ private fun CloudOverviewCard(
                     )
                     Text(
                         if (configured) {
-                            if (zh) "助记词不会发送到云端" else "Your phrase never leaves this device"
+                            if (zh) "备份密码不会发送到云端" else "Your backup password is never sent to the cloud"
                         } else {
                             if (zh) "凭据由 Android Keystore 保护" else "Credentials are protected by Android Keystore"
                         },
@@ -1080,7 +1207,8 @@ private fun CloudProgressCard(
     busy: Boolean,
     stage: CloudOperationStage?,
     message: String,
-    isError: Boolean
+    isError: Boolean,
+    warnings: List<String> = emptyList()
 ) {
     Card(
         shape = RoundedCornerShape(Radius18),
@@ -1088,26 +1216,20 @@ private fun CloudProgressCard(
             containerColor = if (isError) themeColors.errorContainer else themeColors.surfaceVariant
         )
     ) {
-        Column(Modifier.fillMaxWidth().padding(Spacing16), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (busy) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        Icons.Outlined.CheckCircle,
-                        null,
-                        Modifier.size(18.dp),
-                        tint = if (isError) themeColors.error else themeColors.success
-                    )
-                }
+        if (busy) {
+            LoadingIndicator(stageLabel(stage, zh), Modifier.fillMaxWidth().padding(Spacing16), compact = true)
+        } else {
+            Row(Modifier.fillMaxWidth().padding(Spacing16), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (isError) Icons.Outlined.ErrorOutline else Icons.Outlined.CheckCircle,
+                    null, Modifier.size(18.dp), tint = if (isError) themeColors.error else themeColors.success)
                 Spacer(Modifier.width(10.dp))
-                Text(
-                    if (busy) stageLabel(stage, zh) else message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isError) themeColors.error else themeColors.onBackground
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(message, style = MaterialTheme.typography.bodyMedium,
+                        color = if (isError) themeColors.error else themeColors.onBackground)
+                    if (warnings.isNotEmpty()) Text(warnings.take(3).joinToString("\n"),
+                        style = MaterialTheme.typography.bodySmall, color = themeColors.warning)
+                }
             }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         }
     }
 }
@@ -1198,6 +1320,12 @@ private fun CloudConnectionEditor(
         style = MaterialTheme.typography.bodySmall,
         color = themeColors.onSurfaceVariant
     )
+    Text(
+        if (zh) "自动识别腾讯 COS、阿里云 OSS 和 S3 兼容服务。测试连接会验证读写与防覆盖。" else
+            "Tencent COS, Alibaba OSS and S3-compatible services are detected automatically. The test verifies reads, writes and overwrite protection.",
+        style = MaterialTheme.typography.bodySmall,
+        color = themeColors.onSurfaceVariant
+    )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onUseTencentDefaults, enabled = !busy) {
             Text(if (zh) "腾讯 COS 默认值" else "Tencent COS defaults")
@@ -1253,40 +1381,22 @@ private fun CloudConnectionEditor(
 private fun CloudSecurityEditor(
     zh: Boolean,
     themeColors: ThemeColors,
-    mode: SyncSecurityMode,
-    onModeChange: (SyncSecurityMode) -> Unit,
-    hasSavedPhrase: Boolean,
-    onRemoveSavedPhrase: () -> Unit
+    hasSavedPassword: Boolean,
+    busy: Boolean,
+    onRemoveSavedPassword: () -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        FilterChip(
-            selected = mode == SyncSecurityMode.MAXIMUM_SECURITY,
-            onClick = { onModeChange(SyncSecurityMode.MAXIMUM_SECURITY) },
-            label = { Text(if (zh) "每次输入" else "Every time") },
-            leadingIcon = { Icon(Icons.Outlined.Lock, null) }
-        )
-        FilterChip(
-            selected = mode == SyncSecurityMode.CONVENIENCE,
-            onClick = { onModeChange(SyncSecurityMode.CONVENIENCE) },
-            label = { Text(if (zh) "生物识别" else "Biometric") },
-            leadingIcon = { Icon(Icons.Outlined.Fingerprint, null) }
-        )
-    }
-    Text(
-        if (mode == SyncSecurityMode.MAXIMUM_SECURITY) {
-            if (zh) "助记词每次手动输入，用完立即从界面状态中清除。" else
-                "Enter the phrase for each operation; it is cleared immediately afterward."
-        } else {
-            if (zh) "可将助记词交由 Android Keystore 加密，并通过生物识别填入。" else
-                "Android Keystore can protect the phrase for biometric-assisted entry."
-        },
-        style = MaterialTheme.typography.bodySmall,
-        color = themeColors.onSurfaceVariant
-    )
-    if (hasSavedPhrase) {
-        TextButton(onClick = onRemoveSavedPhrase) {
-            Text(if (zh) "移除本机保存的助记词" else "Remove saved phrase")
-        }
+    Text(if (zh) "备份密码只用于加密和恢复备份，不影响打开软件的主密码。换机或重装后，需要输入原备份密码。忘记密码将无法解密备份。"
+        else "Your backup password encrypts and restores backups and is separate from app unlock. Keep it for recovery on a new device or after reinstalling. Forgotten backup passwords cannot be recovered.",
+        style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+    Text(if (hasSavedPassword) {
+        if (zh) "已启用指纹确认。系统指纹变化或本机凭据失效时，可以改用备份密码并重新绑定。"
+        else "Biometric confirmation is enabled. If biometrics change or the device key is invalidated, enter the backup password to rebind it."
+    } else {
+        if (zh) "上传或恢复成功后，可启用指纹确认。备份密码由系统密钥加密保存在本机，不会上传。"
+        else "After a successful upload or restore, enable biometric confirmation. A system key protects the password on this device; it is not uploaded."
+    }, style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+    if (hasSavedPassword) TextButton(onClick = onRemoveSavedPassword, enabled = !busy) {
+        Text(if (zh) "关闭本机指纹确认" else "Disable biometric confirmation on this device")
     }
 }
 
@@ -1391,12 +1501,29 @@ private fun CloudSyncDetails(
 }
 
 private fun stageLabel(stage: CloudOperationStage?, zh: Boolean): String = when (stage) {
+    CloudOperationStage.AUTHENTICATING -> if (zh) "等待指纹确认…" else "Waiting for biometric confirmation…"
     CloudOperationStage.CHECKING -> if (zh) "正在安全检查云端状态…" else "Checking cloud status…"
     CloudOperationStage.READING_LOCAL -> if (zh) "正在读取本地保险库…" else "Reading local vault…"
     CloudOperationStage.UPLOADING -> if (zh) "正在加密并上传…" else "Encrypting and uploading…"
     CloudOperationStage.DOWNLOADING -> if (zh) "正在下载、验证并解密…" else "Downloading, verifying, and decrypting…"
     CloudOperationStage.FINALIZING -> if (zh) "正在完成并校验结果…" else "Finalizing and verifying…"
     null -> if (zh) "正在处理…" else "Working…"
+}
+
+private fun cloudOperationFailureMessage(error: Throwable, zh: Boolean): String = when (error) {
+    is CloudWriteConflictException -> if (zh) {
+        "云端备份已更新，已停止上传。请先保留本地记录，再比较或恢复云端备份。"
+    } else {
+        "The cloud backup changed, so upload was stopped. Keep your local records safe before comparing or restoring the cloud backup."
+    }
+    is CloudConditionalWriteCheckException -> if (zh) error.detail else error.detailEnglish
+    is javax.crypto.BadPaddingException -> if (zh) {
+        "备份密码不正确，或备份内容已损坏。请检查密码后重试。"
+    } else {
+        "The backup password is incorrect or the backup is damaged. Check the password and try again."
+    }
+    else -> error.message?.takeIf { it.isNotBlank() }
+        ?: if (zh) "云端操作失败，请检查连接后重试。" else "Cloud operation failed. Check the connection and try again."
 }
 
 private fun normalizePrefixInput(value: String): String {

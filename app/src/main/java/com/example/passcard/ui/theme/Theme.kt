@@ -43,13 +43,13 @@ private val LightColorScheme = lightColorScheme(
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryDarkMode,
-    onPrimary = OnPrimary,
+    onPrimary = OnPrimaryDark,
     primaryContainer = PrimaryLightDark,
     onPrimaryContainer = OnBackgroundDark,
     secondary = PrimaryDarkModePressed,
-    onSecondary = OnPrimary,
-    tertiary = Success,
-    onTertiary = OnPrimary,
+    onSecondary = OnPrimaryDark,
+    tertiary = SuccessDark,
+    onTertiary = OnPrimaryDark,
     background = BackgroundDark,
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
@@ -57,7 +57,7 @@ private val DarkColorScheme = darkColorScheme(
     surfaceVariant = SurfaceVariantDark,
     onSurfaceVariant = OnSurfaceVariantDark,
     error = ErrorDark,
-    onError = OnPrimary,
+    onError = OnPrimaryDark,
     errorContainer = ErrorContainerDark,
     onErrorContainer = ErrorDark,
     outline = BorderDark,
@@ -106,7 +106,10 @@ fun PassCardTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 

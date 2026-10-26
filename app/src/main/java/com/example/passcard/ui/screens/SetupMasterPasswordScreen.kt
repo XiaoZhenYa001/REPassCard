@@ -1,11 +1,11 @@
 package com.example.passcard.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,11 +33,16 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.passcard.ui.components.LoadingIndicator
+import com.example.passcard.data.PasswordAssessment
+import com.example.passcard.data.PasswordHealthAnalyzer
+import com.example.passcard.data.PasswordWeakReason
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.PreferencesManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
@@ -65,13 +70,33 @@ fun SetupMasterPasswordScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+    var showRemovalDialog by remember { mutableStateOf(false) }
+    var removalPassword by remember { mutableStateOf("") }
+    var removalPasswordVisible by remember { mutableStateOf(false) }
+    var removalError by remember { mutableStateOf<String?>(null) }
+    var isRemoving by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
-    // 密码强度评估
-    val strength = remember(newPassword) { evaluatePasswordStrength(newPassword) }
+    // Tie a background result to its input so editing never displays the previous password's result.
+    val strengthCheck by produceState<Pair<String, PasswordAssessment?>?>(initialValue = null, key1 = newPassword) {
+        val candidate = newPassword
+        value = null
+        if (candidate.isEmpty()) return@produceState
+        delay(120)
+        try {
+            val assessment = withContext(Dispatchers.Default) { PasswordHealthAnalyzer.assessPassword(candidate) }
+            value = candidate to assessment
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            value = candidate to null
+        }
+    }
+    val currentStrengthCheck = strengthCheck?.takeIf { it.first == newPassword }
+    val currentAssessment = currentStrengthCheck?.second
 
     fun handleSave() {
-        if (isSaving) return
+        if (isSaving || isRemoving) return
         errorMessage = null
         successMessage = null
 
@@ -122,6 +147,101 @@ fun SetupMasterPasswordScreen(
         }
     }
 
+    fun dismissRemoval() {
+        showRemovalDialog = false
+        removalPassword = ""
+        removalPasswordVisible = false
+        removalError = null
+    }
+
+    fun handleRemoval() {
+        if (isRemoving || removalPassword.isEmpty()) return
+        removalError = null
+        val candidate = removalPassword
+        removalPassword = ""
+        isRemoving = true
+        scope.launch {
+            var removed = false
+            try {
+                removed = withContext(Dispatchers.Default) {
+                    preferencesManager.clearMasterPassword(candidate)
+                }
+                if (!removed) {
+                    removalError = if (isZh) "当前主密码错误，请重新输入" else "Current master password is incorrect. Try again."
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                removalError = if (isZh) "暂时无法移除主密码，请重试" else "Unable to remove master password. Try again."
+            } finally {
+                isRemoving = false
+            }
+            if (removed) {
+                currentPassword = ""
+                newPassword = ""
+                confirmPassword = ""
+                dismissRemoval()
+                onPasswordSet()
+            }
+        }
+    }
+
+    BackHandler(enabled = isSaving || isRemoving) { }
+
+    if (showRemovalDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isRemoving) dismissRemoval() },
+            containerColor = themeColors.surface,
+            titleContentColor = themeColors.onBackground,
+            textContentColor = themeColors.onSurfaceVariant,
+            title = { Text(if (isZh) "确认移除主密码" else "Remove master password?") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        if (isZh) "移除后，打开应用将不再验证主密码，指纹或人脸解锁也会关闭。请输入当前主密码以确认。"
+                        else "After removal, opening the app will no longer require a master password, and biometric unlock will be turned off. Enter your current master password to confirm."
+                    )
+                    PasswordInputField(
+                        value = removalPassword,
+                        onValueChange = { removalPassword = it; removalError = null },
+                        label = if (isZh) "当前主密码" else "Current master password",
+                        placeholder = if (isZh) "输入当前主密码" else "Enter current master password",
+                        visible = removalPasswordVisible,
+                        onToggleVisible = { removalPasswordVisible = !removalPasswordVisible },
+                        themeColors = themeColors,
+                        enabled = !isRemoving,
+                        imeAction = ImeAction.Done,
+                        onDone = { handleRemoval() }
+                    )
+                    removalError?.let { Text(it, color = themeColors.error, style = MaterialTheme.typography.bodySmall) }
+                    if (isRemoving) {
+                        LoadingIndicator(
+                            message = if (isZh) "正在验证主密码" else "Verifying master password",
+                            compact = true
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { handleRemoval() },
+                    enabled = removalPassword.isNotEmpty() && !isRemoving,
+                    colors = ButtonDefaults.textButtonColors(contentColor = themeColors.error)
+                ) {
+                    Text(if (isZh) "验证并移除" else "Verify and remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dismissRemoval() }, enabled = !isRemoving) {
+                    Text(if (isZh) "取消" else "Cancel")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -136,14 +256,14 @@ fun SetupMasterPasswordScreen(
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
-                tint = themeColors.onBackground,
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable { onBack() }
-            )
+            IconButton(onClick = onBack, enabled = !isSaving && !isRemoving) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = if (isZh) "返回" else "Back",
+                    tint = themeColors.onBackground,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = if (isEditing) {
@@ -203,6 +323,7 @@ fun SetupMasterPasswordScreen(
                     visible = currentPwdVisible,
                     onToggleVisible = { currentPwdVisible = !currentPwdVisible },
                     themeColors = themeColors,
+                    enabled = !isSaving && !isRemoving,
                     focusRequester = focusRequester,
                     imeAction = ImeAction.Next
                 )
@@ -217,13 +338,26 @@ fun SetupMasterPasswordScreen(
                 visible = newPwdVisible,
                 onToggleVisible = { newPwdVisible = !newPwdVisible },
                 themeColors = themeColors,
+                enabled = !isSaving && !isRemoving,
                 focusRequester = if (!isEditing) focusRequester else null,
                 imeAction = ImeAction.Next
             )
 
             // 密码强度指示器
             if (newPassword.isNotEmpty()) {
-                PasswordStrengthIndicator(strength = strength, isZh = isZh, themeColors = themeColors)
+                when {
+                    currentStrengthCheck == null -> LoadingIndicator(
+                        message = if (isZh) "正在本机检查密码…" else "Checking password locally…",
+                        compact = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    currentAssessment == null -> Text(
+                        text = if (isZh) "暂时无法评估密码，请使用独立的长随机密码或口令。" else "Unable to assess the password. Use a unique long random password or passphrase.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeColors.onSurfaceVariant
+                    )
+                    else -> PasswordStrengthIndicator(assessment = currentAssessment, isZh = isZh, themeColors = themeColors)
+                }
             }
 
             // 确认密码
@@ -235,6 +369,7 @@ fun SetupMasterPasswordScreen(
                 visible = confirmPwdVisible,
                 onToggleVisible = { confirmPwdVisible = !confirmPwdVisible },
                 themeColors = themeColors,
+                enabled = !isSaving && !isRemoving,
                 imeAction = ImeAction.Done,
                 onDone = { handleSave() }
             )
@@ -279,13 +414,16 @@ fun SetupMasterPasswordScreen(
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary),
-                enabled = newPassword.isNotEmpty() && confirmPassword.isNotEmpty() && !isSaving
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = themeColors.primary,
+                    contentColor = themeColors.onPrimary
+                ),
+                enabled = newPassword.isNotEmpty() && confirmPassword.isNotEmpty() && !isSaving && !isRemoving
             ) {
                 if (isSaving) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = Color.White,
+                        color = themeColors.onPrimary,
                         strokeWidth = 2.dp
                     )
                 } else {
@@ -303,14 +441,23 @@ fun SetupMasterPasswordScreen(
                 }
             }
 
+            if (isSaving) {
+                LoadingIndicator(
+                    message = if (isZh) "正在保存主密码" else "Saving master password",
+                    compact = true
+                )
+            }
+
             // 删除主密码按钮（仅修改时）
             if (isEditing) {
                 OutlinedButton(
                     onClick = {
-                        preferencesManager.clearMasterPassword()
-                        preferencesManager.biometricEnabled = false
-                        onPasswordSet()
+                        removalPassword = ""
+                        removalPasswordVisible = false
+                        removalError = null
+                        showRemovalDialog = true
                     },
+                    enabled = !isSaving && !isRemoving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
@@ -344,6 +491,7 @@ private fun PasswordInputField(
     visible: Boolean,
     onToggleVisible: () -> Unit,
     themeColors: ThemeColors,
+    enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     imeAction: ImeAction = ImeAction.Next,
     onDone: (() -> Unit)? = null
@@ -358,6 +506,7 @@ private fun PasswordInputField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp)
@@ -391,61 +540,34 @@ private fun PasswordInputField(
                         }
                         innerTextField()
                     }
-                    Icon(
-                        imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = "Toggle",
-                        tint = themeColors.onSurfaceVariant,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { onToggleVisible() }
-                    )
+                    IconButton(
+                        onClick = onToggleVisible,
+                        enabled = enabled,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                            contentDescription = if (visible) "Hide password" else "Show password",
+                            tint = themeColors.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         )
     }
 }
 
-private enum class PasswordStrength { WEAK, MEDIUM, STRONG }
-
-private fun evaluatePasswordStrength(password: String): PasswordStrength {
-    if (password.length < 4) return PasswordStrength.WEAK
-    var score = 0
-    if (password.length >= 8) score++
-    if (password.any { it.isUpperCase() }) score++
-    if (password.any { it.isDigit() }) score++
-    if (password.any { !it.isLetterOrDigit() }) score++
-    return when {
-        score >= 3 -> PasswordStrength.STRONG
-        score >= 2 -> PasswordStrength.MEDIUM
-        else -> PasswordStrength.WEAK
-    }
-}
-
 @Composable
 private fun PasswordStrengthIndicator(
-    strength: PasswordStrength,
+    assessment: PasswordAssessment,
     isZh: Boolean,
     themeColors: ThemeColors
 ) {
-    val (label, color, segments) = when (strength) {
-        PasswordStrength.WEAK -> Triple(
-            if (isZh) "弱" else "Weak",
-            themeColors.error,
-            1
-        )
-        PasswordStrength.MEDIUM -> Triple(
-            if (isZh) "中等" else "Medium",
-            themeColors.warning,
-            2
-        )
-        PasswordStrength.STRONG -> Triple(
-            if (isZh) "强" else "Strong",
-            themeColors.success,
-            3
-        )
+    val (label, color, segments) = when {
+        !assessment.isWeak -> Triple(if (isZh) "未发现明显弱模式" else "No obvious weak pattern", themeColors.success, 3)
+        assessment.reasons.all { it == PasswordWeakReason.TOO_SHORT } -> Triple(if (isZh) "建议增加长度" else "Use a longer password", themeColors.warning, 2)
+        else -> Triple(if (isZh) "建议改进" else "Needs improvement", themeColors.error, 1)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -469,10 +591,20 @@ private fun PasswordStrengthIndicator(
             }
         }
         Text(
-            text = "${if (isZh) "密码强度" else "Strength"}: $label",
+            text = "${if (isZh) "本地检查" else "Local check"}: $label",
             fontSize = 12.sp,
             color = color,
             fontWeight = FontWeight.W500
+        )
+        Text(
+            text = if (assessment.isWeak) {
+                assessment.reasons.joinToString(if (isZh) " · " else " / ") { it.healthDescription(isZh) } +
+                    if (isZh) "。建议使用至少 15 个字符的随机密码或不相关词语组成的长口令。" else ". Use a random password of at least 15 characters or a long passphrase of unrelated words."
+            } else {
+                if (isZh) "仅本地启发式检查，不包含密码泄露查询。" else "Local heuristics only; breaches are not checked."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = themeColors.onSurfaceVariant
         )
     }
 }

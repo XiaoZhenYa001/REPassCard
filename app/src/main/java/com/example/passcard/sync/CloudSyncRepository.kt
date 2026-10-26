@@ -2,13 +2,12 @@ package com.example.passcard.sync
 
 import android.content.Context
 import com.example.passcard.crypto.VaultBackupManager
-import com.example.passcard.data.CloudSyncSafety
+import com.example.passcard.crypto.VaultCrypto
+import com.example.passcard.crypto.VaultEncFile
+import com.example.passcard.crypto.ImportedVault
 import com.example.passcard.data.CloudSyncSnapshot
 import com.example.passcard.data.PasswordEntity
 import com.example.passcard.util.PreferencesManager
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,166 +16,277 @@ import org.json.JSONObject
 class CloudSyncRepository(
     private val context: Context,
     private val preferencesManager: PreferencesManager,
-    private val client: CloudStorageClient,
-    private val vaultBackupManager: VaultBackupManager = VaultBackupManager()
+    private val client: CloudStorageClient? = null,
+    private val vaultBackupManager: VaultBackupManager = VaultBackupManager(context = context)
 ) {
+    var lastRestoreWarnings: List<String> = emptyList()
+        private set
 
-    private fun prefix(): String = preferencesManager.objectPrefix
-
-    private fun keyVaultCurrent(): String = "${prefix()}vault/current/vault.enc"
-    private fun keyManifest(): String = "${prefix()}vault/current/manifest.json"
-    private fun keyBackup(id: String): String = "${prefix()}vault/backups/$id.enc"
-    private fun backupsPrefix(): String = "${prefix()}vault/backups/"
+    private fun transfer() = CloudVaultTransfer(requireNotNull(client) { "请先完成云端存储配置。" },
+        preferencesManager.objectPrefix, JsonCloudVaultCodec)
 
     suspend fun testConnection(): Result<Unit> = withContext(Dispatchers.IO) {
-        client.testConnection()
+        runCatching {
+            val storage = requireNotNull(client) { "请先完成云端存储配置。" }
+            storage.testConnection().getOrThrow()
+            storage.verifyCreateOnlyWrites(preferencesManager.objectPrefix).getOrThrow()
+        }
+    }
+
+    suspend fun listLocalBackupHistory(): Result<List<VaultBackupSummary>> = withContext(Dispatchers.IO) {
+        LocalVaultBackupStorage.list(context)
+    }
+
+    suspend fun listCloudBackupHistory(): Result<List<VaultBackupSummary>> = withContext(Dispatchers.IO) {
+        runCatching { transfer().listBackupHistory() }
+    }
+
+    suspend fun restoreBackup(
+        summary: VaultBackupSummary,
+        backupPassword: String,
+        currentLocalPasswords: List<PasswordEntity>,
+        deviceId: String,
+        deviceName: String,
+        replaceLocalVault: suspend (List<PasswordEntity>) -> Unit
+    ): Result<List<PasswordEntity>> = withContext(Dispatchers.IO) {
+        runCatching { VaultMutationGate.run {
+            var restoredRevision = 0L
+            val backupCurrent: suspend () -> Unit = {
+                saveLocalRollback(currentLocalPasswords, backupPassword, deviceId, deviceName)
+            }
+            val recordHistoryRestore: (ImportedVault) -> Unit = { restored ->
+                // Clear authorization first: history restoration must never authorize a cloud rollback.
+                preferencesManager.lastCloudEtag = ""
+                preferencesManager.lastSyncedCloudVaultRevision = 0L
+                preferencesManager.lastCloudUpdatedAt = 0L
+                preferencesManager.vaultRevision = restoredRevision
+                lastRestoreWarnings = restored.warnings
+            }
+            val imported = when (summary.source) {
+                VaultBackupSource.LOCAL -> {
+                    val bytes = LocalVaultBackupStorage.read(context, summary).getOrThrow()
+                    val restored = decodeVault(bytes, backupPassword)
+                    restoredRevision = nextHistoryRestoreRevision(preferencesManager.vaultRevision,
+                        restored.metadata.vaultRevision, preferencesManager.lastSyncedCloudVaultRevision)
+                    backupCurrent()
+                    VaultMutationGate.commit {
+                        replaceLocalVault(restored.passwords)
+                        recordHistoryRestore(restored)
+                    }
+                    restored
+                }
+                VaultBackupSource.CLOUD -> transfer().restoreHistoryBackup(summary,
+                    decodeVault = { bytes -> decodeVault(bytes, backupPassword) },
+                    validateRestored = { selected, restored ->
+                        require(restored.metadata.vaultRevision == selected.metadata.vaultRevision &&
+                            restored.metadata.itemCount == selected.metadata.itemCount) { "历史备份统计与内容不一致。" }
+                        restoredRevision = nextHistoryRestoreRevision(preferencesManager.vaultRevision,
+                            restored.metadata.vaultRevision, selected.remoteRevision)
+                    },
+                    saveLocalBackup = backupCurrent,
+                    replaceLocalVault = { replaceLocalVault(it.passwords) },
+                    // All history selections restore only this device; the remote manifest is untouched.
+                    invalidateCheckpoint = { _, restored -> recordHistoryRestore(restored) }
+                )
+            }
+            imported.passwords
+        } }
+    }
+
+    private fun decodeVault(bytes: ByteArray, backupPassword: String): ImportedVault =
+        vaultBackupManager.importVault(String(bytes, Charsets.UTF_8), backupPassword).also {
+            require(it.passwords.size == it.metadata.itemCount) { "备份项目数量与内容不一致。" }
+            require(it.metadata.vaultRevision > 0) { "备份修订无效。" }
+        }
+
+    private fun saveLocalRollback(passwords: List<PasswordEntity>, backupPassword: String,
+        deviceId: String, deviceName: String) {
+        val backupJson = vaultBackupManager.exportVault(passwords, backupPassword, deviceId, deviceName,
+            preferencesManager.vaultRevision.coerceAtLeast(1L))
+        LocalVaultBackupStorage.saveEncryptedVaultFile(context, backupJson).getOrThrow()
     }
 
     suspend fun fetchCloudSnapshot(localItemCount: Int): CloudSyncSnapshot = withContext(Dispatchers.IO) {
-        val hasVault = client.getObjectMeta(keyVaultCurrent()).isSuccess
-        val manifestRoot = readManifestRoot()
-        val current = manifestRoot?.optJSONObject("current")
-        val cloudRev = when {
-            current != null -> current.optLong("vaultRevision", 0L)
-            hasVault -> 1L
-            else -> null
-        }
-        val cloudItems = when {
-            current != null -> current.optInt("itemCount")
-            hasVault -> null
-            else -> null
-        }
+        val head = transfer().readRemote().head
         CloudSyncSnapshot(
             localItemCount = localItemCount,
             localVaultRevision = preferencesManager.vaultRevision,
             localHasData = localItemCount > 0,
-            cloudItemCount = if (hasVault) cloudItems else null,
-            cloudVaultRevision = if (hasVault) cloudRev else null,
-            cloudHasData = hasVault
+            cloudItemCount = head?.itemCount,
+            cloudVaultRevision = head?.vaultRevision,
+            cloudHasData = head != null
         )
     }
 
+    /** Verifies the current remote backup without uploading, restoring, or materializing icons. */
+    suspend fun verifyBackupPassword(backupPassword: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val remote = transfer().readRemote()
+            val vault = requireNotNull(remote.vault) { "云端还没有备份，请先手动上传一次。" }
+            vaultBackupManager.verifyBackupPassword(String(vault.bytes, Charsets.UTF_8), backupPassword)
+        }
+    }
+
     suspend fun uploadEncryptedVault(
-        recoveryPhrase: String,
+        backupPassword: String,
         passwords: List<PasswordEntity>,
         deviceId: String,
         deviceName: String,
-        userConfirmedEmptyOverwrite: Boolean
+        userConfirmedEmptyOverwrite: Boolean,
+        loadPasswords: (suspend () -> List<PasswordEntity>)? = null
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val snap = fetchCloudSnapshot(passwords.size)
-            check(CloudSyncSafety.shouldAllowUpload(snap, userConfirmedEmptyOverwrite)) {
-                "不允许在未确认的情况下用空库覆盖云端。"
-            }
-            val newRevision = preferencesManager.nextVaultRevision()
-            val vaultJson = vaultBackupManager.exportVault(
-                passwords, recoveryPhrase, deviceId, deviceName, newRevision
-            )
-            val vaultBytes = vaultJson.toByteArray(Charsets.UTF_8)
-            val backupId = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            client.uploadObject(keyBackup(backupId), vaultBytes).getOrThrow()
-            client.uploadObject(keyVaultCurrent(), vaultBytes).getOrThrow()
-            val vaultMeta = client.getObjectMeta(keyVaultCurrent()).getOrThrow()
-            val manifestStr = buildManifestJson(
-                vaultRevision = newRevision,
-                itemCount = passwords.size,
-                vaultObjectKey = keyVaultCurrent(),
-                updatedAt = vaultMeta.lastModified,
-                etag = vaultMeta.etag,
+        runCatching { VaultMutationGate.runWithSnapshot(
+            loadSnapshot = { loadPasswords?.invoke() ?: passwords }
+        ) { latestPasswords ->
+            val uploaded = transfer().upload(
+                localRevision = preferencesManager.vaultRevision,
+                lastSyncedRevision = preferencesManager.lastSyncedCloudVaultRevision,
+                lastSyncedManifestEtag = preferencesManager.lastCloudEtag,
+                itemCount = latestPasswords.size,
                 deviceId = deviceId,
-                deviceName = deviceName
+                deviceName = deviceName,
+                confirmedEmptyOverwrite = userConfirmedEmptyOverwrite,
+                validateRemoteVault = { bytes ->
+                    vaultBackupManager.verifyBackupPassword(String(bytes, Charsets.UTF_8), backupPassword)
+                }
+            ) { revision ->
+                vaultBackupManager.exportVault(latestPasswords, backupPassword, deviceId, deviceName, revision)
+                    .toByteArray(Charsets.UTF_8)
+            }
+            preferencesManager.recordCloudSync(
+                uploaded.head.vaultRevision, uploaded.head.updatedAt, uploaded.manifestEtag
             )
-            client.uploadObject(keyManifest(), manifestStr.toByteArray(Charsets.UTF_8)).getOrThrow()
-            pruneRemoteBackups(keep = 7)
-            val m = client.getObjectMeta(keyManifest()).getOrThrow()
-            preferencesManager.lastSyncedCloudVaultRevision = newRevision
-            preferencesManager.lastCloudUpdatedAt = vaultMeta.lastModified
-            preferencesManager.lastCloudEtag = m.etag ?: ""
-            preferencesManager.lastLocalSyncAt = System.currentTimeMillis()
-        }
+        } }
     }
 
     suspend fun downloadAndRestoreVault(
-        recoveryPhrase: String,
+        backupPassword: String,
         currentLocalPasswords: List<PasswordEntity>,
         deviceId: String,
-        deviceName: String
+        deviceName: String,
+        replaceLocalVault: suspend (List<PasswordEntity>) -> Unit
     ): Result<List<PasswordEntity>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val vaultBytes = client.downloadObject(keyVaultCurrent()).getOrThrow()
-            val encryptedJson = String(vaultBytes, Charsets.UTF_8)
-            val localRev = preferencesManager.vaultRevision.coerceAtLeast(1L)
-            val backupJson = vaultBackupManager.exportVault(
-                currentLocalPasswords,
-                recoveryPhrase,
-                deviceId,
-                deviceName,
-                localRev
-            )
-            LocalVaultBackupStorage.saveEncryptedVaultFile(context, backupJson).getOrThrow()
-            val imported = vaultBackupManager.importVault(encryptedJson, recoveryPhrase)
-            preferencesManager.vaultRevision = imported.metadata.vaultRevision
-            preferencesManager.lastSyncedCloudVaultRevision = imported.metadata.vaultRevision
-            preferencesManager.lastCloudUpdatedAt = imported.metadata.updatedAt
-            preferencesManager.lastLocalSyncAt = System.currentTimeMillis()
-            imported.passwords
-        }
-    }
-
-    private suspend fun readManifestRoot(): JSONObject? {
-        val bytes = client.downloadObject(keyManifest()).getOrNull() ?: return null
-        return runCatching { JSONObject(String(bytes, Charsets.UTF_8)) }.getOrNull()
-    }
-
-    private suspend fun buildManifestJson(
-        vaultRevision: Long,
-        itemCount: Int,
-        vaultObjectKey: String,
-        updatedAt: Long,
-        etag: String?,
-        deviceId: String,
-        deviceName: String
-    ): String {
-        val metas = client.listObjects(backupsPrefix()).getOrElse { emptyList() }
-            .filter { it.key.endsWith(".enc") }
-            .sortedByDescending { it.key }
-            .take(7)
-        val backups = JSONArray()
-        metas.forEach { m ->
-            val id = m.key.substringAfterLast('/').removeSuffix(".enc")
-            backups.put(
-                JSONObject().apply {
-                    put("backupId", id)
-                    put("objectKey", m.key)
-                    put("createdAt", m.lastModified)
-                    put("itemCount", itemCount)
-                    put("summary", "备份 $id，共 $itemCount 条")
-                    put("isAutoGeneratedSummary", true)
-                    put("keyVersion", 1)
+        runCatching { VaultMutationGate.run {
+            val imported = transfer().restoreVault(
+                decodeVault = { bytes ->
+                    decodeVault(bytes, backupPassword)
+                },
+                saveLocalBackup = {
+                    saveLocalRollback(currentLocalPasswords, backupPassword, deviceId, deviceName)
+                },
+                replaceLocalVault = { replaceLocalVault(it.passwords) },
+                saveCheckpoint = { remote, restored ->
+                    preferencesManager.recordCloudSync(
+                        restored.metadata.vaultRevision, remote.head!!.updatedAt,
+                        (remote.manifest?.meta?.etag ?: remote.vault!!.meta.etag)!!
+                    )
                 }
             )
+            lastRestoreWarnings = imported.warnings
+            imported.passwords
+        } }
+    }
+}
+
+/** V3 commits publish immutable vaults by sequence; older manifests remain read compatible. */
+internal object JsonCloudVaultCodec : CloudVaultCodec {
+    override fun readManifest(bytes: ByteArray): CloudVaultHead {
+        val root = JSONObject(String(bytes, Charsets.UTF_8))
+        require(root.requiredString("format") == "repasscard-manifest") { "不支持的云端备份清单格式。" }
+        val version = root.requiredLong("version")
+        require(version in 1L..3L) { "不支持的云端备份清单版本。" }
+        val sequence = if (version == 3L) root.requiredLong("sequence").also {
+            require(it > 0) { "云端备份提交序号无效。" }
+        } else {
+            require(!root.has("sequence")) { "旧版备份清单包含无效提交序号。" }
+            0L
         }
-        val current = JSONObject().apply {
-            put("objectKey", vaultObjectKey)
-            put("updatedAt", updatedAt)
-            put("vaultRevision", vaultRevision)
-            put("etag", etag ?: "")
-            put("itemCount", itemCount)
-            put("deviceId", deviceId)
-            put("deviceName", deviceName)
-        }
-        return JSONObject().apply {
-            put("format", "repasscard-manifest")
-            put("version", 1)
-            put("current", current)
-            put("backups", backups)
-        }.toString()
+        val current = root.getJSONObject("current")
+        val backups = root.getJSONArray("backups")
+        return CloudVaultHead(
+            objectKey = current.requiredString("objectKey"),
+            vaultRevision = current.requiredLong("vaultRevision"),
+            itemCount = current.requiredCount(),
+            updatedAt = current.requiredLong("updatedAt"),
+            etag = current.requiredString("etag"),
+            deviceId = current.optionalString("deviceId"),
+            deviceName = current.optionalString("deviceName"),
+            backups = (0 until backups.length()).map {
+                backups.getJSONObject(it).requiredString("objectKey")
+            },
+            commitSequence = sequence
+        )
     }
 
-    private suspend fun pruneRemoteBackups(keep: Int) {
-        val metas = client.listObjects(backupsPrefix()).getOrElse { return }
-            .filter { it.key.endsWith(".enc") }
-            .sortedByDescending { it.key }
-        metas.drop(keep).forEach { client.deleteObject(it.key) }
+    override fun writeManifest(head: CloudVaultHead): ByteArray = JSONObject().apply {
+        put("format", "repasscard-manifest")
+        require(head.commitSequence >= 0) { "云端备份提交序号无效。" }
+        put("version", if (head.commitSequence > 0) 3 else 2)
+        if (head.commitSequence > 0) put("sequence", head.commitSequence)
+        put("current", JSONObject().apply {
+            put("objectKey", head.objectKey)
+            put("updatedAt", head.updatedAt)
+            put("vaultRevision", head.vaultRevision)
+            put("etag", head.etag)
+            put("itemCount", head.itemCount)
+            put("deviceId", head.deviceId)
+            put("deviceName", head.deviceName)
+        })
+        put("backups", JSONArray().apply {
+            head.backups.forEach { key ->
+                put(JSONObject().apply {
+                    put("backupId", key.substringAfterLast('/').removeSuffix(".enc"))
+                    put("objectKey", key)
+                })
+            }
+        })
+    }.toString().toByteArray(Charsets.UTF_8)
+
+    override fun readVaultMetadata(bytes: ByteArray, objectKey: String, etag: String): CloudVaultHead {
+        val json = String(bytes, Charsets.UTF_8)
+        val root = JSONObject(json)
+        require(root.requiredString("format") == "repasscard-vault") { "不支持的加密备份格式。" }
+        require(root.requiredLong("version") == VaultCrypto.FORMAT_VERSION.toLong()) { "不支持的加密备份版本。" }
+        // Parse the entire envelope so malformed/missing cipher fields cannot masquerade as a valid snapshot.
+        val file = VaultEncFile.fromJsonString(json)
+        VaultCrypto.validateEnvelope(file)
+        require(file.kdf.name == "pbkdf2-hmac-sha256" &&
+            file.crypto.algorithm == "AES-256-GCM" && file.wrappedDataKey.algorithm == "AES-256-GCM") {
+            "不支持的加密备份算法。"
+        }
+        require(file.crypto.nonce.isNotBlank() && file.crypto.tag.isNotBlank() && file.crypto.ciphertext.isNotBlank() &&
+            file.wrappedDataKey.nonce.isNotBlank() && file.wrappedDataKey.tag.isNotBlank() &&
+            file.wrappedDataKey.ciphertext.isNotBlank() && file.kdf.salt.isNotBlank()) { "加密备份内容不完整。" }
+        val metadata = root.getJSONObject("metadata")
+        return CloudVaultHead(
+            objectKey, metadata.requiredLong("vaultRevision"), metadata.requiredCount(),
+            metadata.requiredLong("updatedAt"), etag,
+            metadata.optionalString("deviceId"), metadata.optionalString("deviceName")
+        )
+    }
+
+    private fun JSONObject.requiredString(name: String): String {
+        val value = get(name)
+        require(value is String && value.isNotBlank()) { "备份清单缺少有效字段：$name" }
+        return value
+    }
+
+    private fun JSONObject.optionalString(name: String): String {
+        if (!has(name)) return ""
+        val value = get(name)
+        require(value is String) { "备份清单包含无效字段：$name" }
+        return value
+    }
+
+    private fun JSONObject.requiredLong(name: String): Long {
+        val value = get(name)
+        require(value is Int || value is Long) { "备份清单包含无效数字字段：$name" }
+        return (value as Number).toLong()
+    }
+
+    private fun JSONObject.requiredCount(): Int {
+        val value = requiredLong("itemCount")
+        require(value in 0L..Int.MAX_VALUE.toLong()) { "备份项目数量无效。" }
+        return value.toInt()
     }
 }

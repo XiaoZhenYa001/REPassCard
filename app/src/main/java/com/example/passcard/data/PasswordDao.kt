@@ -9,6 +9,12 @@ interface PasswordDao {
     @Query("SELECT * FROM passwords ORDER BY updatedAt DESC LIMIT :limit")
     fun getRecentPasswords(limit: Int): Flow<List<PasswordEntity>>
 
+    @Query("SELECT DISTINCT category FROM passwords ORDER BY category COLLATE NOCASE")
+    fun getCategories(): Flow<List<String>>
+
+    @Query("SELECT * FROM passwords ORDER BY updatedAt DESC")
+    fun observeAllPasswords(): Flow<List<PasswordEntity>>
+
     @Query("SELECT * FROM passwords ORDER BY updatedAt DESC")
     suspend fun getAllPasswordsSnapshot(): List<PasswordEntity>
 
@@ -17,14 +23,14 @@ interface PasswordDao {
 
     @Query("""
         SELECT * FROM passwords
-        WHERE :query = ''
+        WHERE (:filterCategory = 0 OR TRIM(category) COLLATE NOCASE IN (:categories)) AND (:query = ''
             OR name LIKE :contains ESCAPE '\'
             OR username LIKE :contains ESCAPE '\'
             OR phone LIKE :contains ESCAPE '\'
             OR email LIKE :contains ESCAPE '\'
             OR password LIKE :contains ESCAPE '\'
-            OR category LIKE :contains ESCAPE '\'
-            OR note LIKE :contains ESCAPE '\'
+            OR category LIKE :contains ESCAPE '\' OR TRIM(category) COLLATE NOCASE IN (:matchedCategories)
+            OR note LIKE :contains ESCAPE '\')
         ORDER BY
             CASE
                 WHEN :query = '' THEN 0
@@ -46,6 +52,7 @@ interface PasswordDao {
                 WHEN category = :query COLLATE NOCASE THEN 50
                 WHEN category LIKE :prefix ESCAPE '\' THEN 51
                 WHEN category LIKE :contains ESCAPE '\' THEN 52
+                WHEN TRIM(category) COLLATE NOCASE IN (:matchedCategories) THEN 52
                 WHEN note = :query COLLATE NOCASE THEN 60
                 WHEN note LIKE :prefix ESCAPE '\' THEN 61
                 WHEN note LIKE :contains ESCAPE '\' THEN 62
@@ -53,17 +60,17 @@ interface PasswordDao {
             END,
             updatedAt DESC
     """)
-    fun getPagedPasswords(query: String, prefix: String, contains: String): PagingSource<Int, PasswordEntity>
+    fun getPagedPasswords(query: String, prefix: String, contains: String, filterCategory: Boolean = false, categories: List<String> = listOf(""), matchedCategories: List<String>): PagingSource<Int, PasswordEntity>
 
     @Query("""
         SELECT * FROM passwords
-        WHERE CASE :field
+        WHERE (:filterCategory = 0 OR TRIM(category) COLLATE NOCASE IN (:categories)) AND CASE :field
             WHEN 'name' THEN name LIKE :contains ESCAPE '\'
             WHEN 'username' THEN username LIKE :contains ESCAPE '\'
             WHEN 'phone' THEN phone LIKE :contains ESCAPE '\'
             WHEN 'email' THEN email LIKE :contains ESCAPE '\'
             WHEN 'password' THEN password LIKE :contains ESCAPE '\'
-            WHEN 'category' THEN category LIKE :contains ESCAPE '\'
+            WHEN 'category' THEN category LIKE :contains ESCAPE '\' OR TRIM(category) COLLATE NOCASE IN (:matchedCategories)
             WHEN 'note' THEN note LIKE :contains ESCAPE '\'
             ELSE 0
         END
@@ -80,23 +87,23 @@ interface PasswordDao {
             END,
             updatedAt DESC
     """)
-    fun getPagedPasswordsByField(field: String, query: String, prefix: String, contains: String): PagingSource<Int, PasswordEntity>
+    fun getPagedPasswordsByField(field: String, query: String, prefix: String, contains: String, filterCategory: Boolean = false, categories: List<String> = listOf(""), matchedCategories: List<String>): PagingSource<Int, PasswordEntity>
 
     @Query("SELECT * FROM passwords WHERE id = :id")
     suspend fun getPasswordById(id: String): PasswordEntity?
     
-    @Query("SELECT * FROM passwords WHERE category = :category ORDER BY updatedAt DESC")
-    fun getPasswordsByCategory(category: String): Flow<List<PasswordEntity>>
+    @Query("SELECT * FROM passwords WHERE TRIM(category) COLLATE NOCASE IN (:categories) ORDER BY updatedAt DESC LIMIT :limit")
+    fun getPasswordsByCategory(categories: List<String>, limit: Int): Flow<List<PasswordEntity>>
     
     @Query("""
         SELECT * FROM passwords
-        WHERE name LIKE :contains ESCAPE '\'
+        WHERE (:filterCategory = 0 OR TRIM(category) COLLATE NOCASE IN (:categories)) AND (name LIKE :contains ESCAPE '\'
             OR username LIKE :contains ESCAPE '\'
             OR phone LIKE :contains ESCAPE '\'
             OR email LIKE :contains ESCAPE '\'
             OR password LIKE :contains ESCAPE '\'
-            OR category LIKE :contains ESCAPE '\'
-            OR note LIKE :contains ESCAPE '\'
+            OR category LIKE :contains ESCAPE '\' OR TRIM(category) COLLATE NOCASE IN (:matchedCategories)
+            OR note LIKE :contains ESCAPE '\')
         ORDER BY
             CASE
                 WHEN name = :query COLLATE NOCASE THEN 0
@@ -117,24 +124,25 @@ interface PasswordDao {
                 WHEN category = :query COLLATE NOCASE THEN 50
                 WHEN category LIKE :prefix ESCAPE '\' THEN 51
                 WHEN category LIKE :contains ESCAPE '\' THEN 52
+                WHEN TRIM(category) COLLATE NOCASE IN (:matchedCategories) THEN 52
                 WHEN note = :query COLLATE NOCASE THEN 60
                 WHEN note LIKE :prefix ESCAPE '\' THEN 61
                 WHEN note LIKE :contains ESCAPE '\' THEN 62
                 ELSE 99
             END,
-            updatedAt DESC
+            updatedAt DESC LIMIT :limit
     """)
-    fun searchPasswords(query: String, prefix: String, contains: String): Flow<List<PasswordEntity>>
+    fun searchPasswords(query: String, prefix: String, contains: String, filterCategory: Boolean = false, categories: List<String> = listOf(""), limit: Int = 20, matchedCategories: List<String>): Flow<List<PasswordEntity>>
 
     @Query("""
         SELECT * FROM passwords
-        WHERE CASE :field
+        WHERE (:filterCategory = 0 OR TRIM(category) COLLATE NOCASE IN (:categories)) AND CASE :field
             WHEN 'name' THEN name LIKE :contains ESCAPE '\'
             WHEN 'username' THEN username LIKE :contains ESCAPE '\'
             WHEN 'phone' THEN phone LIKE :contains ESCAPE '\'
             WHEN 'email' THEN email LIKE :contains ESCAPE '\'
             WHEN 'password' THEN password LIKE :contains ESCAPE '\'
-            WHEN 'category' THEN category LIKE :contains ESCAPE '\'
+            WHEN 'category' THEN category LIKE :contains ESCAPE '\' OR TRIM(category) COLLATE NOCASE IN (:matchedCategories)
             WHEN 'note' THEN note LIKE :contains ESCAPE '\'
             ELSE 0
         END
@@ -149,9 +157,9 @@ interface PasswordDao {
                 WHEN 'note' THEN CASE WHEN note = :query COLLATE NOCASE THEN 0 WHEN note LIKE :prefix ESCAPE '\' THEN 1 ELSE 2 END
                 ELSE 99
             END,
-            updatedAt DESC
+            updatedAt DESC LIMIT :limit
     """)
-    fun searchPasswordsByField(field: String, query: String, prefix: String, contains: String): Flow<List<PasswordEntity>>
+    fun searchPasswordsByField(field: String, query: String, prefix: String, contains: String, filterCategory: Boolean = false, categories: List<String> = listOf(""), limit: Int = 20, matchedCategories: List<String>): Flow<List<PasswordEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPassword(password: PasswordEntity)

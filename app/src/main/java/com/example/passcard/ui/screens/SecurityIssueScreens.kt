@@ -36,6 +36,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.data.ReusedPasswordGroup
+import com.example.passcard.data.PasswordHealthAnalyzer
+import com.example.passcard.data.PasswordAssessment
+import com.example.passcard.data.PasswordWeakReason
+import com.example.passcard.ui.components.SecurityOperationState
 import com.example.passcard.ui.theme.LocalThemeColors
 
 @Composable
@@ -43,22 +47,31 @@ fun WeakPasswordsScreen(
     currentLanguage: AppLanguage,
     items: List<PasswordItem>,
     onBack: () -> Unit,
-    onPasswordClick: (PasswordItem) -> Unit
+    onPasswordClick: (PasswordItem) -> Unit,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: () -> Unit = {},
+    assessments: Map<String, PasswordAssessment> = emptyMap()
 ) {
     val isZh = currentLanguage == AppLanguage.CHINESE
     BackHandler(onBack = onBack)
     SecurityListScaffold(
         title = if (isZh) "弱密码" else "Weak Passwords",
-        subtitle = if (isZh) "${items.size} 个账户需要关注" else "${items.size} accounts need attention",
-        onBack = onBack
+        subtitle = if (isLoading) (if (isZh) "正在本机检查…" else "Checking locally…") else if (errorMessage != null) (if (isZh) "检查未完成" else "Check incomplete") else if (isZh) "${items.size} 个账户需要关注" else "${items.size} accounts need attention",
+        onBack = onBack,
+        modifier = modifier
     ) {
-        if (items.isEmpty()) {
-            item { EmptySecurityState(if (isZh) "没有发现弱密码" else "No weak passwords") }
+        if (isLoading || errorMessage != null) {
+            item { SecurityOperationState(currentLanguage, modifier = Modifier.fillMaxWidth().padding(top = 64.dp), errorMessage = errorMessage, onRetry = onRetry) }
+        } else if (items.isEmpty()) {
+            item { EmptySecurityState(if (isZh) "本地检查未发现明显弱密码" else "No obvious weak passwords found locally") }
         } else {
             items(items, key = { it.id }) { item ->
                 WeakPasswordRow(
                     item = item,
                     currentLanguage = currentLanguage,
+                    assessment = assessments[item.id],
                     onClick = { onPasswordClick(item) }
                 )
             }
@@ -71,20 +84,27 @@ fun ReusedPasswordsScreen(
     currentLanguage: AppLanguage,
     groups: List<ReusedPasswordGroup>,
     onBack: () -> Unit,
-    onPasswordClick: (PasswordItem) -> Unit
+    onPasswordClick: (PasswordItem) -> Unit,
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: () -> Unit = {}
 ) {
     val isZh = currentLanguage == AppLanguage.CHINESE
     BackHandler(onBack = onBack)
     val accountCount = remember(groups) { groups.sumOf { it.count } }
     SecurityListScaffold(
         title = if (isZh) "重复使用" else "Reused Passwords",
-        subtitle = if (isZh) "${groups.size} 组，共 $accountCount 个账户" else "${groups.size} groups, $accountCount accounts",
-        onBack = onBack
+        subtitle = if (isLoading) (if (isZh) "正在本机检查…" else "Checking locally…") else if (errorMessage != null) (if (isZh) "检查未完成" else "Check incomplete") else if (isZh) "${groups.size} 组，共 $accountCount 个账户" else "${groups.size} groups, $accountCount accounts",
+        onBack = onBack,
+        modifier = modifier
     ) {
-        if (groups.isEmpty()) {
+        if (isLoading || errorMessage != null) {
+            item { SecurityOperationState(currentLanguage, modifier = Modifier.fillMaxWidth().padding(top = 64.dp), errorMessage = errorMessage, onRetry = onRetry) }
+        } else if (groups.isEmpty()) {
             item { EmptySecurityState(if (isZh) "没有发现重复使用的密码" else "No reused passwords") }
         } else {
-            items(groups, key = { it.label }) { group ->
+            items(groups, key = { it.items.minOf { item -> item.id } }) { group ->
                 ReusedPasswordGroupCard(
                     group = group,
                     currentLanguage = currentLanguage,
@@ -100,11 +120,12 @@ private fun SecurityListScaffold(
     title: String,
     subtitle: String,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
     content: LazyListScope.() -> Unit
 ) {
     val themeColors = LocalThemeColors.current
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
@@ -153,12 +174,14 @@ private fun SecurityListScaffold(
 private fun WeakPasswordRow(
     item: PasswordItem,
     currentLanguage: AppLanguage,
+    assessment: PasswordAssessment?,
     onClick: () -> Unit
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
-    val reasons = remember(item.password, currentLanguage) {
-        weakReasons(item.password, currentLanguage)
+    val reasons = remember(assessment, currentLanguage) {
+        assessment?.reasons?.map { it.healthDescription(isZh) }.orEmpty()
+            .ifEmpty { listOf(if (isZh) "本地检查建议改进" else "Local checks suggest an improvement") }
     }
     Row(
         modifier = Modifier
@@ -188,7 +211,7 @@ private fun WeakPasswordRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = item.username.ifBlank { item.email },
+                text = item.accountLabel(),
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.onSurfaceVariant,
                 maxLines = 1,
@@ -198,6 +221,11 @@ private fun WeakPasswordRow(
                 text = reasons.joinToString(if (isZh) " · " else " / "),
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.error
+            )
+            Text(
+                text = if (isZh) "建议使用独立的长随机密码或不相关词语组成的口令；先在对应服务更换，再更新此记录。" else "Use a unique long random password or a passphrase of unrelated words. Change it on the service, then update this record.",
+                style = MaterialTheme.typography.bodySmall,
+                color = themeColors.onSurfaceVariant
             )
         }
     }
@@ -237,7 +265,7 @@ private fun ReusedPasswordGroupCard(
                     color = themeColors.onBackground
                 )
                 Text(
-                    text = maskPassword(group.label),
+                    text = if (isZh) "密码内容已隐藏；为每个账户设置独立密码。" else "Password hidden. Give each account a unique password.",
                     style = MaterialTheme.typography.bodySmall,
                     color = themeColors.onSurfaceVariant
                 )
@@ -261,7 +289,7 @@ private fun ReusedPasswordGroupCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = item.username.ifBlank { item.email },
+                    text = item.accountLabel(),
                     style = MaterialTheme.typography.bodySmall,
                     color = themeColors.onSurfaceVariant,
                     maxLines = 1,
@@ -285,18 +313,9 @@ private fun EmptySecurityState(text: String) {
     }
 }
 
-private fun weakReasons(password: String, currentLanguage: AppLanguage): List<String> {
-    val isZh = currentLanguage == AppLanguage.CHINESE
-    return buildList {
-        if (password.length < 10) add(if (isZh) "长度不足" else "Too short")
-        if (!password.any { it.isDigit() }) add(if (isZh) "缺少数字" else "No number")
-        if (!password.any { it.isUpperCase() }) add(if (isZh) "缺少大写" else "No uppercase")
-        if (!password.any { it.isLowerCase() }) add(if (isZh) "缺少小写" else "No lowercase")
-    }.ifEmpty { listOf(if (isZh) "建议增强复杂度" else "Improve complexity") }
-}
-
-private fun maskPassword(password: String): String {
-    if (password.isBlank()) return "******"
-    if (password.length <= 4) return "*".repeat(password.length)
-    return password.take(2) + "*".repeat((password.length - 4).coerceAtLeast(2)) + password.takeLast(2)
+internal fun PasswordWeakReason.healthDescription(isZh: Boolean): String = when (this) {
+    PasswordWeakReason.TOO_SHORT -> if (isZh) "少于 ${PasswordHealthAnalyzer.RECOMMENDED_LENGTH} 个字符" else "Under ${PasswordHealthAnalyzer.RECOMMENDED_LENGTH} characters"
+    PasswordWeakReason.COMMON_PASSWORD -> if (isZh) "常见密码或简单变体" else "Common password or simple variation"
+    PasswordWeakReason.REPEATED_PATTERN -> if (isZh) "重复字符或重复片段" else "Repeated characters or patterns"
+    PasswordWeakReason.PREDICTABLE_SEQUENCE -> if (isZh) "连续字符或键盘顺序" else "Character or keyboard sequence"
 }

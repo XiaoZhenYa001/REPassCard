@@ -1,19 +1,22 @@
 package com.example.passcard.crypto
 
+import android.content.Context
 import com.example.passcard.data.PasswordEntity
 
 class VaultBackupManager(
-    private val vaultCrypto: VaultCrypto = VaultCrypto()
+    private val vaultCrypto: VaultCrypto = VaultCrypto(),
+    context: Context? = null,
+    private val iconStorage: VaultIconStorage? = context?.let { AndroidVaultIconStorage(it) }
 ) {
     fun exportVault(
         passwords: List<PasswordEntity>,
-        recoveryPhrase: String,
+        backupPassword: String,
         deviceId: String,
         deviceName: String,
         vaultRevision: Long,
         keyVersion: Int = 1,
-        kdfVersion: Int = VaultCrypto.KDF_VERSION_PBKDF2,
-        formatVersion: Int = 1
+        kdfVersion: Int = VaultCrypto.KDF_VERSION_BACKUP_PASSWORD,
+        formatVersion: Int = VaultCrypto.FORMAT_VERSION
     ): String {
         val records = passwords.map { it.toVaultRecord() }
         val now = System.currentTimeMillis()
@@ -28,18 +31,27 @@ class VaultBackupManager(
             kdfVersion = kdfVersion,
             formatVersion = formatVersion
         )
-        return vaultCrypto.encryptVault(records, recoveryPhrase, metadata, kdfVersion, formatVersion).json
+        val payload = VaultIconArchive(iconStorage).prepareExport(records)
+        return vaultCrypto.encryptVault(payload, backupPassword, metadata, kdfVersion, formatVersion).json
     }
 
-    fun importVault(json: String, recoveryPhrase: String): ImportedVault {
-        val (metadata, records) = vaultCrypto.decryptVault(json, recoveryPhrase)
-        return ImportedVault(metadata, records.map { it.toPasswordEntity() })
+    /** Validates the password without writing restored icon files or changing the local vault. */
+    fun verifyBackupPassword(json: String, backupPassword: String) {
+        val (metadata, payload) = vaultCrypto.decryptVaultPayload(json, backupPassword)
+        require(payload.items.size == metadata.itemCount) { "备份项目数量与内容不一致。" }
+    }
+
+    fun importVault(json: String, backupPassword: String): ImportedVault {
+        val (metadata, payload) = vaultCrypto.decryptVaultPayload(json, backupPassword)
+        val restored = VaultIconArchive(iconStorage).prepareRestore(payload)
+        return ImportedVault(metadata, restored.records.map { it.toPasswordEntity() }, restored.warnings)
     }
 }
 
 data class ImportedVault(
     val metadata: VaultMetadata,
-    val passwords: List<PasswordEntity>
+    val passwords: List<PasswordEntity>,
+    val warnings: List<String> = emptyList()
 )
 
 private fun PasswordEntity.toVaultRecord(): VaultPasswordRecord {
@@ -56,7 +68,9 @@ private fun PasswordEntity.toVaultRecord(): VaultPasswordRecord {
         updatedAt = updatedAt,
         revision = revision,
         deviceId = deviceId,
-        deletedAt = deletedAt
+        deletedAt = deletedAt,
+        iconType = iconType,
+        iconValue = iconValue
     )
 }
 
@@ -74,6 +88,8 @@ private fun VaultPasswordRecord.toPasswordEntity(): PasswordEntity {
         updatedAt = updatedAt,
         revision = revision,
         deviceId = deviceId,
-        deletedAt = deletedAt
+        deletedAt = deletedAt,
+        iconType = iconType,
+        iconValue = iconValue
     )
 }

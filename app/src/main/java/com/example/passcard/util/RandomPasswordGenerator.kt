@@ -1,6 +1,8 @@
 package com.example.passcard.util
 
+import java.security.SecureRandom
 import kotlin.random.Random
+import kotlin.random.asKotlinRandom
 
 data class RandomPasswordSpec(
     val length: Int = DEFAULT_LENGTH,
@@ -20,7 +22,7 @@ data class RandomPasswordSpec(
     companion object {
         const val MIN_LENGTH = 4
         const val MAX_LENGTH = 18
-        const val DEFAULT_LENGTH = 14
+        const val DEFAULT_LENGTH = 16
     }
 }
 
@@ -33,12 +35,14 @@ data class PasswordStrength(
 )
 
 object RandomPasswordGenerator {
+    private val secureRandom: Random = SecureRandom().asKotlinRandom()
+
     private const val UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ"
     private const val LOWERCASE = "abcdefghijkmnopqrstuvwxyz"
     private const val NUMBERS = "23456789"
     private const val SYMBOLS = "!@#$%^&*+-_=?."
 
-    fun generate(spec: RandomPasswordSpec, random: Random = Random.Default): String {
+    fun generate(spec: RandomPasswordSpec, random: Random = secureRandom): String {
         val normalized = spec.normalized()
         val groups = buildList {
             if (normalized.includeUppercase) add(UPPERCASE)
@@ -66,24 +70,24 @@ object RandomPasswordGenerator {
         return when {
             score >= 76 -> PasswordStrength(
                 score = score,
-                labelZh = "强",
-                labelEn = "Strong",
-                hintZh = "长度和字符类型都比较均衡。",
-                hintEn = "Length and character variety are well balanced."
+                labelZh = "较高",
+                labelEn = "Higher",
+                hintZh = "仅根据生成长度与字符类型提供配置参考；不检查具体密码的常见模式或重复使用。",
+                hintEn = "A configuration reference based on length and character types. It does not check the actual password for predictable patterns or reuse."
             )
             score >= 52 -> PasswordStrength(
                 score = score,
                 labelZh = "中等",
-                labelEn = "Good",
-                hintZh = "适合普通账户，重要账户建议更长。",
-                hintEn = "Good for regular accounts. Use longer passwords for important ones."
+                labelEn = "Moderate",
+                hintZh = "可增加生成长度。此配置参考不等于具体密码的健康评分。",
+                hintEn = "Consider increasing length. This configuration reference is not a health score for the actual password."
             )
             else -> PasswordStrength(
                 score = score,
-                labelZh = "偏弱",
-                labelEn = "Weak",
-                hintZh = "建议增加长度并启用更多字符类型。",
-                hintEn = "Increase length and enable more character types."
+                labelZh = "较低",
+                labelEn = "Lower",
+                hintZh = "建议优先增加长度；此参考不代表具体密码的安全程度。",
+                hintEn = "Increase length first. This reference does not establish how safe the actual password is."
             )
         }
     }

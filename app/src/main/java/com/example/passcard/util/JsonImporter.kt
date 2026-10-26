@@ -75,10 +75,12 @@ object JsonImporter {
             throw IllegalArgumentException("文件为空")
         }
 
+        var nativeExport = false
         val items: JSONArray = when {
             // REPassCard 格式: { "passwords": [...] }
             trimmed.startsWith("{") -> {
                 val root = JSONObject(trimmed)
+                nativeExport = root.optString("app") == "REPassCard" && root.opt("passwords") is JSONArray
                 extractPasswordArray(root)
             }
             // 纯数组格式: [...]
@@ -95,13 +97,10 @@ object JsonImporter {
             val rowNumber = i + 1
             try {
                 val obj = items.getJSONObject(i)
-                val entry = mapJsonObjectToEntry(obj, rowNumber)
+                val entry = if (nativeExport) mapNativeEntry(obj, rowNumber)
+                    else mapJsonObjectToEntry(obj, rowNumber)
                 if (entry.service.isBlank()) {
                     issues.add(ImportIssue(rowNumber, "服务名称为空", obj.toString()))
-                    continue
-                }
-                if (entry.password.isBlank()) {
-                    issues.add(ImportIssue(rowNumber, "密码为空", obj.toString()))
                     continue
                 }
                 entries.add(entry)
@@ -158,10 +157,21 @@ object JsonImporter {
         throw IllegalArgumentException("JSON 中未找到密码数据数组")
     }
 
-    /**
-     * 将 JSON 对象映射为密码条目
-     * 使用智能字段名匹配
-     */
+    /** Native exports use exact fields, so missing data cannot be filled from unrelated aliases. */
+    private fun mapNativeEntry(obj: JSONObject, rowNumber: Int) = PasswordEntryCsv(
+        service = obj.optString("service"),
+        username = obj.optString("username"),
+        phone = obj.optString("phone"),
+        email = obj.optString("email"),
+        password = obj.optString("password"),
+        note = obj.optString("note"),
+        category = obj.optString("category"),
+        sourceRow = rowNumber,
+        iconType = obj.optString("iconType", "generated"),
+        iconValue = obj.optString("iconValue")
+    )
+
+    /** Map known field aliases, including flattened login fields from other password managers. */
     private fun mapJsonObjectToEntry(obj: JSONObject, rowNumber: Int): PasswordEntryCsv {
         // 扁平化嵌套结构（如 Bitwarden 的 login.username）
         val flatMap = flattenJsonObject(obj)
@@ -183,7 +193,9 @@ object JsonImporter {
             password = password,
             note = note,
             category = category,
-            sourceRow = rowNumber
+            sourceRow = rowNumber,
+            iconType = findField(flatMap, setOf("icontype", "icon_type", "图标类型")).ifBlank { "generated" },
+            iconValue = findField(flatMap, setOf("iconvalue", "icon_value", "图标值"))
         )
     }
 
@@ -197,6 +209,7 @@ object JsonImporter {
         while (keys.hasNext()) {
             val key = keys.next()
             val value = obj.opt(key) ?: continue
+            if (value === JSONObject.NULL) continue
             val fullKey = if (prefix.isEmpty()) key else "${prefix}_$key"
 
             when (value) {
@@ -226,11 +239,9 @@ object JsonImporter {
                 }
                 else -> {
                     val strVal = value.toString()
-                    if (strVal != "null") {
-                        map[fullKey] = strVal
-                        if (prefix.isNotEmpty()) {
-                            if (key !in map) map[key] = strVal
-                        }
+                    map[fullKey] = strVal
+                    if (prefix.isNotEmpty()) {
+                        if (key !in map) map[key] = strVal
                     }
                 }
             }
@@ -241,15 +252,12 @@ object JsonImporter {
     /**
      * 在扁平化的 Map 中查找匹配的字段值
      */
+    private fun normalizeFieldName(value: String): String = value.lowercase(Locale.ROOT)
+        .replace("_", "").replace("-", "").replace(" ", "")
+
     private fun findField(flatMap: Map<String, String>, candidates: Set<String>): String {
-        // 先精确匹配（小写）
         for (candidate in candidates) {
-            flatMap.entries.firstOrNull { it.key.lowercase(Locale.ROOT) == candidate }
-                ?.let { return it.value }
-        }
-        // 再模糊匹配（包含）
-        for (candidate in candidates) {
-            flatMap.entries.firstOrNull { it.key.lowercase(Locale.ROOT).contains(candidate) }
+            flatMap.entries.firstOrNull { normalizeFieldName(it.key) == normalizeFieldName(candidate) }
                 ?.let { return it.value }
         }
         return ""

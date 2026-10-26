@@ -17,7 +17,9 @@ data class PasswordEntryCsv(
     val password: String,
     val note: String,
     val category: String = "",
-    val sourceRow: Int
+    val sourceRow: Int,
+    val iconType: String = "generated",
+    val iconValue: String = ""
 )
 
 data class ImportIssue(
@@ -43,7 +45,9 @@ object CsvImporter {
         EMAIL,
         PASSWORD,
         NOTE,
-        CATEGORY
+        CATEGORY,
+        ICON_TYPE,
+        ICON_VALUE
     }
 
     private val serviceHeaders = setOf("服务", "名称", "网站", "站点", "网址", "service", "name", "title", "url", "site", "domain")
@@ -52,6 +56,9 @@ object CsvImporter {
     private val emailHeaders = setOf("邮箱", "邮件", "email", "mail")
     private val passwordHeaders = setOf("密码", "口令", "pass", "password", "pwd")
     private val noteHeaders = setOf("备注", "说明", "note", "notes", "comment", "comments")
+    private val iconTypeHeaders = setOf("icontype", "图标类型")
+    private val iconValueHeaders = setOf("iconvalue", "图标值")
+    private val nativeHeaders = listOf("服务", "用户名", "手机号", "邮箱", "密码", "备注", "分类")
     private val categoryHeaders = setOf("分类", "类别", "分组", "标签", "category", "group", "folder", "tag")
     
     /**
@@ -77,7 +84,7 @@ object CsvImporter {
         }
     }
 
-    private fun parseCsvContent(rawContent: String): ImportParseResult {
+    internal fun parseCsvContent(rawContent: String): ImportParseResult {
         val content = rawContent.removePrefix("\uFEFF")
         if (content.isBlank()) {
             throw IllegalArgumentException("文件为空")
@@ -90,7 +97,9 @@ object CsvImporter {
         }
 
         val headerMap = buildHeaderMap(rows.first())
-        val headerDetected = headerMap.containsKey(CsvField.SERVICE) && headerMap.containsKey(CsvField.PASSWORD)
+        val headerDetected = headerMap.containsKey(CsvField.SERVICE) &&
+            (headerMap.size > 1 || rows.first().size == 1)
+        val preserveFields = headerDetected && rows.first().take(nativeHeaders.size) == nativeHeaders
         val dataRows = if (headerDetected) rows.drop(1) else rows
         val rowOffset = if (headerDetected) 2 else 1
 
@@ -103,7 +112,7 @@ object CsvImporter {
                 return@forEachIndexed
             }
 
-            parseRowToEntry(row, rowNumber, headerMap, headerDetected).onSuccess {
+            parseRowToEntry(row, rowNumber, headerMap, headerDetected, preserveFields).onSuccess {
                 entries.add(it)
             }.onFailure { error ->
                 issues.add(
@@ -133,23 +142,25 @@ object CsvImporter {
         fields: List<String>,
         rowNumber: Int,
         headerMap: Map<CsvField, Int>,
-        headerDetected: Boolean
+        headerDetected: Boolean,
+        preserveFields: Boolean
     ): Result<PasswordEntryCsv> {
         return runCatching {
-            val service = getField(fields, CsvField.SERVICE, headerMap, 0, headerDetected)
-            val username = getField(fields, CsvField.USERNAME, headerMap, 1, headerDetected)
-            val phone = getField(fields, CsvField.PHONE, headerMap, 2, headerDetected)
-            val email = getField(fields, CsvField.EMAIL, headerMap, 3, headerDetected)
-            val password = getField(fields, CsvField.PASSWORD, headerMap, 4, headerDetected)
-            val note = getField(fields, CsvField.NOTE, headerMap, 5, headerDetected)
-            val category = getField(fields, CsvField.CATEGORY, headerMap, 6, headerDetected)
+            val service = getField(fields, CsvField.SERVICE, headerMap, 0, headerDetected, preserveFields)
+            val username = getField(fields, CsvField.USERNAME, headerMap, 1, headerDetected, preserveFields)
+            val phone = getField(fields, CsvField.PHONE, headerMap, 2, headerDetected, preserveFields)
+            val email = getField(fields, CsvField.EMAIL, headerMap, 3, headerDetected, preserveFields)
+            val password = getField(fields, CsvField.PASSWORD, headerMap, 4, headerDetected, preserveFields)
+            val note = getField(fields, CsvField.NOTE, headerMap, 5, headerDetected, preserveFields)
+            val category = getField(fields, CsvField.CATEGORY, headerMap, 6, headerDetected, preserveFields)
 
             if (service.isBlank()) {
                 throw IllegalArgumentException("服务名称为空")
             }
-            if (password.isBlank()) {
-                throw IllegalArgumentException("密码为空")
-            }
+
+            val iconType = getField(fields, CsvField.ICON_TYPE, headerMap, 7, headerDetected, preserveFields)
+                .ifBlank { "generated" }
+            val iconValue = getField(fields, CsvField.ICON_VALUE, headerMap, 8, headerDetected, preserveFields)
 
             PasswordEntryCsv(
                 service = service,
@@ -159,7 +170,9 @@ object CsvImporter {
                 password = password,
                 note = note,
                 category = category,
-                sourceRow = rowNumber
+                sourceRow = rowNumber,
+                iconType = iconType,
+                iconValue = iconValue
             )
         }
     }
@@ -258,6 +271,8 @@ object CsvImporter {
                 key in passwordHeaders && CsvField.PASSWORD !in map -> map[CsvField.PASSWORD] = index
                 key in noteHeaders && CsvField.NOTE !in map -> map[CsvField.NOTE] = index
                 key in categoryHeaders && CsvField.CATEGORY !in map -> map[CsvField.CATEGORY] = index
+                key in iconTypeHeaders && CsvField.ICON_TYPE !in map -> map[CsvField.ICON_TYPE] = index
+                key in iconValueHeaders && CsvField.ICON_VALUE !in map -> map[CsvField.ICON_VALUE] = index
             }
         }
         return map
@@ -277,14 +292,16 @@ object CsvImporter {
         target: CsvField,
         headerMap: Map<CsvField, Int>,
         fallbackIndex: Int,
-        headerDetected: Boolean
+        headerDetected: Boolean,
+        preserveFields: Boolean
     ): String {
         val index = if (headerDetected) {
-            headerMap[target] ?: fallbackIndex
+            headerMap[target] ?: return ""
         } else {
             fallbackIndex
         }
-        return fields.getOrNull(index)?.trim().orEmpty()
+        val value = fields.getOrNull(index).orEmpty()
+        return if (target == CsvField.PASSWORD || preserveFields) value else value.trim()
     }
     
     /**

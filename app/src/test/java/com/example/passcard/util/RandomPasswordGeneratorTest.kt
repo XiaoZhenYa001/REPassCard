@@ -8,6 +8,35 @@ import org.junit.Test
 
 class RandomPasswordGeneratorTest {
     @Test
+    fun productionRandomSourceHonorsTheSelectedLengthAndAlphabet() {
+        val defaultPassword = RandomPasswordGenerator.generate(RandomPasswordSpec())
+        assertEquals(RandomPasswordSpec.DEFAULT_LENGTH, defaultPassword.length)
+        assertTrue(defaultPassword.any(Char::isUpperCase))
+        assertTrue(defaultPassword.any(Char::isLowerCase))
+        assertTrue(defaultPassword.any(Char::isDigit))
+        assertTrue(defaultPassword.any { !it.isLetterOrDigit() })
+
+        val digitsOnly = RandomPasswordGenerator.generate(RandomPasswordSpec(
+            length = 18,
+            includeUppercase = false,
+            includeLowercase = false,
+            includeNumbers = true,
+            includeSymbols = false
+        ))
+        assertEquals(18, digitsOnly.length)
+        assertTrue(digitsOnly.all { it in "23456789" })
+    }
+
+    @Test
+    fun newDefaultGenerationMeetsTheLocalLengthRecommendation() {
+        repeat(25) { seed ->
+            val password = RandomPasswordGenerator.generate(RandomPasswordSpec(), Random(seed))
+            assertFalse(com.example.passcard.data.PasswordWeakReason.TOO_SHORT in
+                com.example.passcard.data.PasswordHealthAnalyzer.assessPassword(password).reasons)
+        }
+    }
+
+    @Test
     fun specClampsLengthAndAlwaysKeepsACharacterSet() {
         val normalized = RandomPasswordSpec(
             length = 100,

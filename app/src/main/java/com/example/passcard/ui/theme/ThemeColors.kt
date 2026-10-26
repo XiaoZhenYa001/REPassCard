@@ -3,6 +3,7 @@ package com.example.passcard.ui.theme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 
+@Immutable
 data class ThemeColors(
     val background: Color,
     val surface: Color,
@@ -25,6 +26,7 @@ data class ThemeColors(
     val successContainer: Color,
     val blueContainer: Color,
     val primary: Color,
+    val onPrimary: Color,
     val primaryPressed: Color,
     val primaryLight: Color,
     val primaryGradientStart: Color,
@@ -74,13 +76,14 @@ fun buildThemeColors(isDark: Boolean): ThemeColors {
             successContainer = SuccessContainerDark,
             blueContainer = BlueContainerDark,
             primary = PrimaryDarkMode,
+            onPrimary = OnPrimaryDark,
             primaryPressed = PrimaryDarkModePressed,
             primaryLight = PrimaryLightDark,
             primaryGradientStart = PrimaryGradStartDark,
             primaryGradientEnd = PrimaryGradEndDark,
             error = ErrorDark,
-            warning = Warning,
-            success = Success,
+            warning = WarningDark,
+            success = SuccessDark,
             blue = BlueDark,
             cyan = CyanDark,
             isDark = true
@@ -108,6 +111,7 @@ fun buildThemeColors(isDark: Boolean): ThemeColors {
             successContainer = SuccessContainer,
             blueContainer = BlueContainer,
             primary = Primary,
+            onPrimary = OnPrimary,
             primaryPressed = PrimaryDark,
             primaryLight = PrimaryLight,
             primaryGradientStart = PrimaryGradStart,

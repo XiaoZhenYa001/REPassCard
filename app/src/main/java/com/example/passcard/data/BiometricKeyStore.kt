@@ -1,7 +1,9 @@
 package com.example.passcard.data
 
 import android.content.Context
+import com.example.passcard.crypto.BackupPasswordPolicy
 import android.os.Build
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -13,15 +15,15 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * 便捷模式下，使用 Android Keystore 包裹同步相关密钥材料。
- * 密钥要求生物识别（或等价用户认证）后才能用于解密；请在 [unwrapSyncKey] 前完成 [androidx.biometric.BiometricPrompt] 与 [Cipher] 初始化流程。
+ * 使用独立且要求每次强生物识别授权的 Android Keystore 密钥，保存本机备份密码。
+ * 请将已初始化的 [Cipher] 交给 [androidx.biometric.BiometricPrompt]，成功后调用对应包裹或解包接口。
  */
 object BiometricKeyStore {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-    private const val MASTER_KEY_ALIAS = "repasscard_sync_master_key"
-    private const val PREFS_NAME = "repasscard_biometric_sync"
-    private const val KEY_WRAPPED_SYNC_KEY = "wrapped_sync_key"
-    private const val KEY_WRAPPED_SYNC_KEY_IV = "wrapped_sync_key_iv"
+    private const val MASTER_KEY_ALIAS = "repasscard_backup_password_biometric_v2"
+    private const val PREFS_NAME = "repasscard_backup_password_biometric_v2"
+    private const val KEY_WRAPPED_SYNC_KEY = "wrapped_backup_password"
+    private const val KEY_WRAPPED_SYNC_KEY_IV = "wrapped_backup_password_iv"
     private const val AES_GCM = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
 
@@ -33,15 +35,23 @@ object BiometricKeyStore {
     fun getEncryptionCipher(): Cipher? {
         return runCatching {
             val cipher = Cipher.getInstance(AES_GCM)
-            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateMasterKey())
-            cipher
+            try {
+                cipher.init(Cipher.ENCRYPT_MODE, getOrCreateMasterKey())
+                cipher
+            } catch (_: KeyPermanentlyInvalidatedException) {
+                // A newly enrolled biometric requires explicit re-enrollment with a fresh dedicated key.
+                deleteMasterKey()
+                Cipher.getInstance(AES_GCM).apply { init(Cipher.ENCRYPT_MODE, getOrCreateMasterKey()) }
+            }
         }.getOrNull()
     }
 
-    fun wrapStringWithCipher(context: Context, cipher: Cipher, phrase: String) {
+    fun wrapStringWithCipher(context: Context, cipher: Cipher, backupPassword: String) {
         val appContext = context.applicationContext
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ciphertext = cipher.doFinal(phrase.toByteArray(Charsets.UTF_8))
+        BackupPasswordPolicy.requireUsablePassword(backupPassword)
+        val passwordBytes = backupPassword.toByteArray(Charsets.UTF_8)
+        val ciphertext = try { cipher.doFinal(passwordBytes) } finally { passwordBytes.fill(0) }
         prefs.edit {
             putString(KEY_WRAPPED_SYNC_KEY, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
             putString(KEY_WRAPPED_SYNC_KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
@@ -53,10 +63,13 @@ object BiometricKeyStore {
         val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val iv = prefs.getString(KEY_WRAPPED_SYNC_KEY_IV, null) ?: return null
         return runCatching {
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+            val masterKey = (keyStore.getEntry(MASTER_KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.secretKey
+                ?: return@runCatching null
             val cipher = Cipher.getInstance(AES_GCM)
             cipher.init(
                 Cipher.DECRYPT_MODE,
-                getOrCreateMasterKey(),
+                masterKey,
                 GCMParameterSpec(GCM_TAG_BITS, Base64.decode(iv, Base64.NO_WRAP))
             )
             cipher
@@ -69,7 +82,8 @@ object BiometricKeyStore {
         val encrypted = prefs.getString(KEY_WRAPPED_SYNC_KEY, null) ?: return null
         return runCatching {
             val decryptedBytes = cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP))
-            String(decryptedBytes, Charsets.UTF_8)
+            try { String(decryptedBytes, Charsets.UTF_8).also(BackupPasswordPolicy::requireUsablePassword) }
+            finally { decryptedBytes.fill(0) }
         }.getOrNull()
     }
 
@@ -78,6 +92,11 @@ object BiometricKeyStore {
             remove(KEY_WRAPPED_SYNC_KEY)
             remove(KEY_WRAPPED_SYNC_KEY_IV)
         }
+        runCatching { deleteMasterKey() }
+    }
+
+    private fun deleteMasterKey() {
+        KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.deleteEntry(MASTER_KEY_ALIAS)
     }
 
     private fun getOrCreateMasterKey(): SecretKey {

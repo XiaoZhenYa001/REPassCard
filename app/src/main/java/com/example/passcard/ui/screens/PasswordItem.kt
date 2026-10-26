@@ -27,3 +27,5 @@ data class PasswordItem(
 data class PasswordListSnapshot(
     val items: List<PasswordItem>
 )
+
+fun PasswordItem.accountLabel(): String = listOf(email, username, phone).firstOrNull { it.isNotBlank() }.orEmpty()

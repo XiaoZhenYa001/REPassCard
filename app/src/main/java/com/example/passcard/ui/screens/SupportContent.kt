@@ -89,20 +89,20 @@ fun HelpContent(
         listOf(
             HelpEntry("添加密码", "点击底部导航栏的 + 按钮添加新的密码记录。", Icons.Outlined.Add, IconBgPurple),
             HelpEntry("查看密码", "在密码列表中点击任意条目，查看或进入编辑详情。", Icons.Outlined.Visibility, IconBgBlue),
-            HelpEntry("复制密码", "在条目详情或快捷操作中复制需要的信息。", Icons.Outlined.ContentCopy, IconBgGreen),
+            HelpEntry("复制密码", "点击列表右侧的复制按钮，或在详情中复制密码。空密码不会触发复制。", Icons.Outlined.ContentCopy, IconBgGreen),
             HelpEntry("编辑密码", "进入条目后修改名称、账号、密码、分类和备注。", Icons.Outlined.Edit, IconBgOrange),
             HelpEntry("删除密码", "在编辑页面使用删除操作移除不再需要的记录。", Icons.Outlined.Delete, IconBgRed),
-            HelpEntry("分类管理", "为密码添加分类，便于筛选、搜索和整理。", Icons.Outlined.Category, IconBgCyan),
+            HelpEntry("分类管理", "在编辑页选择或添加分类。搜索与分类可同时使用；未分类条目也可单独筛选。", Icons.Outlined.Category, IconBgCyan),
             HelpEntry("主题切换", "在设置中选择浅色、深色或跟随系统。", Icons.Outlined.DarkMode, IconBgGray)
         )
     } else {
         listOf(
             HelpEntry("Add Password", "Tap the + button in the bottom bar to add a new record.", Icons.Outlined.Add, IconBgPurple),
             HelpEntry("View Password", "Tap any password item to view or edit details.", Icons.Outlined.Visibility, IconBgBlue),
-            HelpEntry("Copy Password", "Copy needed fields from details or quick actions.", Icons.Outlined.ContentCopy, IconBgGreen),
+            HelpEntry("Copy Password", "Tap the copy button on a list item or copy in details. Empty passwords cannot be copied.", Icons.Outlined.ContentCopy, IconBgGreen),
             HelpEntry("Edit Password", "Open an item to edit name, account, password, category, and notes.", Icons.Outlined.Edit, IconBgOrange),
             HelpEntry("Delete Password", "Use delete on the edit page to remove a record.", Icons.Outlined.Delete, IconBgRed),
-            HelpEntry("Categories", "Add categories to make filtering, search, and organization easier.", Icons.Outlined.Category, IconBgCyan),
+            HelpEntry("Categories", "Choose or add a category in the editor. Combine search with category filters, including Uncategorized.", Icons.Outlined.Category, IconBgCyan),
             HelpEntry("Theme", "Choose light, dark, or system theme in settings.", Icons.Outlined.DarkMode, IconBgGray)
         )
     }
@@ -117,7 +117,7 @@ fun HelpContent(
         HelpItem(
             entry = HelpEntry(
                 title = if (isZh) "云同步与加密备份" else "Cloud Sync & Encrypted Backup",
-                description = if (isZh) "了解真实云端配置、恢复助记词和同步前后的注意事项。" else "Learn real cloud setup, recovery phrases, and sync safety notes.",
+                description = if (isZh) "了解备份密码、指纹授权、历史恢复和云端配置。" else "Learn backup passwords, biometric authorization, history restore, and cloud setup.",
                 icon = Icons.Outlined.CloudDone,
                 iconColor = IconBgBlue
             ),
@@ -156,11 +156,11 @@ fun SearchHelpContent(
         modifier = modifier
     ) {
         PrivacySection(
-            title = if (isZh) "普通搜索排序" else "Default Result Order",
+            title = if (isZh) "搜索范围与排序" else "Search scope and order",
             content = if (isZh) {
-                "输入关键词后，结果会按字段优先级排序：名称、用户名、手机号、邮箱、密码、分类、备注。同一字段内优先显示完全匹配，其次是开头匹配，最后是包含匹配。"
+                "搜索覆盖整个保险库，并保留当前分类筛选。首页展示部分结果，点击查看全部可继续浏览完整结果。内置分类支持中英文检索。普通搜索按名称、用户名、手机号、邮箱、密码、分类、备注排序；同一字段内优先完全匹配，其次开头匹配，最后包含匹配。"
             } else {
-                "Type a keyword to rank results by field priority: name, username, phone, email, password, category, then note. Within a field, exact matches appear first, then prefix matches, then contains matches."
+                "Search covers your entire vault within the selected category. View all opens the full results. Built-in categories support Chinese and English search. Results rank by name, username, phone, email, password, category, then note; exact matches precede prefix and contains matches."
             },
             themeColors = themeColors
         )
@@ -211,11 +211,20 @@ fun CloudBackupHelpContent(
             themeColors = themeColors
         )
         PrivacySection(
-            title = if (isZh) "恢复助记词负责加密" else "Recovery Phrase Encrypts The Backup",
+            title = if (isZh) "单独设置备份密码" else "Set A Separate Backup Password",
             content = if (isZh) {
-                "上传前会在本机用恢复助记词派生密钥并加密密码库，云端只保存密文。下载恢复时必须输入当时加密所用的助记词。"
+                "首次备份时单独设置并确认备份密码。密码仅在本机派生密钥，云端只保存密文。可在本机开启生物识别授权，之后用指纹等系统生物识别取用保存的备份密码。换机或重装后，需要输入备份时使用的密码；忘记密码将无法解密备份。"
             } else {
-                "Before upload, the vault is encrypted locally with a key derived from the recovery phrase. The cloud stores ciphertext only. Restore requires the phrase used for that backup."
+                "Set and confirm a separate backup password for the first backup. It derives the encryption key on this device; the cloud stores ciphertext only. Enable biometric authorization to use the saved password on this device. After changing devices or reinstalling, enter the password used for that backup. A forgotten password cannot decrypt the backup."
+            },
+            themeColors = themeColors
+        )
+        PrivacySection(
+            title = if (isZh) "历史恢复与后台备份" else "History Restore And Background Backup",
+            content = if (isZh) {
+                "历史备份可选择本机保护副本或云端已提交版本；本机历史可离线使用。恢复前会先保存当前记录，历史恢复只替换本机数据。后台自动备份需要单独授权在本机加密保存备份密码，不会在后台弹出指纹验证；关闭自动备份可撤销这份授权。"
+            } else {
+                "Choose a local protection copy or committed cloud version in Backup history. Local history works offline. A restore first saves the current records and changes only this device. Automatic backup requires separate consent to store an encrypted backup password for unattended use. It cannot show a biometric prompt in the background; disable automatic backup to revoke that authorization."
             },
             themeColors = themeColors
         )
@@ -243,7 +252,7 @@ fun PrivacyContent(
         listOf(
             "数据收集" to "我们只在应用功能需要时保存必要信息，不会收集你的密码或敏感个人信息。",
             "本地存储" to "密码数据保存在你的设备本地。启用云同步时，云端只保存加密后的备份文件。",
-            "加密保护" to "本地数据库和云端备份均使用加密保护，恢复助记词不会上传到云端。",
+            "加密保护" to "本地数据库和云端备份均使用加密保护，备份密码不会上传到云端。本机保存的备份密码由 Android Keystore 保护，生物识别仅用于授权取用。",
             "第三方访问" to "我们不会与任何第三方分享你的个人信息。",
             "数据权利" to "你可以随时删除本地数据，也可以手动清理云端备份。",
             "政策更新" to "我们可能会不时更新隐私条款，重要变更会在应用内提示。"
@@ -252,7 +261,7 @@ fun PrivacyContent(
         listOf(
             "Data Collection" to "We store only the minimum information needed for app functionality. We do not collect your passwords or sensitive personal data.",
             "Local Storage" to "Password data is stored locally on your device. When cloud sync is enabled, the cloud only stores encrypted backup files.",
-            "Encryption" to "The local database and cloud backups are encrypted. Recovery phrases are never uploaded.",
+            "Encryption" to "The local database and cloud backups are encrypted. Backup passwords are never uploaded. Android Keystore protects a saved backup password on this device; biometric authentication authorizes its use.",
             "Third Party Access" to "We do not share your personal information with any third parties.",
             "Data Rights" to "You can delete local data at any time and manually remove cloud backups.",
             "Policy Updates" to "We may update this policy from time to time. Important changes will be shown inside the app."
@@ -512,7 +521,7 @@ private fun CloudHelpDiagram(currentLanguage: AppLanguage, themeColors: ThemeCol
         CloudHelpStep(
             icon = Icons.Outlined.Lock,
             title = if (isZh) "1. 本机加密" else "1. Encrypt Locally",
-            description = if (isZh) "恢复助记词只在本机参与加密。" else "The recovery phrase is used only on device.",
+            description = if (isZh) "备份密码在本机派生加密密钥，指纹授权取用本机保存的密码。" else "The backup password derives the encryption key locally. Biometrics can authorize its saved copy.",
             iconColor = IconBgPurple,
             themeColors = themeColors
         )
@@ -526,7 +535,7 @@ private fun CloudHelpDiagram(currentLanguage: AppLanguage, themeColors: ThemeCol
         CloudHelpStep(
             icon = Icons.Outlined.Security,
             title = if (isZh) "3. 恢复时校验" else "3. Verify On Restore",
-            description = if (isZh) "只有正确助记词才能解密恢复。" else "Only the correct phrase can decrypt the backup.",
+            description = if (isZh) "换机恢复时输入备份密码；本机可使用已授权的指纹。" else "Enter the backup password on a new device, or authorize its saved copy with biometrics.",
             iconColor = IconBgGreen,
             themeColors = themeColors
         )

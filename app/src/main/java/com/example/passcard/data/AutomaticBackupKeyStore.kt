@@ -1,6 +1,7 @@
 package com.example.passcard.data
 
 import android.content.Context
+import com.example.passcard.crypto.BackupPasswordPolicy
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -14,19 +15,20 @@ import javax.crypto.spec.GCMParameterSpec
 /** Device-bound storage used only after the user explicitly enables unattended backups. */
 object AutomaticBackupKeyStore {
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-    private const val KEY_ALIAS = "repasscard_automatic_backup_key"
-    private const val PREFS_NAME = "repasscard_automatic_backup"
-    private const val KEY_CIPHERTEXT = "recovery_phrase_ciphertext"
-    private const val KEY_IV = "recovery_phrase_iv"
+    private const val KEY_ALIAS = "repasscard_automatic_backup_password_v2"
+    private const val PREFS_NAME = "repasscard_automatic_backup_password_v2"
+    private const val KEY_CIPHERTEXT = "backup_password_ciphertext"
+    private const val KEY_IV = "backup_password_iv"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val GCM_TAG_BITS = 128
 
-    fun save(context: Context, phrase: String) {
-        require(phrase.isNotBlank()) { "恢复助记词不能为空" }
+    fun save(context: Context, backupPassword: String) {
+        BackupPasswordPolicy.requireUsablePassword(backupPassword)
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         }
-        val ciphertext = cipher.doFinal(phrase.toByteArray(Charsets.UTF_8))
+        val passwordBytes = backupPassword.toByteArray(Charsets.UTF_8)
+        val ciphertext = try { cipher.doFinal(passwordBytes) } finally { passwordBytes.fill(0) }
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
             putString(KEY_CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
             putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
@@ -45,11 +47,13 @@ object AutomaticBackupKeyStore {
                     GCMParameterSpec(GCM_TAG_BITS, Base64.decode(iv, Base64.NO_WRAP))
                 )
             }
-            String(cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP)), Charsets.UTF_8)
+            val passwordBytes = cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP))
+            try { String(passwordBytes, Charsets.UTF_8).also(BackupPasswordPolicy::requireUsablePassword) }
+            finally { passwordBytes.fill(0) }
         }.getOrNull()
     }
 
-    fun hasKey(context: Context): Boolean = read(context)?.isNotBlank() == true
+    fun hasKey(context: Context): Boolean = read(context)?.isNotEmpty() == true
 
     fun clear(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit { clear() }

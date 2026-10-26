@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -20,6 +21,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.VpnKey
 import androidx.compose.material3.Icon
@@ -30,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -39,11 +43,13 @@ import androidx.compose.ui.unit.dp
 import com.example.passcard.data.PasswordSearch
 import com.example.passcard.data.PasswordSearchField
 import com.example.passcard.data.PasswordSearchSyntax
+import com.example.passcard.data.PasswordCategories
+import com.example.passcard.data.PasswordSecurityStats
+import com.example.passcard.ui.components.LoadingIndicator
 import com.example.passcard.ui.components.CategoryTagRow
 import com.example.passcard.ui.components.PasswordListItem
 import com.example.passcard.ui.components.PressableScale
 import com.example.passcard.ui.components.SearchBar
-import com.example.passcard.ui.theme.ElevationLevel
 import com.example.passcard.ui.theme.IconBgBlue
 import com.example.passcard.ui.theme.LocalThemeColors
 import com.example.passcard.ui.theme.Radius10
@@ -57,7 +63,6 @@ import com.example.passcard.ui.theme.Spacing24
 import com.example.passcard.ui.theme.Spacing4
 import com.example.passcard.ui.theme.Spacing8
 import com.example.passcard.ui.theme.appleSurface
-import com.example.passcard.ui.theme.softShadow
 
 @Composable
 fun HomeContent(
@@ -67,41 +72,37 @@ fun HomeContent(
     currentLanguage: AppLanguage,
     welcomeText: String,
     searchPlaceholder: String,
-    pwdCountText: String,
-    secScoreText: String,
+    passwordCount: Int,
+    securityStats: PasswordSecurityStats,
+    availableCategories: List<String>,
     recentText: String,
     viewAllText: String,
     onCategorySelected: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onNavigateToAllPasswords: () -> Unit,
+    onOpenAllPasswords: () -> Unit,
+    onNavigateToSecurity: () -> Unit,
     onPasswordClick: (String) -> Unit,
     onAddPassword: () -> Unit,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: () -> Unit = {},
+    isHealthLoading: Boolean = false,
+    healthErrorMessage: String? = null,
     scrollState: LazyListState = rememberLazyListState()
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
     val passwordItems = passwords.items
-    val allCategory = if (isZh) "全部" else "All"
-    val defaultCategories = if (isZh) {
-        listOf("社交媒体", "工作", "金融", "购物", "娱乐", "AI")
-    } else {
-        listOf("Social Media", "Work", "Finance", "Shopping", "Entertainment", "AI")
-    }
-    val categories = remember(passwordItems, currentLanguage) {
-        listOf(allCategory) + (defaultCategories + passwordItems.map { it.category }.filter { it.isNotBlank() })
-            .distinct()
-    }
     val isSearching = searchQuery.isNotBlank()
+    val isFiltering = isSearching || selectedCategory != null
     val parsedSearch = remember(searchQuery) { PasswordSearchSyntax.parse(searchQuery) }
     val filteredPasswords = remember(passwordItems, selectedCategory, searchQuery, parsedSearch) {
-        passwordItems.filter { item ->
-            val matchCategory = searchQuery.isNotBlank() ||
-                selectedCategory == null ||
-                selectedCategory == allCategory ||
-                item.category == selectedCategory
+        passwordItems.asSequence().filter { item ->
+            val matchCategory = selectedCategory == null || PasswordCategories.matches(item.category, selectedCategory)
             val matchSearch = searchQuery.isBlank() || item.matchesPasswordSearch(parsedSearch)
             matchCategory && matchSearch
-        }.take(if (searchQuery.isBlank()) 5 else 20)
+        }.take(if (isFiltering) 20 else 5).toList()
     }
 
     LazyColumn(
@@ -124,33 +125,38 @@ fun HomeContent(
 
         item(key = "header_search_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
         item(key = "home_search", contentType = "search") {
-            SearchBar(value = searchQuery, onValueChange = onSearchQueryChange, placeholder = searchPlaceholder)
+            SearchBar(value = searchQuery, onValueChange = onSearchQueryChange, placeholder = searchPlaceholder,
+                clearContentDescription = if (isZh) "清空搜索" else "Clear search")
         }
 
         item(key = "search_metrics_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
         item(key = "home_metrics", contentType = "metrics") {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
                 HomeMetricCard(
-                    text = pwdCountText,
+                    value = if (isLoading && passwordCount == 0) "—" else passwordCount.toString(),
+                    label = if (isZh) "所有密码" else "All passwords",
                     icon = Icons.Outlined.VpnKey,
                     iconColor = IconBgBlue,
-                    emphasized = false,
-                    onClick = onNavigateToAllPasswords,
+                    onClick = onOpenAllPasswords,
                     modifier = Modifier.weight(1f)
                 )
                 HomeMetricCard(
-                    text = secScoreText,
+                    value = if (!securityStats.hasScore || isHealthLoading || healthErrorMessage != null) "—" else "${securityStats.score} / 100",
+                    label = if (isZh) "密码健康" else "Password health",
                     icon = Icons.Outlined.Shield,
-                    iconColor = Color.White.copy(alpha = 0.20f),
-                    emphasized = true,
+                    iconColor = themeColors.primary,
+                    onClick = onNavigateToSecurity,
                     modifier = Modifier.weight(1f)
                 )
             }
         }
 
-        item(key = "metrics_categories_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
-        item(key = "home_categories", contentType = "categories") {
-            CategoryTagRow(categories = categories, selectedCategory = selectedCategory, onCategorySelected = onCategorySelected)
+        if (availableCategories.isNotEmpty() || selectedCategory != null) {
+            item(key = "metrics_categories_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing16)) }
+            item(key = "home_categories", contentType = "categories") {
+                CategoryTagRow(categories = availableCategories, selectedCategory = selectedCategory,
+                    onCategorySelected = onCategorySelected, isChinese = isZh)
+            }
         }
 
         item(key = "categories_results_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
@@ -159,13 +165,15 @@ fun HomeContent(
                 Text(
                     text = if (isSearching) {
                         if (isZh) "搜索结果" else "Search Results"
+                    } else if (selectedCategory != null) {
+                        PasswordCategories.label(selectedCategory, isZh)
                     } else {
                         recentText
                     },
                     style = MaterialTheme.typography.titleMedium,
                     color = themeColors.onBackground
                 )
-                PressableScale(onClick = onNavigateToAllPasswords) {
+                TextButton(onClick = onNavigateToAllPasswords) {
                     Text(
                         text = viewAllText,
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
@@ -175,13 +183,33 @@ fun HomeContent(
             }
         }
 
-        if (filteredPasswords.isEmpty()) {
+        if (errorMessage != null) {
+            item(key = "home_read_error", contentType = "error") {
+                Card(colors = CardDefaults.cardColors(containerColor = themeColors.errorContainer)) {
+                    Column(Modifier.fillMaxWidth().padding(Spacing16)) {
+                        Text(if (isZh) "暂时无法读取当前结果" else "Unable to read these results",
+                            style = MaterialTheme.typography.bodyMedium, color = themeColors.error)
+                        Text(if (isZh) "请重试；已有内容不表示本次读取成功。" else "Try again; any existing results may be out of date.",
+                            style = MaterialTheme.typography.bodySmall, color = themeColors.onSurfaceVariant)
+                        TextButton(onClick = onRetry) { Text(if (isZh) "重新加载" else "Try again") }
+                    }
+                }
+            }
+        }
+        if (isLoading) {
+            item(key = "home_loading", contentType = "loading") {
+                LoadingIndicator(if (isZh) "正在读取保险库…" else "Reading your vault…",
+                    Modifier.fillMaxWidth().padding(vertical = Spacing16), compact = true)
+            }
+        }
+        if (filteredPasswords.isEmpty() && !isLoading && errorMessage == null) {
             item(key = "results_empty_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing12)) }
             item(key = "home_empty", contentType = "empty") {
                 HomeEmptyState(
-                    isSearching = searchQuery.isNotBlank() || (selectedCategory != null && selectedCategory != allCategory),
+                    isSearching = isFiltering,
                     isZh = isZh,
-                    onAddPassword = onAddPassword
+                    onAddPassword = onAddPassword,
+                    onClearFilters = { onSearchQueryChange(""); onCategorySelected(null) }
                 )
             }
         } else {
@@ -191,8 +219,8 @@ fun HomeContent(
                 contentType = { _, _ -> "password" }
             ) { index, password ->
                 PasswordListItem(
-                    name = password.name,
-                    email = password.email.ifEmpty { password.username },
+                    name = password.name.ifBlank { if (isZh) "未命名记录" else "Untitled item" },
+                    email = password.accountLabel(),
                     password = password.password,
                     iconText = password.name.take(1).uppercase(),
                     iconType = password.iconType,
@@ -210,6 +238,8 @@ fun HomeContent(
 internal fun PasswordItem.matchesPasswordSearch(search: PasswordSearch): Boolean {
     val keyword = search.keyword
     if (keyword.isBlank()) return false
+    val matchesCategory = category.contains(keyword, ignoreCase = true) ||
+        PasswordCategories.searchAliases(keyword).any { PasswordCategories.matches(category, it) }
 
     return when (search.field) {
         PasswordSearchField.NAME -> name.contains(keyword, ignoreCase = true)
@@ -217,71 +247,62 @@ internal fun PasswordItem.matchesPasswordSearch(search: PasswordSearch): Boolean
         PasswordSearchField.PHONE -> phone.contains(keyword, ignoreCase = true)
         PasswordSearchField.EMAIL -> email.contains(keyword, ignoreCase = true)
         PasswordSearchField.PASSWORD -> password.contains(keyword, ignoreCase = true)
-        PasswordSearchField.CATEGORY -> category.contains(keyword, ignoreCase = true)
+        PasswordSearchField.CATEGORY -> matchesCategory
         PasswordSearchField.NOTE -> note.contains(keyword, ignoreCase = true)
         null -> name.contains(keyword, ignoreCase = true) ||
             username.contains(keyword, ignoreCase = true) ||
             phone.contains(keyword, ignoreCase = true) ||
             email.contains(keyword, ignoreCase = true) ||
             password.contains(keyword, ignoreCase = true) ||
-            category.contains(keyword, ignoreCase = true) ||
+            matchesCategory ||
             note.contains(keyword, ignoreCase = true)
     }
 }
 
 @Composable
 private fun HomeMetricCard(
-    text: String,
+    value: String,
+    label: String,
     icon: ImageVector,
     iconColor: Color,
-    emphasized: Boolean,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
     val themeColors = LocalThemeColors.current
-    val shape = RoundedCornerShape(Radius20)
     val cardModifier = Modifier
         .fillMaxWidth()
-        .height(138.dp)
-        .let { base ->
-            if (emphasized) {
-                base
-                    .softShadow(colors = themeColors, shape = shape, level = ElevationLevel.Floating)
-                    .clip(shape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(themeColors.primaryGradientStart, themeColors.primaryGradientEnd)
-                        )
-                    )
-            } else {
-                base.appleSurface(colors = themeColors, radius = Radius20)
-            }
-        }
+        .heightIn(min = 116.dp)
+        .appleSurface(colors = themeColors, radius = Radius20)
         .padding(Spacing16)
 
     val content: @Composable () -> Unit = {
         Column(
             modifier = cardModifier,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(Spacing8)
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(32.dp)
                     .clip(RoundedCornerShape(Radius10))
-                    .background(if (emphasized) iconColor else iconColor.copy(alpha = 0.12f)),
+                    .background(iconColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (emphasized) Color.White else iconColor,
+                    tint = iconColor,
                     modifier = Modifier.size(20.dp)
                 )
             }
             Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W700),
-                color = if (emphasized) Color.White else themeColors.onBackground
+                text = value,
+                style = MaterialTheme.typography.headlineMedium,
+                color = themeColors.onBackground
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = themeColors.onSurfaceVariant
             )
         }
     }
@@ -301,7 +322,8 @@ private fun HomeMetricCard(
 private fun HomeEmptyState(
     isSearching: Boolean,
     isZh: Boolean,
-    onAddPassword: () -> Unit
+    onAddPassword: () -> Unit,
+    onClearFilters: () -> Unit
 ) {
     val themeColors = LocalThemeColors.current
     Column(
@@ -319,7 +341,7 @@ private fun HomeEmptyState(
                 .background(themeColors.primaryLight),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, tint = themeColors.primary)
+            Icon(if (isSearching) Icons.Outlined.Search else Icons.Outlined.Add, contentDescription = null, tint = themeColors.primary)
         }
         Text(
             text = if (isSearching) {
@@ -341,15 +363,13 @@ private fun HomeEmptyState(
             color = themeColors.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
-        if (!isSearching) {
-            Spacer(modifier = Modifier.height(Spacing4))
-            PressableScale(onClick = onAddPassword) {
-                Text(
-                    text = if (isZh) "添加密码" else "Add Password",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700),
-                    color = themeColors.primary
-                )
-            }
+        TextButton(onClick = if (isSearching) onClearFilters else onAddPassword) {
+            Text(
+                text = if (isSearching) { if (isZh) "清除筛选" else "Clear filters" }
+                    else { if (isZh) "添加密码" else "Add password" },
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700),
+                color = themeColors.primary
+            )
         }
     }
 }

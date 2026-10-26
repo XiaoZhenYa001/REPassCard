@@ -243,7 +243,14 @@ object PasswordIconStorage {
             BitmapFactory.decodeStream(stream, null, bounds)
         }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            throw IllegalArgumentException("无法读取该图片：格式不受支持或图片已损坏。")
+            // Restored SVG assets use content-derived .bin names. XML declarations or long
+            // comments may hide <svg beyond the small format probe; parse only after raster
+            // decoding rules the file out, using the same local SVG renderer as named SVGs.
+            return try {
+                decodeSvgBitmap(context, uri, maxSize)
+            } catch (error: Exception) {
+                throw IllegalArgumentException("无法读取该图片：格式不受支持或图片已损坏。", error)
+            }
         }
 
         val sampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, maxSize * 2)

@@ -40,4 +40,13 @@ class PasswordSearchMatcherTest {
     fun incompleteFieldSearchDoesNotReuseStaleResults() {
         assertFalse(item.matchesPasswordSearch(PasswordSearchSyntax.parse("/t 名称")))
     }
+
+    @Test
+    fun categorySearchMatchesBothStoredAndTranslatedLabels() {
+        assertTrue(item.matchesPasswordSearch(PasswordSearchSyntax.parse("/t category Social Media")))
+        assertTrue(item.copy(category = "Work").matchesPasswordSearch(PasswordSearchSyntax.parse("/t 分类 工作")))
+        assertTrue(item.copy(category = "Work").matchesPasswordSearch(PasswordSearchSyntax.parse("工作")))
+        assertFalse(item.copy(category = "Work").matchesPasswordSearch(PasswordSearchSyntax.parse("/t 邮箱 工作")))
+    }
+
 }

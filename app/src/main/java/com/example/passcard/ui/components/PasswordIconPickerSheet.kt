@@ -116,7 +116,8 @@ fun PasswordIconPickerSheet(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = if (isZh) "搜索图标或文件名" else "Search icons or filenames"
+                placeholder = if (isZh) "搜索图标或文件名" else "Search icons or filenames",
+                clearContentDescription = if (isZh) "清空搜索" else "Clear search"
             )
             TabRow(selectedTabIndex = selectedTab, containerColor = themeColors.background) {
                 tabs.forEachIndexed { index, title ->

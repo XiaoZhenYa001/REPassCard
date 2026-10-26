@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import java.io.OutputStreamWriter
+import java.io.Writer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -25,27 +26,7 @@ object CsvExporter {
 
             try {
                 OutputStreamWriter(exportFile.outputStream, Charsets.UTF_8).use { writer ->
-                    writer.write("\uFEFF")
-                    writer.write("服务,用户名,手机号,邮箱,密码,备注,分类\n")
-
-                    passwords.forEach { entry ->
-                        val line = buildString {
-                            append(escapeCsvField(entry.service))
-                            append(",")
-                            append(escapeCsvField(entry.username))
-                            append(",")
-                            append(escapeCsvField(entry.phone))
-                            append(",")
-                            append(escapeCsvField(entry.email))
-                            append(",")
-                            append(escapeCsvField(entry.password))
-                            append(",")
-                            append(escapeCsvField(entry.note))
-                            append(",")
-                            append(escapeCsvField(entry.category))
-                        }
-                        writer.write("$line\n")
-                    }
+                    writeCsv(writer, passwords)
                 }
                 exportFile.onSuccess()
                 Result.success(exportFile.uri)
@@ -55,6 +36,17 @@ object CsvExporter {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    internal fun writeCsv(writer: Writer, passwords: List<ExportPasswordEntry>) {
+        writer.write("\uFEFF")
+        writer.write("服务,用户名,手机号,邮箱,密码,备注,分类,icon_type,icon_value\n")
+        passwords.forEach { entry ->
+            writer.write(listOf(entry.service, entry.username, entry.phone, entry.email,
+                entry.password, entry.note, entry.category, entry.iconType, entry.iconValue)
+                .joinToString(",") { escapeCsvField(it) })
+            writer.write("\n")
         }
     }
 
@@ -71,7 +63,7 @@ object CsvExporter {
     private fun escapeCsvField(field: String): String {
         return when {
             field.isEmpty() -> ""
-            field.contains(",") || field.contains("\"") || field.contains("\n") -> {
+            field.contains(",") || field.contains("\"") || field.contains("\n") || field.contains("\r") -> {
                 "\"${field.replace("\"", "\"\"")}\""
             }
             else -> field
@@ -86,5 +78,7 @@ data class ExportPasswordEntry(
     val email: String = "",
     val password: String,
     val note: String = "",
-    val category: String = ""
+    val category: String = "",
+    val iconType: String = "generated",
+    val iconValue: String = ""
 )

@@ -9,20 +9,23 @@ import com.example.passcard.util.SyncSecurityMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PassCardApp : Application() {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
-        val preferences = PreferencesManager(this)
-        val frequency = preferences.autoUploadFrequency
-        val eligible = frequency != AutoUploadFrequency.OFF &&
-            preferences.syncSecurityMode == SyncSecurityMode.CONVENIENCE &&
-            AutomaticBackupKeyStore.hasKey(this)
-        AutomaticBackupScheduler.reconcile(
-            context = this,
-            frequency = if (eligible) frequency else AutoUploadFrequency.OFF
-        )
+        applicationScope.launch {
+            val preferences = PreferencesManager(this@PassCardApp)
+            val frequency = preferences.autoUploadFrequency
+            val eligible = frequency != AutoUploadFrequency.OFF &&
+                preferences.syncSecurityMode == SyncSecurityMode.CONVENIENCE &&
+                AutomaticBackupKeyStore.hasKey(this@PassCardApp)
+            AutomaticBackupScheduler.reconcile(
+                context = this@PassCardApp,
+                frequency = if (eligible) frequency else AutoUploadFrequency.OFF
+            )
+        }
     }
 }

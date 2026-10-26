@@ -16,9 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +34,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.Radius14
 import com.example.passcard.ui.theme.SearchBarHeight
@@ -43,9 +52,11 @@ fun SearchBar(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "搜索密码..."
+    placeholder: String = "搜索密码...",
+    clearContentDescription: String = "清空搜索"
 ) {
     val themeColors = rememberThemeColors()
+    val focusManager = LocalFocusManager.current
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(Radius14)
     val borderColor by animateColorAsState(
@@ -72,7 +83,7 @@ fun SearchBar(
                 .fillMaxSize()
                 .clip(shape)
                 .background(themeColors.surface)
-                .padding(horizontal = Spacing14),
+                .padding(start = Spacing14, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -91,9 +102,13 @@ fun SearchBar(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .semantics { contentDescription = placeholder }
                     .onFocusChanged { focused = it.isFocused },
                 textStyle = textStyle,
+                cursorBrush = SolidColor(themeColors.primary),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                 decorationBox = { innerTextField ->
                     Box(
                         modifier = Modifier.fillMaxHeight(),
@@ -109,6 +124,11 @@ fun SearchBar(
                     }
                 }
             )
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }) {
+                    Icon(Icons.Outlined.Close, clearContentDescription, tint = themeColors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                }
+            }
         }
     }
 }

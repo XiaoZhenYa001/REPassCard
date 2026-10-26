@@ -6,7 +6,10 @@ import androidx.paging.PagingData
 import androidx.paging.map
 import com.example.passcard.ui.screens.PasswordItem
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
@@ -20,36 +23,29 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
         entities.map { it.toPasswordItem() }
     }
 
-    val weakPasswords: Flow<List<PasswordItem>> = passwordDao.getWeakPasswords().map { entities ->
-        entities.map { it.toPasswordItem() }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val healthSnapshot: Flow<PasswordHealthSnapshot> = passwordDao.observeAllPasswords().mapLatest { entities ->
+        withContext(Dispatchers.Default) {
+            PasswordHealthAnalyzer.analyze(entities.map { it.toPasswordItem() })
+        }
     }
 
-    val reusedPasswordGroups: Flow<List<ReusedPasswordGroup>> = passwordDao.getReusedPasswords().map { entities ->
-        entities
-            .map { it.toPasswordItem() }
-            .groupBy { it.password }
-            .filterValues { it.size > 1 }
-            .values
-            .map { group -> ReusedPasswordGroup(items = group) }
-            .sortedWith(compareByDescending<ReusedPasswordGroup> { it.items.size }.thenBy { it.label })
-    }
-    
+    val weakPasswords: Flow<List<PasswordItem>> = healthSnapshot.map { it.weakPasswords }
+    val reusedPasswordGroups: Flow<List<ReusedPasswordGroup>> = healthSnapshot.map { it.reusedPasswordGroups }
+
     val passwordCount: Flow<Int> = passwordDao.getPasswordCount()
 
-    val securityStats: Flow<PasswordSecurityStats> = combine(
-        passwordDao.getPasswordCount(),
-        passwordDao.getWeakPasswordCount(),
-        passwordDao.getReusedPasswordCount()
-    ) { total, weak, reused ->
-        PasswordSecurityStats(
-            totalCount = total,
-            weakCount = weak,
-            reusedCount = reused,
-            compromisedCount = 0
-        )
+    val categories: Flow<List<String>> = passwordDao.getCategories().map(PasswordCategories::availableKeys)
+
+    fun getHomePasswords(query: String, category: String?): Flow<List<PasswordItem>> = when {
+        query.isNotBlank() -> searchPasswords(query, category)
+        category != null -> getPasswordsByCategory(category)
+        else -> recentPasswords
     }
 
-    fun getPagedPasswords(query: String): Flow<PagingData<PasswordItem>> {
+    val securityStats: Flow<PasswordSecurityStats> = healthSnapshot.map { it.stats }
+
+    fun getPagedPasswords(query: String, category: String? = null): Flow<PagingData<PasswordItem>> {
         val normalizedQuery = query.trim()
         val parsedSearch = PasswordSearchSyntax.parse(normalizedQuery)
         return Pager(
@@ -61,18 +57,24 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
             ),
             pagingSourceFactory = {
                 when {
-                    normalizedQuery.isBlank() -> passwordDao.getPagedPasswords("", "", "%%")
+                    normalizedQuery.isBlank() -> passwordDao.getPagedPasswords("", "", "%%", category != null, PasswordCategories.aliases(category), listOf(""))
                     parsedSearch.keyword.isBlank() -> passwordDao.getEmptyPagedPasswords()
                     parsedSearch.field != null -> passwordDao.getPagedPasswordsByField(
                         field = parsedSearch.field.column,
                         query = parsedSearch.keyword,
                         prefix = parsedSearch.prefix,
-                        contains = parsedSearch.contains
+                        contains = parsedSearch.contains,
+                        filterCategory = category != null,
+                        categories = PasswordCategories.aliases(category),
+                        matchedCategories = PasswordCategories.searchAliases(parsedSearch.keyword)
                     )
                     else -> passwordDao.getPagedPasswords(
                         query = parsedSearch.keyword,
                         prefix = parsedSearch.prefix,
-                        contains = parsedSearch.contains
+                        contains = parsedSearch.contains,
+                        filterCategory = category != null,
+                        categories = PasswordCategories.aliases(category),
+                        matchedCategories = PasswordCategories.searchAliases(parsedSearch.keyword)
                     )
                 }
             }
@@ -82,12 +84,12 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
     }
     
     fun getPasswordsByCategory(category: String): Flow<List<PasswordItem>> {
-        return passwordDao.getPasswordsByCategory(category).map { entities ->
+        return passwordDao.getPasswordsByCategory(PasswordCategories.aliases(category), 20).map { entities ->
             entities.map { it.toPasswordItem() }
         }
     }
     
-    fun searchPasswords(query: String): Flow<List<PasswordItem>> {
+    fun searchPasswords(query: String, category: String? = null): Flow<List<PasswordItem>> {
         val parsedSearch = PasswordSearchSyntax.parse(query)
         if (parsedSearch.keyword.isBlank()) return flowOf(emptyList())
 
@@ -96,13 +98,19 @@ class PasswordRepository(private val passwordDao: PasswordDao) {
                 field = parsedSearch.field.column,
                 query = parsedSearch.keyword,
                 prefix = parsedSearch.prefix,
-                contains = parsedSearch.contains
+                contains = parsedSearch.contains,
+                filterCategory = category != null,
+                categories = PasswordCategories.aliases(category),
+                matchedCategories = PasswordCategories.searchAliases(parsedSearch.keyword)
             )
         } else {
             passwordDao.searchPasswords(
                 query = parsedSearch.keyword,
                 prefix = parsedSearch.prefix,
-                contains = parsedSearch.contains
+                contains = parsedSearch.contains,
+                filterCategory = category != null,
+                categories = PasswordCategories.aliases(category),
+                matchedCategories = PasswordCategories.searchAliases(parsedSearch.keyword)
             )
         }
         return source.map { entities ->

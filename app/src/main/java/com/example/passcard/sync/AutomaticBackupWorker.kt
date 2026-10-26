@@ -25,7 +25,7 @@ class AutomaticBackupWorker(
         if (!hasCloudConfiguration(preferences)) {
             return stopForUser(preferences, "云端连接配置不完整")
         }
-        val phrase = AutomaticBackupKeyStore.read(applicationContext)
+        val backupPassword = AutomaticBackupKeyStore.read(applicationContext)
             ?: return stopForUser(preferences, "自动上传密钥不可用，请重新授权")
 
         return try {
@@ -56,16 +56,35 @@ class AutomaticBackupWorker(
                 }
                 AutomaticBackupDecision.UPLOAD -> {
                     repository.uploadEncryptedVault(
-                        recoveryPhrase = phrase,
+                        backupPassword = backupPassword,
                         passwords = passwords,
                         deviceId = preferences.getOrCreateInstallationId(),
                         deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
-                        userConfirmedEmptyOverwrite = false
+                        userConfirmedEmptyOverwrite = false,
+                        loadPasswords = {
+                            AppDatabase.getInstance(applicationContext).passwordDao().getAllPasswordsSnapshot()
+                                .also { if (it.isEmpty()) throw EmptyAutomaticVaultException() }
+                        }
                     ).getOrThrow()
                     preferences.recordAutoUpload(AutoUploadStatus.SUCCESS, "加密备份已自动上传")
                     Result.success()
                 }
             }
+        } catch (error: EmptyAutomaticVaultException) {
+            preferences.recordAutoUpload(AutoUploadStatus.SKIPPED_EMPTY, "本地保险库为空，已跳过上传")
+            Result.success()
+        } catch (error: CloudWriteConflictException) {
+            preferences.recordAutoUpload(AutoUploadStatus.CONFLICT, "云端备份已更新，请先保留本地记录并手动处理")
+            Result.success()
+        } catch (error: javax.crypto.BadPaddingException) {
+            preferences.recordAutoUpload(AutoUploadStatus.ERROR, "云端备份密码不匹配，请重新授权自动上传")
+            Result.failure()
+        } catch (error: CloudConditionalWriteCheckException) {
+            preferences.recordAutoUpload(AutoUploadStatus.ERROR, error.detail)
+            val transient = error.reason == CloudConditionalWriteFailure.REQUEST_FAILED ||
+                (error.reason == CloudConditionalWriteFailure.HTTP_ERROR &&
+                    error.httpStatus?.let { it in 500..599 && it != 501 } == true)
+            if (transient && runAttemptCount < MAX_RETRIES) Result.retry() else Result.failure()
         } catch (error: Throwable) {
             preferences.recordAutoUpload(
                 AutoUploadStatus.ERROR,
@@ -83,6 +102,8 @@ class AutomaticBackupWorker(
     private fun hasCloudConfiguration(preferences: PreferencesManager): Boolean =
         preferences.s3Endpoint.isNotBlank() && preferences.s3Bucket.isNotBlank() &&
             preferences.s3AccessKey.isNotBlank() && preferences.s3SecretKey.isNotBlank()
+
+    private class EmptyAutomaticVaultException : IllegalStateException()
 
     companion object {
         private const val MAX_RETRIES = 3

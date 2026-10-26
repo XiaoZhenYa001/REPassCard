@@ -121,7 +121,7 @@ fun SettingsContent(
     ) {
         Text(
             text = if (isZh) "设置" else "Settings",
-            style = MaterialTheme.typography.displayLarge,
+            style = MaterialTheme.typography.headlineLarge,
             color = themeColors.onBackground
         )
         Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
@@ -147,7 +147,7 @@ fun SettingsContent(
             if (preferencesManager?.hasMasterPassword == true) {
                 SettingToggleItem(
                     icon = Icons.Outlined.Fingerprint,
-                    label = if (isZh) "指纹解锁" else "Fingerprint Unlock",
+                    label = if (isZh) "生物识别解锁" else "Biometric unlock",
                     checked = biometricEnabled,
                     onCheckedChange = onBiometricEnabledChange,
                     iconBackgroundColor = IconBgGreen,
@@ -185,6 +185,20 @@ fun SettingsContent(
                 iconBackgroundColor = IconBgCyan,
                 colors = themeColors
             )
+            SettingToggleItem(
+                icon = Icons.AutoMirrored.Outlined.VolumeUp,
+                label = if (isZh) "声音反馈" else "Sound Feedback",
+                checked = soundEnabled,
+                onCheckedChange = {
+                    soundEnabled = it
+                    preferencesManager?.soundEnabled = it
+                },
+                iconBackgroundColor = IconBgGreen,
+                colors = themeColors
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing10)) {
+            SectionTitle(title = if (isZh) "安全与隐私" else "Security & privacy", colors = themeColors)
             Box {
                 SettingItem(
                     icon = Icons.Outlined.Lock,
@@ -218,17 +232,6 @@ fun SettingsContent(
                 }
             }
             SettingToggleItem(
-                icon = Icons.AutoMirrored.Outlined.VolumeUp,
-                label = if (isZh) "声音反馈" else "Sound Feedback",
-                checked = soundEnabled,
-                onCheckedChange = {
-                    soundEnabled = it
-                    preferencesManager?.soundEnabled = it
-                },
-                iconBackgroundColor = IconBgGreen,
-                colors = themeColors
-            )
-            SettingToggleItem(
                 icon = Icons.Outlined.ContentPaste,
                 label = if (isZh) "自动清除剪贴板" else "Auto-clear Clipboard",
                 checked = clipboardClearEnabled,
@@ -240,6 +243,13 @@ fun SettingsContent(
                 colors = themeColors
             )
             if (clipboardClearEnabled) {
+                Text(
+                    text = if (isZh) "到期后清理仍匹配本应用复制标记的内容；在后台时，返回应用后补清理。"
+                        else "Clears matching items copied here when due. Cleanup resumes when you return from the background.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeColors.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Spacing20)
+                )
                 Box {
                     SettingItem(
                         icon = Icons.Outlined.Timer,

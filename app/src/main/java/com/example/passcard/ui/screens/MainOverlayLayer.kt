@@ -1,26 +1,19 @@
 package com.example.passcard.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.passcard.ui.components.LoadingIndicator
 import com.example.passcard.ui.components.DropdownOption
 import com.example.passcard.ui.components.DropdownSelectMenu
 import com.example.passcard.ui.components.ExportFormat
@@ -36,7 +29,9 @@ data class MainOverlayUiState(
     val languageDropdownOffset: IntOffset,
     val languageDropdownSize: IntSize,
     val showExportFormatPicker: Boolean,
-    val isImportBusy: Boolean
+    val isImportBusy: Boolean,
+    val isExportBusy: Boolean,
+    val fileOperationStage: FileOperationStage?
 )
 
 @Immutable
@@ -92,36 +87,27 @@ fun MainOverlayLayer(
         onDismiss = onDismissExportPicker
     )
 
-    if (state.isImportBusy) {
-        ImportBusyOverlay(currentLanguage = currentLanguage)
+    if (state.isImportBusy || state.isExportBusy) {
+        BackHandler {}
+        FileBusyOverlay(currentLanguage, state.fileOperationStage)
     }
 }
 
 @Composable
-private fun ImportBusyOverlay(currentLanguage: AppLanguage) {
-    val themeColors = LocalThemeColors.current
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.25f)),
-        contentAlignment = Alignment.Center
+private fun FileBusyOverlay(currentLanguage: AppLanguage, stage: FileOperationStage?) {
+    val colors = LocalThemeColors.current
+    val zh = currentLanguage == AppLanguage.CHINESE
+    val message = when (stage) {
+        FileOperationStage.IMPORTING -> if (zh) "正在保存所选记录…" else "Saving selected records…"
+        FileOperationStage.EXPORTING -> if (zh) "正在准备导出文件…" else "Preparing your export…"
+        else -> if (zh) "正在读取并检查文件…" else "Reading and checking the file…"
+    }
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
     ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = themeColors.surface),
-            shape = RoundedCornerShape(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.5.dp)
-                Text(
-                    text = if (currentLanguage == AppLanguage.CHINESE) "正在解析导入文件..." else "Parsing import file...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = themeColors.onBackground
-                )
-            }
+        Card(colors = CardDefaults.cardColors(containerColor = colors.surface), shape = RoundedCornerShape(20.dp)) {
+            LoadingIndicator(message, Modifier.padding(horizontal = 24.dp, vertical = 20.dp), compact = true)
         }
     }
 }

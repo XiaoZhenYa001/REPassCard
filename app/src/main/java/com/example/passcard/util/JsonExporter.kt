@@ -25,31 +25,11 @@ object JsonExporter {
                 mimeType = "application/json"
             ).getOrThrow()
 
-            val root = JSONObject().apply {
-                put("app", "REPassCard")
-                put("version", 1)
-                put("exportDate", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault()).format(Date()))
-                put("count", passwords.size)
-
-                val passwordsArray = JSONArray()
-                passwords.forEach { entry ->
-                    val obj = JSONObject().apply {
-                        put("service", entry.service)
-                        put("username", entry.username)
-                        put("phone", entry.phone)
-                        put("email", entry.email)
-                        put("password", entry.password)
-                        put("note", entry.note)
-                        put("category", entry.category)
-                    }
-                    passwordsArray.put(obj)
-                }
-                put("passwords", passwordsArray)
-            }
+            val content = createJsonContent(passwords)
 
             try {
                 OutputStreamWriter(exportFile.outputStream, Charsets.UTF_8).use { writer ->
-                    writer.write(root.toString(2))
+                    writer.write(content)
                 }
                 exportFile.onSuccess()
                 Result.success(exportFile.uri)
@@ -60,6 +40,31 @@ object JsonExporter {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    internal fun createJsonContent(passwords: List<ExportPasswordEntry>): String {
+        val root = JSONObject().apply {
+            put("app", "REPassCard")
+            put("version", 2)
+            put("exportDate", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault()).format(Date()))
+            put("count", passwords.size)
+            val passwordsArray = JSONArray()
+            passwords.forEach { entry ->
+                passwordsArray.put(JSONObject().apply {
+                    put("service", entry.service)
+                    put("username", entry.username)
+                    put("phone", entry.phone)
+                    put("email", entry.email)
+                    put("password", entry.password)
+                    put("note", entry.note)
+                    put("category", entry.category)
+                    put("iconType", entry.iconType)
+                    put("iconValue", entry.iconValue)
+                })
+            }
+            put("passwords", passwordsArray)
+        }
+        return root.toString(2)
     }
 
     fun createShareIntent(uri: Uri): Intent {

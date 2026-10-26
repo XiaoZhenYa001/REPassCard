@@ -27,6 +27,7 @@ import com.example.passcard.data.PasswordSecurityStats
 import com.example.passcard.ui.components.SectionTitle
 import com.example.passcard.ui.components.SecurityListItem
 import com.example.passcard.ui.components.SecurityScoreCard
+import com.example.passcard.ui.components.SecurityOperationState
 import com.example.passcard.ui.components.SecurityStatCard
 import com.example.passcard.ui.components.SecuritySuggestionItem
 import com.example.passcard.ui.theme.LocalThemeColors
@@ -42,19 +43,24 @@ fun SecurityContent(
     onOpenAllPasswords: () -> Unit,
     onOpenWeakPasswords: () -> Unit,
     onOpenReusedPasswords: () -> Unit,
-    scrollState: ScrollState = rememberScrollState()
+    modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onRetry: () -> Unit = {}
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
 
     val scoreDesc = when {
         stats.totalCount == 0 -> if (isZh) "保险库为空，添加密码后即可生成安全评分。" else "Your vault is empty. Add passwords to generate a score."
-        stats.weakCount == 0 && stats.reusedCount == 0 -> if (isZh) "当前密码健康状况良好，请继续保持。" else "Your password health looks good."
-        else -> if (isZh) "评分基于弱密码和重复密码占比，优先处理下方项目。" else "The score is based on weak and reused password ratios. Fix the items below first."
+        !stats.hasScore -> if (isZh) "当前记录未保存可评估的密码，暂无评分。" else "These records have no password to assess. No score is available."
+        stats.weakCount == 0 && stats.reusedCount == 0 -> if (isZh) "本地检查暂未发现明显的弱密码或重复使用。" else "Local checks found no obvious weak or reused passwords."
+        else -> if (isZh) "评分基于密码长度、常见模式和重复使用，请优先处理下方项目。" else "The score uses length, predictable patterns and reuse. Review the items below first."
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
@@ -62,23 +68,33 @@ fun SecurityContent(
             .padding(horizontal = Spacing20, vertical = Spacing20),
         verticalArrangement = Arrangement.spacedBy(Spacing24)
     ) {
-        Row(modifier = Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (isZh) "安全中心" else "Security Center",
-                style = MaterialTheme.typography.displayLarge,
+                style = MaterialTheme.typography.headlineLarge,
                 color = themeColors.onBackground
             )
+        }
+        if (isLoading || errorMessage != null) {
+            SecurityOperationState(
+                currentLanguage = currentLanguage,
+                errorMessage = errorMessage,
+                onRetry = onRetry,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp)
+            )
+            return@Column
         }
         SecurityScoreCard(
             score = stats.score,
             description = scoreDesc,
-            currentLanguage = currentLanguage
+            currentLanguage = currentLanguage,
+            hasPasswords = stats.hasScore
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
             SecurityStatCard(
                 icon = Icons.Outlined.Storage,
                 value = stats.totalCount.toString(),
-                label = if (isZh) "密码总数" else "Total",
+                label = if (isZh) "记录总数" else "Records",
                 backgroundColor = themeColors.surfaceVariant,
                 iconTint = themeColors.onSurfaceVariant,
                 valueColor = themeColors.onBackground,
@@ -109,9 +125,20 @@ fun SecurityContent(
                 onClick = onOpenReusedPasswords
             )
         }
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
+        Text(
+            text = if (isZh) {
+                "仅在本机进行启发式检查，未查询密码泄露。" +
+                    if (stats.passwordlessCount > 0) " ${stats.passwordlessCount} 条未保存密码的记录不参与评分。" else ""
+            } else {
+                "Local heuristics only; breaches are not checked." +
+                    if (stats.passwordlessCount > 0) " ${stats.passwordlessCount} records without a password are excluded." else ""
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = themeColors.onSurfaceVariant
+        )
+        if (stats.weakCount > 0 || stats.reusedCount > 0) Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
             SectionTitle(title = if (isZh) "需要关注" else "Attention Needed", colors = themeColors)
-            SecurityListItem(
+            if (stats.weakCount > 0) SecurityListItem(
                 iconBackgroundColor = themeColors.errorContainer,
                 icon = Icons.Outlined.LockOpen,
                 iconTint = themeColors.error,
@@ -119,7 +146,7 @@ fun SecurityContent(
                 description = if (isZh) "${stats.weakCount} 个账户需要更强的密码" else "${stats.weakCount} accounts need stronger passwords",
                 onClick = onOpenWeakPasswords
             )
-            SecurityListItem(
+            if (stats.reusedCount > 0) SecurityListItem(
                 iconBackgroundColor = themeColors.warningContainer,
                 icon = Icons.Outlined.Warning,
                 iconTint = themeColors.warning,
@@ -131,11 +158,11 @@ fun SecurityContent(
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing10)) {
             SectionTitle(title = if (isZh) "安全建议" else "Security Suggestions", colors = themeColors)
             SecuritySuggestionItem(
-                title = if (isZh) "优先修复弱密码和重复密码" else "Fix weak and reused passwords first",
+                title = if (isZh) "为每个账户使用独立密码" else "Use a unique password for each account",
                 description = if (isZh) {
-                    "统计和列表都来自本地数据库查询。重要账户建议使用更长且唯一的随机密码，并开启两步验证。"
+                    "建议使用至少 15 个字符的独立随机密码，或由不相关词语组成的长口令。修改记录前，先在对应网站或应用中更换密码；重要账户建议开启两步验证。"
                 } else {
-                    "Stats and lists come from local database queries. Use longer unique random passwords for important accounts and enable 2FA."
+                    "Use a unique random password of at least 15 characters, or a long passphrase made of unrelated words. Change it on the service before updating the saved item, and enable 2FA for important accounts."
                 }
             )
         }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +54,7 @@ import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.ui.theme.rememberThemeColors
 import com.example.passcard.util.ClipboardHelper
 import com.example.passcard.util.PasswordIconType
+import com.example.passcard.util.playPassCardClick
 import kotlinx.coroutines.delay
 
 @Composable
@@ -66,20 +71,21 @@ fun PasswordListItem(
     onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val themeColors = rememberThemeColors()
     val interactionSource = remember { MutableInteractionSource() }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .heightIn(min = 72.dp)
             .appleSurface(colors = themeColors, radius = Radius18)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick
+                onClick = { view.playPassCardClick(); onClick() }
             )
-            .padding(horizontal = Spacing14),
+            .padding(horizontal = Spacing14, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         PasswordIcon(
@@ -103,7 +109,7 @@ fun PasswordListItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
+            if (email.isNotBlank()) Text(
                 text = email,
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.onSurfaceVariant,
@@ -118,6 +124,7 @@ fun PasswordListItem(
             themeColors = themeColors,
             contentDescription = copyContentDescription,
             copiedContentDescription = copiedToastMessage,
+            enabled = password.isNotEmpty(),
             onClick = { copyToClipboard(context, password) }
         )
     }
@@ -128,6 +135,7 @@ private fun CopyPasswordButton(
     themeColors: ThemeColors,
     contentDescription: String,
     copiedContentDescription: String,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     var copied by remember { mutableStateOf(false) }
@@ -146,11 +154,13 @@ private fun CopyPasswordButton(
             copied = true
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         },
+        enabled = enabled,
+        modifier = Modifier.semantics { if (copied) stateDescription = copiedContentDescription },
         pressScale = MotionScale.StrongPressed
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .clip(RoundedCornerShape(Radius13))
                 .background(themeColors.surfaceVariant),
             contentAlignment = Alignment.Center
@@ -163,7 +173,7 @@ private fun CopyPasswordButton(
                 Icon(
                     imageVector = if (isCopied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
                     contentDescription = if (isCopied) copiedContentDescription else contentDescription,
-                    tint = if (isCopied) themeColors.success else themeColors.onSurfaceVariant,
+                    tint = if (!enabled) themeColors.muted else if (isCopied) themeColors.success else themeColors.onSurfaceVariant,
                     modifier = Modifier.size(19.dp)
                 )
             }
@@ -188,19 +198,20 @@ fun SimplePasswordListItem(
     iconValue: String = ""
 ) {
     val themeColors = rememberThemeColors()
+    val view = LocalView.current
     val interactionSource = remember { MutableInteractionSource() }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .heightIn(min = 72.dp)
             .appleSurface(colors = themeColors, radius = Radius18)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick
+                onClick = { view.playPassCardClick(); onClick() }
             )
-            .padding(horizontal = Spacing14),
+            .padding(horizontal = Spacing14, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         PasswordIcon(

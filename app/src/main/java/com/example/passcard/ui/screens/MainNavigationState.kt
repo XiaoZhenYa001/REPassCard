@@ -1,10 +1,26 @@
 package com.example.passcard.ui.screens
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.example.passcard.ui.components.TabItem
 import com.example.passcard.util.ImportIssue
+
+/** Kept by the unlocked vault's ViewModel, so configuration changes preserve navigation. */
+class MainNavigationState {
+    val uiState = mutableStateOf(MainUiState())
+    val allPasswordsSearchQuery = mutableStateOf("")
+    val allPasswordsCategory = mutableStateOf<String?>(null)
+
+    fun clear() {
+        uiState.value = MainUiState()
+        allPasswordsSearchQuery.value = ""
+        allPasswordsCategory.value = null
+    }
+}
+
+enum class FileOperationStage { PARSING_IMPORT, IMPORTING, EXPORTING }
 
 @Immutable
 data class MainUiState(
@@ -16,6 +32,8 @@ data class MainUiState(
     val importReceipt: ImportReceiptUi? = null,
     val showImportReceipt: Boolean = false,
     val isImportBusy: Boolean = false,
+    val isExportBusy: Boolean = false,
+    val fileOperationStage: FileOperationStage? = null,
     val selectedCategory: String? = null,
     val searchQuery: String = "",
     val showThemeDropdown: Boolean = false,

@@ -137,6 +137,7 @@ fun RandomPasswordSettingsScreen(
                 strengthScore = strength.score,
                 strengthLabel = if (isZh) strength.labelZh else strength.labelEn,
                 strengthHint = if (isZh) strength.hintZh else strength.hintEn,
+                isZh = isZh,
                 onCopy = {
                     ClipboardHelper.copyToClipboard(context, preview, label = "Random Password", showToast = false)
                     Toast.makeText(
@@ -215,6 +216,7 @@ private fun PreviewCard(
     strengthScore: Int,
     strengthLabel: String,
     strengthHint: String,
+    isZh: Boolean,
     onCopy: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -286,7 +288,7 @@ private fun PreviewCard(
             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
         )
         Text(
-            text = "$strengthLabel · $strengthScore%",
+            text = "${if (isZh) "生成配置参考" else "Generation reference"}: $strengthLabel · $strengthScore / 100",
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             color = themeColors.onBackground
         )

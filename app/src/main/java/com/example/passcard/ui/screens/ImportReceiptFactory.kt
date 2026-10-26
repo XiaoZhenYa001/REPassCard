@@ -3,10 +3,6 @@ package com.example.passcard.ui.screens
 import com.example.passcard.util.ImportParseResult
 import java.util.Locale
 
-fun buildImportKey(service: String, username: String): String {
-    return "${service.trim().lowercase()}|${username.trim().lowercase()}"
-}
-
 private fun formatImportDuration(durationMillis: Long): String {
     val seconds = durationMillis.coerceAtLeast(1) / 1000.0
     return String.format(Locale.ROOT, "%.1fs", seconds)
@@ -47,9 +43,9 @@ fun buildParseReceipt(
             ImportReceiptFeedItem(
                 title = if (isZh) "发现重复项" else "Duplicates Found",
                 description = if (isZh) {
-                    "检测到 $duplicateCount 条与现有或本批次重复，默认不会自动覆盖。"
+                    "$duplicateCount 条记录的全部内容与保险库或本批次完全相同，默认跳过；内容不同的记录仍可导入。"
                 } else {
-                    "$duplicateCount records are duplicated with existing or current batch; they will not be overwritten by default."
+                    "$duplicateCount records have identical content in the vault or this batch and are skipped by default. Records with different content remain importable."
                 },
                 tag = if (isZh) "重复" else "duplicate",
                 tone = ImportReceiptFeedTone.WARNING
@@ -208,6 +204,9 @@ fun buildImportDoneReceipt(
     language: AppLanguage
 ): ImportReceiptUi {
     val isZh = language == AppLanguage.CHINESE
+    if (importedCount == 0 && selectedCount > 0 && duplicateSkipped == selectedCount) {
+        return buildAlreadyPresentReceipt(duplicateSkipped, parseIssueCount, durationMillis, language)
+    }
     val unresolved = duplicateSkipped + parseIssueCount
     val level = when {
         importedCount == 0 -> ImportReceiptLevel.ERROR
@@ -233,9 +232,9 @@ fun buildImportDoneReceipt(
             ImportReceiptFeedItem(
                 title = if (isZh) "重复项已跳过" else "Duplicates Skipped",
                 description = if (isZh) {
-                    "为避免覆盖，自动跳过 $duplicateSkipped 条重复记录。"
+                    "已跳过 $duplicateSkipped 条内容完全相同的记录；不同账户、密码或备注的记录会保留。"
                 } else {
-                    "$duplicateSkipped duplicates were skipped to avoid overwrite."
+                    "$duplicateSkipped identical records were skipped. Records with different accounts, passwords, or notes are kept."
                 },
                 tag = if (isZh) "跳过" else "skip",
                 tone = ImportReceiptFeedTone.WARNING
@@ -260,9 +259,9 @@ fun buildImportDoneReceipt(
         ImportReceiptFeedItem(
             title = if (isZh) "安全建议" else "Security Advice",
             description = if (isZh) {
-                "为避免明文泄露，请尽快删除源 CSV 文件。"
+                "确认导入完成后，请妥善处理包含明文数据的 CSV / JSON 源文件。"
             } else {
-                "Delete the source CSV file as soon as possible to reduce plaintext exposure."
+                "After confirming the import, handle the source CSV / JSON file carefully because it contains plaintext data."
             },
             tag = if (isZh) "重要" else "important",
             tone = ImportReceiptFeedTone.INFO
@@ -301,6 +300,57 @@ fun buildImportDoneReceipt(
         secondaryActionText = if (isZh) "查看明细" else "View Details",
         primaryAction = if (level == ImportReceiptLevel.ERROR) ImportReceiptActionType.PICK_FILE else ImportReceiptActionType.CLOSE_PREVIEW,
         secondaryAction = ImportReceiptActionType.SHOW_ISSUES,
+        feedItems = feed
+    )
+}
+
+private fun buildAlreadyPresentReceipt(
+    existingCount: Int,
+    parseIssueCount: Int,
+    durationMillis: Long,
+    language: AppLanguage
+): ImportReceiptUi {
+    val isZh = language == AppLanguage.CHINESE
+    val feed = mutableListOf(
+        ImportReceiptFeedItem(
+            title = if (isZh) "记录已存在" else "Records already exist",
+            description = if (isZh) {
+                "所选 $existingCount 条记录与保险库已有内容完全相同，已保留原记录。"
+            } else {
+                "All $existingCount selected records match the vault exactly. Existing records were kept."
+            },
+            tag = if (isZh) "已保留" else "kept",
+            tone = ImportReceiptFeedTone.INFO
+        )
+    )
+    if (parseIssueCount > 0) {
+        feed.add(
+            ImportReceiptFeedItem(
+                title = if (isZh) "存在异常行" else "Invalid rows",
+                description = if (isZh) {
+                    "$parseIssueCount 行未通过格式校验，可返回预览查看原因。"
+                } else {
+                    "$parseIssueCount rows failed validation. Return to the preview for details."
+                },
+                tag = if (isZh) "待处理" else "pending",
+                tone = ImportReceiptFeedTone.WARNING
+            )
+        )
+    }
+    return ImportReceiptUi(
+        level = if (parseIssueCount > 0) ImportReceiptLevel.WARNING else ImportReceiptLevel.SUCCESS,
+        statusLabel = if (isZh) "已全部存在" else "Already in vault",
+        title = if (isZh) "所选记录已全部在保险库中" else "All selected records are already in the vault",
+        description = if (isZh) "无需重复导入，可以返回预览查看记录。" else "No duplicate import is needed. You can return to the preview to review the records.",
+        primaryValue = existingCount.toString(),
+        primaryLabel = if (isZh) "已存在" else "Already present",
+        secondaryValue = parseIssueCount.toString(),
+        secondaryLabel = if (isZh) "待处理" else "Pending",
+        durationText = formatImportDuration(durationMillis),
+        primaryActionText = if (isZh) "查看预览" else "View preview",
+        secondaryActionText = if (isZh) "完成" else "Done",
+        primaryAction = ImportReceiptActionType.SHOW_ISSUES,
+        secondaryAction = ImportReceiptActionType.CLOSE_PREVIEW,
         feedItems = feed
     )
 }

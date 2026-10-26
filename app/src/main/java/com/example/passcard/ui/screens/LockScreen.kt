@@ -236,13 +236,13 @@ fun LockScreen(
                 .fillMaxWidth()
                 .height(ActionButtonHeight),
             shape = RoundedCornerShape(Radius16),
-            colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary),
+            colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary, contentColor = themeColors.onPrimary),
             enabled = password.isNotEmpty() && !isVerifying
         ) {
             if (isVerifying) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = Color.White,
+                    color = themeColors.onPrimary,
                     strokeWidth = 2.dp
                 )
             } else {

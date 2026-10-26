@@ -29,9 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.util.PasswordIconStorage
 import com.example.passcard.util.PasswordIconType
+import com.example.passcard.util.passwordIconPaletteIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.math.absoluteValue
 
 data class GeneratedIconOption(
     val value: String,
@@ -226,5 +226,5 @@ private fun generatedColors(seed: String): List<Color> {
         listOf(Color(0xFFDB2777), Color(0xFF7C3AED)),
         listOf(Color(0xFF0F766E), Color(0xFF1D4ED8))
     )
-    return palettes[seed.hashCode().absoluteValue % palettes.size]
+    return palettes[passwordIconPaletteIndex(seed, palettes.size)]
 }

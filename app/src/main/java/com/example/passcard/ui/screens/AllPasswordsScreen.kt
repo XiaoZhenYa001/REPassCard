@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,8 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.Add
+import com.example.passcard.ui.components.LoadingIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +43,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.example.passcard.ui.components.PasswordListItem
 import com.example.passcard.ui.components.SearchBar
+import com.example.passcard.ui.components.CategoryTagRow
 import com.example.passcard.ui.theme.rememberThemeColors
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -50,6 +54,11 @@ fun AllPasswordsScreen(
     onPasswordClick: (PasswordItem) -> Unit,
     modifier: Modifier = Modifier,
     pagedPasswords: Flow<PagingData<PasswordItem>> = flowOf(PagingData.empty()),
+    passwordCount: Int = 0,
+    categories: List<String> = emptyList(),
+    selectedCategory: String? = null,
+    onCategorySelected: (String?) -> Unit = {},
+    onAddPassword: () -> Unit = {},
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     currentLanguage: AppLanguage = AppLanguage.CHINESE,
@@ -67,31 +76,31 @@ fun AllPasswordsScreen(
         modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
+            .navigationBarsPadding()
             .background(MaterialTheme.colorScheme.background)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
+            IconButton(onClick = onBack) { Icon(
                 imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = if (isZh) "返回" else "Back",
                 tint = themeColors.onBackground,
-                modifier = Modifier.size(24.dp).clickable { onBack() }
-            )
-            Spacer(modifier = Modifier.width(16.dp))
+                modifier = Modifier.size(22.dp)
+            ) }
             Text(
                 text = AppStrings.allPasswords(currentLanguage),
                 style = MaterialTheme.typography.titleLarge,
                 color = themeColors.onBackground
             )
             Spacer(modifier = Modifier.weight(1f))
-            Icon(
-                imageVector = Icons.Outlined.Search,
-                contentDescription = "Search",
+            IconButton(onClick = onAddPassword) { Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = if (isZh) "添加密码" else "Add password",
                 tint = themeColors.onBackground,
                 modifier = Modifier.size(24.dp)
-            )
+            ) }
         }
 
         SearchField(
@@ -99,6 +108,11 @@ fun AllPasswordsScreen(
             onValueChange = onSearchQueryChange,
             currentLanguage = currentLanguage
         )
+
+        if (categories.isNotEmpty() || selectedCategory != null) {
+            CategoryTagRow(categories, selectedCategory, onCategorySelected,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), isChinese = isZh)
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 16.dp),
@@ -108,7 +122,8 @@ fun AllPasswordsScreen(
                 text = if (isInitialLoading) {
                     if (isZh) "正在加载..." else "Loading..."
                 } else {
-                    AppStrings.itemsCount(lazyPasswords.itemCount, currentLanguage)
+                    if (searchQuery.isBlank() && selectedCategory == null) AppStrings.itemsCount(passwordCount, currentLanguage)
+                    else if (isZh) "筛选结果" else "Filtered results"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.onSurfaceVariant
@@ -118,7 +133,7 @@ fun AllPasswordsScreen(
         when {
             isInitialLoading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    LoadingIndicator(if (isZh) "正在读取保险库…" else "Reading your vault…")
                 }
             }
             refreshError != null -> {
@@ -131,8 +146,10 @@ fun AllPasswordsScreen(
             }
             lazyPasswords.itemCount == 0 -> {
                 EmptyState(
-                    hasQuery = searchQuery.isNotBlank(),
-                    currentLanguage = currentLanguage
+                    hasQuery = searchQuery.isNotBlank() || selectedCategory != null,
+                    currentLanguage = currentLanguage,
+                    onAddPassword = onAddPassword,
+                    onClearFilters = { onSearchQueryChange(""); onCategorySelected(null) }
                 )
             }
             else -> {
@@ -149,8 +166,8 @@ fun AllPasswordsScreen(
                         val item = lazyPasswords[index]
                         if (item != null) {
                             PasswordListItem(
-                                name = item.name,
-                                email = item.email.ifEmpty { item.username },
+                                name = item.name.ifBlank { if (isZh) "未命名记录" else "Untitled item" },
+                                email = item.accountLabel(),
                                 password = item.password,
                                 iconText = item.name.take(1).uppercase(),
                                 iconType = item.iconType,
@@ -192,7 +209,8 @@ private fun SearchField(
         SearchBar(
             value = value,
             onValueChange = onValueChange,
-            placeholder = AppStrings.searchPasswords(currentLanguage)
+            placeholder = AppStrings.searchPasswords(currentLanguage),
+            clearContentDescription = if (currentLanguage == AppLanguage.CHINESE) "清空搜索" else "Clear search"
         )
     }
 }
@@ -200,7 +218,9 @@ private fun SearchField(
 @Composable
 private fun EmptyState(
     hasQuery: Boolean,
-    currentLanguage: AppLanguage
+    currentLanguage: AppLanguage,
+    onAddPassword: () -> Unit,
+    onClearFilters: () -> Unit
 ) {
     val themeColors = rememberThemeColors()
     val isZh = currentLanguage == AppLanguage.CHINESE
@@ -237,32 +257,24 @@ private fun EmptyState(
                 text = if (hasQuery) {
                     if (isZh) "请尝试其他关键词。" else "Try another keyword."
                 } else {
-                    if (isZh) "回到首页点击 + 添加第一条记录。" else "Go back home and tap + to add your first item."
+                    if (isZh) "添加第一条记录，开始管理你的密码。" else "Add your first item to start managing passwords."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = themeColors.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+            TextButton(onClick = if (hasQuery) onClearFilters else onAddPassword) {
+                Text(if (hasQuery) { if (isZh) "清除筛选" else "Clear filters" }
+                    else { if (isZh) "添加密码" else "Add password" })
+            }
         }
     }
 }
 
 @Composable
 private fun LoadingMoreRow(currentLanguage: AppLanguage) {
-    val themeColors = rememberThemeColors()
-    val isZh = currentLanguage == AppLanguage.CHINESE
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = if (isZh) "继续加载中..." else "Loading more...",
-            style = MaterialTheme.typography.bodySmall,
-            color = themeColors.onSurfaceVariant
-        )
+    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+        LoadingIndicator(if (currentLanguage == AppLanguage.CHINESE) "正在加载更多…" else "Loading more…", compact = true)
     }
 }
 
