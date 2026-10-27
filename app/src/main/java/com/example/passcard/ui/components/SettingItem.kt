@@ -2,20 +2,19 @@ package com.example.passcard.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,17 +30,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.IconBgPurple
+import com.example.passcard.ui.theme.MotionDuration
+import com.example.passcard.ui.theme.MotionEasing
 import com.example.passcard.ui.theme.ProfileIconSize
 import com.example.passcard.ui.theme.Radius10
 import com.example.passcard.ui.theme.Radius14
@@ -50,12 +60,9 @@ import com.example.passcard.ui.theme.Radius18
 import com.example.passcard.ui.theme.SettingIconSize
 import com.example.passcard.ui.theme.SettingItemHeight
 import com.example.passcard.ui.theme.Spacing4
-import com.example.passcard.ui.theme.Spacing8
 import com.example.passcard.ui.theme.Spacing10
-import com.example.passcard.ui.theme.Spacing12
 import com.example.passcard.ui.theme.Spacing14
 import com.example.passcard.ui.theme.Spacing16
-import com.example.passcard.ui.theme.Spacing20
 import com.example.passcard.ui.theme.ThemeColors
 import com.example.passcard.ui.theme.appleSurface
 import com.example.passcard.ui.theme.rememberThemeColors
@@ -84,46 +91,59 @@ fun SettingItem(
         Modifier
     }
 
-    PressableScale(
-        onClick = onClick,
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .then(positionedModifier)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SettingItemHeight)
-                .appleSurface(colors = colors, radius = Radius16)
-                .padding(horizontal = Spacing16, vertical = Spacing10),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing14)
-        ) {
-            SettingIconBox(icon = icon, label = label, backgroundColor = iconBackgroundColor)
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
-                color = colors.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            if (trailingText != null) {
-                Text(
-                    text = trailingText,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W500),
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (showChevron) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = colors.muted,
-                    modifier = Modifier.size(18.dp)
-                )
+        val stackTrailing = maxWidth < 320.dp * LocalDensity.current.fontScale
+        PressableScale(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = SettingItemHeight)
+                    .appleSurface(colors = colors, radius = Radius16)
+                    .padding(horizontal = Spacing16, vertical = Spacing10),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing14)
+            ) {
+                SettingIconBox(icon = icon, backgroundColor = iconBackgroundColor)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Spacing4)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
+                        color = colors.onBackground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (stackTrailing && trailingText != null) {
+                        Text(
+                            text = trailingText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+                if (!stackTrailing && trailingText != null) {
+                    Text(
+                        text = trailingText,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W500),
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (showChevron) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = colors.muted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
@@ -141,7 +161,10 @@ fun SettingToggleItem(
 ) {
     PressableScale(
         onClick = { onCheckedChange(!checked) },
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+            role = Role.Switch
+            toggleableState = if (checked) ToggleableState.On else ToggleableState.Off
+        }
     ) {
         Row(
             modifier = Modifier
@@ -152,12 +175,12 @@ fun SettingToggleItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing14)
         ) {
-            SettingIconBox(icon = icon, label = label, backgroundColor = iconBackgroundColor)
+            SettingIconBox(icon = icon, backgroundColor = iconBackgroundColor)
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W600),
                 color = colors.onBackground,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
@@ -268,15 +291,10 @@ fun SectionTitle(
     modifier: Modifier = Modifier,
     colors: ThemeColors = rememberThemeColors()
 ) {
-    val displayTitle = if (title.any { it in 'A'..'Z' || it in 'a'..'z' }) {
-        title.uppercase()
-    } else {
-        title
-    }
     Text(
-        text = displayTitle,
-        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.W700),
-        color = colors.muted,
+        text = title,
+        style = MaterialTheme.typography.labelMedium,
+        color = colors.onSurfaceVariant,
         modifier = modifier.padding(start = Spacing4)
     )
 }
@@ -284,7 +302,6 @@ fun SectionTitle(
 @Composable
 private fun SettingIconBox(
     icon: ImageVector,
-    label: String,
     backgroundColor: Color
 ) {
     Box(
@@ -296,7 +313,7 @@ private fun SettingIconBox(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = label,
+            contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(18.dp)
         )
@@ -310,14 +327,16 @@ private fun IosToggle(
 ) {
     val trackColor by animateColorAsState(
         targetValue = if (checked) colors.success else colors.surfaceVariant,
-        animationSpec = tween(durationMillis = 160),
+        animationSpec = tween(durationMillis = MotionDuration.Standard, easing = MotionEasing.EnterExit),
         label = "toggle_track"
     )
-    val knobOffset by animateDpAsState(
-        targetValue = if (checked) 22.dp else 2.dp,
-        animationSpec = tween(durationMillis = 180),
+    val knobPosition = animateFloatAsState(
+        targetValue = if (checked) 1f else 0f,
+        animationSpec = tween(durationMillis = MotionDuration.Standard, easing = MotionEasing.EnterExit),
         label = "toggle_offset"
     )
+    val travel = with(LocalDensity.current) { 20.dp.toPx() }
+    val direction = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1f else -1f
 
     Box(
         modifier = Modifier
@@ -325,11 +344,13 @@ private fun IosToggle(
             .height(30.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(trackColor)
+            .padding(2.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
         Box(
             modifier = Modifier
-                .offset(x = knobOffset, y = 2.dp)
                 .size(26.dp)
+                .graphicsLayer { translationX = direction * travel * knobPosition.value }
                 .clip(RoundedCornerShape(13.dp))
                 .background(Color.White)
         )

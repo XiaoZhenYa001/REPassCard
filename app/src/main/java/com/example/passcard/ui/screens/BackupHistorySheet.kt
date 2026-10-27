@@ -21,7 +21,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun BackupHistorySheet(
     repository: CloudSyncRepository,
@@ -51,60 +51,67 @@ internal fun BackupHistorySheet(
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surface,
         contentColor = colors.onSurface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (zh) "历史备份" else "Backup history", style = MaterialTheme.typography.titleLarge)
-            Text(if (zh) "选择备份恢复到本机。恢复前会保存当前记录的加密副本，云端内容不会改变。"
-                else "Restore a backup on this device. A copy of your current vault is saved first; cloud data stays unchanged.",
-                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FilterChip(source == VaultBackupSource.LOCAL, onClick = { source = VaultBackupSource.LOCAL },
-                    label = { Text(if (zh) "本机副本" else "On this device") })
-                FilterChip(source == VaultBackupSource.CLOUD, onClick = { source = VaultBackupSource.CLOUD },
-                    enabled = cloudAvailable, label = { Text(if (zh) "云端版本" else "Cloud versions") })
+        LazyColumn(
+            Modifier.fillMaxWidth().navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)
+        ) {
+            item(key = "header", contentType = "header") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(if (zh) "历史备份" else "Backup history", style = MaterialTheme.typography.titleLarge)
+                    Text(if (zh) "选择备份恢复到本机。恢复前会保存当前记录的加密副本，云端内容不会改变。"
+                        else "Restore a backup on this device. A copy of your current vault is saved first; cloud data stays unchanged.",
+                        style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilterChip(source == VaultBackupSource.LOCAL, onClick = { source = VaultBackupSource.LOCAL },
+                            label = { Text(if (zh) "本机副本" else "On this device") })
+                        FilterChip(source == VaultBackupSource.CLOUD, onClick = { source = VaultBackupSource.CLOUD },
+                            enabled = cloudAvailable, label = { Text(if (zh) "云端版本" else "Cloud versions") })
+                    }
+                    if (!cloudAvailable) Text(if (zh) "完成云端连接后可查看云端版本。本机副本可离线恢复。"
+                        else "Connect your cloud to view its versions. Local copies can be restored offline.",
+                        style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                }
             }
-            if (!cloudAvailable) Text(if (zh) "完成云端连接后可查看云端版本。本机副本可离线恢复。"
-                else "Connect your cloud to view its versions. Local copies can be restored offline.",
-                style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
-                when {
-                    loading -> item(key = "loading") {
-                        LoadingIndicator(if (zh) "正在读取备份列表…" else "Reading backup history…",
-                            Modifier.fillMaxWidth().padding(vertical = 24.dp))
+            when {
+                loading -> item(key = "loading") {
+                    LoadingIndicator(if (zh) "正在读取备份列表…" else "Reading backup history…",
+                        Modifier.fillMaxWidth().padding(vertical = 24.dp))
+                }
+                error != null -> item(key = "error") {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(if (zh) "暂时无法读取备份列表" else "Unable to read backup history", color = colors.error)
+                        Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        TextButton(onClick = { reload++ }) { Text(if (zh) "重试" else "Try again") }
                     }
-                    error != null -> item(key = "error") {
-                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(if (zh) "暂时无法读取备份列表" else "Unable to read backup history", color = colors.error)
-                            Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                            TextButton(onClick = { reload++ }) { Text(if (zh) "重试" else "Try again") }
-                        }
-                    }
-                    entries.isEmpty() -> item(key = "empty") {
-                        Text(if (source == VaultBackupSource.LOCAL) {
-                            if (zh) "还没有本机保护副本。每次恢复前都会自动保存当前保险库。"
-                            else "No local copies yet. Your current vault is saved before each restore."
-                        } else { if (zh) "云端尚无已提交备份" else "No committed cloud backups yet" },
-                            style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 16.dp))
-                    }
-                    else -> items(entries, key = { "${it.source}:${it.id}" }, contentType = { "backup" }) { backup ->
-                        Card(onClick = { onSelect(backup) }, colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant)) {
-                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(if (backup.source == VaultBackupSource.CLOUD) Icons.Outlined.Cloud else Icons.Outlined.Restore,
-                                    contentDescription = null, tint = colors.primary)
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(backupDate(backup.updatedAt, zh), style = MaterialTheme.typography.titleSmall)
-                                    Text(buildList {
-                                        add(backupSize(backup.sizeBytes))
-                                        backup.itemCount?.let { add(if (zh) "$it 项" else "$it items") }
-                                        backup.vaultRevision?.let { add(if (zh) "修订 $it" else "Revision $it") }
-                                        if (backup.isCurrent) add(if (zh) "当前最新" else "Latest")
-                                    }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                                }
-                                Text(if (zh) "选择" else "Select", style = MaterialTheme.typography.labelMedium, color = colors.primary)
+                }
+                entries.isEmpty() -> item(key = "empty") {
+                    Text(if (source == VaultBackupSource.LOCAL) {
+                        if (zh) "还没有本机保护副本。每次恢复前都会自动保存当前保险库。"
+                        else "No local copies yet. Your current vault is saved before each restore."
+                    } else { if (zh) "云端尚无已提交备份" else "No committed cloud backups yet" },
+                        style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 16.dp))
+                }
+                else -> items(entries, key = { "${it.source}:${it.id}" }, contentType = { "backup" }) { backup ->
+                    Card(onClick = { onSelect(backup) }, colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant)) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(if (backup.source == VaultBackupSource.CLOUD) Icons.Outlined.Cloud else Icons.Outlined.Restore,
+                                contentDescription = null, tint = colors.primary)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(backupDate(backup.updatedAt, zh), style = MaterialTheme.typography.titleSmall)
+                                Text(buildList {
+                                    add(backupSize(backup.sizeBytes))
+                                    backup.itemCount?.let { add(if (zh) "$it 项" else "$it items") }
+                                    backup.vaultRevision?.let { add(if (zh) "修订 $it" else "Revision $it") }
+                                    if (backup.isCurrent) add(if (zh) "当前最新" else "Latest")
+                                }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                             }
+                            Text(if (zh) "选择" else "Select", style = MaterialTheme.typography.labelMedium, color = colors.primary)
                         }
                     }
                 }

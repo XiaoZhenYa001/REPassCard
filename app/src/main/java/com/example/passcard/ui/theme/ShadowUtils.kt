@@ -24,12 +24,12 @@ fun Modifier.softShadow(
 ): Modifier {
     val elevation = when (level) {
         ElevationLevel.Flat -> 0.dp
-        ElevationLevel.Card -> if (colors.isDark) 4.dp else 8.dp
-        ElevationLevel.Elevated -> if (colors.isDark) 8.dp else 12.dp
-        ElevationLevel.Floating -> if (colors.isDark) 12.dp else 16.dp
+        ElevationLevel.Card -> if (colors.isDark) 2.dp else 4.dp
+        ElevationLevel.Elevated -> if (colors.isDark) 6.dp else 8.dp
+        ElevationLevel.Floating -> if (colors.isDark) 10.dp else 12.dp
     }
-    val spot = if (colors.isDark) Color.Black.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.10f)
-    val ambient = if (colors.isDark) Color.Black.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.05f)
+    val spot = if (colors.isDark) Color.Black.copy(alpha = 0.30f) else Color.Black.copy(alpha = 0.08f)
+    val ambient = if (colors.isDark) Color.Black.copy(alpha = 0.20f) else Color.Black.copy(alpha = 0.04f)
 
     return shadow(
         elevation = elevation,

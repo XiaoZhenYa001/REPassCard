@@ -7,6 +7,45 @@ import org.junit.Test
 
 class DropdownMenuPositionTest {
     @Test
+    fun `menu scales from setting trailing edge and vertical center`() {
+        val origin = calculateDropdownMenuTransformOrigin(
+            anchorOffset = IntOffset(20, 320),
+            anchorSize = IntSize(1040, 168),
+            popupOffset = IntOffset(516, 320),
+            popupSize = IntSize(540, 504)
+        )
+
+        assertEquals(1f, origin.pivotFractionX, 0.0001f)
+        assertEquals(1f / 6f, origin.pivotFractionY, 0.0001f)
+    }
+
+    @Test
+    fun `menu moved above a low setting scales from nearest bottom edge`() {
+        val origin = calculateDropdownMenuTransformOrigin(
+            anchorOffset = IntOffset(900, 2300),
+            anchorSize = IntSize(160, 168),
+            popupOffset = IntOffset(516, 1872),
+            popupSize = IntSize(540, 504)
+        )
+
+        assertEquals(1f, origin.pivotFractionX, 0.0001f)
+        assertEquals(1f, origin.pivotFractionY, 0.0001f)
+    }
+
+    @Test
+    fun `unmeasured menu has a finite origin`() {
+        val origin = calculateDropdownMenuTransformOrigin(
+            anchorOffset = IntOffset.Zero,
+            anchorSize = IntSize.Zero,
+            popupOffset = IntOffset.Zero,
+            popupSize = IntSize.Zero
+        )
+
+        assertEquals(0f, origin.pivotFractionX, 0f)
+        assertEquals(0f, origin.pivotFractionY, 0f)
+    }
+
+    @Test
     fun `menu top aligns with setting top instead of setting bottom`() {
         val position = calculateDropdownMenuPosition(
             anchorOffset = IntOffset(20, 320),

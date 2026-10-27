@@ -1,21 +1,71 @@
 package com.example.passcard.util
 
 import java.security.SecureRandom
+import kotlin.math.log2
+import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.random.asKotlinRandom
+
+enum class PasswordCharacterGroup(val availableCharacters: String) {
+    Uppercase("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+    Lowercase("abcdefghijklmnopqrstuvwxyz"),
+    Numbers("0123456789"),
+    Symbols("!@#$%^&*+-_=?.")
+}
 
 data class RandomPasswordSpec(
     val length: Int = DEFAULT_LENGTH,
     val includeUppercase: Boolean = true,
     val includeLowercase: Boolean = true,
     val includeNumbers: Boolean = true,
-    val includeSymbols: Boolean = true
+    val includeSymbols: Boolean = true,
+    val uppercaseCharacters: String = PasswordCharacterGroup.Uppercase.availableCharacters,
+    val lowercaseCharacters: String = PasswordCharacterGroup.Lowercase.availableCharacters,
+    val numberCharacters: String = PasswordCharacterGroup.Numbers.availableCharacters,
+    val symbolCharacters: String = PasswordCharacterGroup.Symbols.availableCharacters
 ) {
+    fun selectedCharacters(group: PasswordCharacterGroup): String {
+        val selection = when (group) {
+            PasswordCharacterGroup.Uppercase -> if (includeUppercase) uppercaseCharacters else ""
+            PasswordCharacterGroup.Lowercase -> if (includeLowercase) lowercaseCharacters else ""
+            PasswordCharacterGroup.Numbers -> if (includeNumbers) numberCharacters else ""
+            PasswordCharacterGroup.Symbols -> if (includeSymbols) symbolCharacters else ""
+        }
+        return group.availableCharacters.filter { it in selection }
+    }
+
+    fun withSelectedCharacters(group: PasswordCharacterGroup, characters: String): RandomPasswordSpec {
+        val selection = group.availableCharacters.filter { it in characters }
+        return when (group) {
+            PasswordCharacterGroup.Uppercase -> copy(uppercaseCharacters = selection, includeUppercase = selection.isNotEmpty())
+            PasswordCharacterGroup.Lowercase -> copy(lowercaseCharacters = selection, includeLowercase = selection.isNotEmpty())
+            PasswordCharacterGroup.Numbers -> copy(numberCharacters = selection, includeNumbers = selection.isNotEmpty())
+            PasswordCharacterGroup.Symbols -> copy(symbolCharacters = selection, includeSymbols = selection.isNotEmpty())
+        }
+    }
+
+    val hasSelectedCharacters: Boolean
+        get() = PasswordCharacterGroup.entries.any { selectedCharacters(it).isNotEmpty() }
+
     fun normalized(): RandomPasswordSpec {
-        val hasCharset = includeUppercase || includeLowercase || includeNumbers || includeSymbols
-        return copy(
+        val uppercase = PasswordCharacterGroup.Uppercase.availableCharacters.filter { it in uppercaseCharacters }
+        val lowercase = PasswordCharacterGroup.Lowercase.availableCharacters.filter { it in lowercaseCharacters }
+        val numbers = PasswordCharacterGroup.Numbers.availableCharacters.filter { it in numberCharacters }
+        val symbols = PasswordCharacterGroup.Symbols.availableCharacters.filter { it in symbolCharacters }
+        val cleaned = copy(
             length = length.coerceIn(MIN_LENGTH, MAX_LENGTH),
-            includeLowercase = includeLowercase || !hasCharset
+            includeUppercase = includeUppercase && uppercase.isNotEmpty(),
+            includeLowercase = includeLowercase && lowercase.isNotEmpty(),
+            includeNumbers = includeNumbers && numbers.isNotEmpty(),
+            includeSymbols = includeSymbols && symbols.isNotEmpty(),
+            uppercaseCharacters = uppercase,
+            lowercaseCharacters = lowercase,
+            numberCharacters = numbers,
+            symbolCharacters = symbols
+        )
+        return if (cleaned.hasSelectedCharacters) cleaned else cleaned.copy(
+            includeLowercase = true,
+            lowercaseCharacters = PasswordCharacterGroup.Lowercase.availableCharacters
         )
     }
 
@@ -37,19 +87,9 @@ data class PasswordStrength(
 object RandomPasswordGenerator {
     private val secureRandom: Random = SecureRandom().asKotlinRandom()
 
-    private const val UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-    private const val LOWERCASE = "abcdefghijkmnopqrstuvwxyz"
-    private const val NUMBERS = "23456789"
-    private const val SYMBOLS = "!@#$%^&*+-_=?."
-
     fun generate(spec: RandomPasswordSpec, random: Random = secureRandom): String {
         val normalized = spec.normalized()
-        val groups = buildList {
-            if (normalized.includeUppercase) add(UPPERCASE)
-            if (normalized.includeLowercase) add(LOWERCASE)
-            if (normalized.includeNumbers) add(NUMBERS)
-            if (normalized.includeSymbols) add(SYMBOLS)
-        }
+        val groups = PasswordCharacterGroup.entries.map { normalized.selectedCharacters(it) }.filter(String::isNotEmpty)
         val pool = groups.joinToString("")
         val required = groups.map { group -> group.random(random) }
         val rest = List((normalized.length - required.size).coerceAtLeast(0)) {
@@ -60,34 +100,38 @@ object RandomPasswordGenerator {
 
     fun strength(spec: RandomPasswordSpec): PasswordStrength {
         val normalized = spec.normalized()
-        val charsetCount = listOf(
-            normalized.includeUppercase,
-            normalized.includeLowercase,
-            normalized.includeNumbers,
-            normalized.includeSymbols
-        ).count { it }
-        val score = (normalized.length * 4 + charsetCount * 12).coerceIn(0, 100)
+        val poolSize = PasswordCharacterGroup.entries.flatMap { normalized.selectedCharacters(it).toList() }.toSet().size
+        // Forcing one character per active group is not uniform whole-pool sampling.
+        // This size-sensitive score is a rough configuration reference, not exact entropy.
+        val score = (normalized.length * log2(poolSize.toDouble())).roundToInt().coerceIn(0, 100)
+        if (poolSize == 1) return PasswordStrength(
+            score = 0,
+            labelZh = "参考值较低",
+            labelEn = "Lower estimate",
+            hintZh = "仅选择了 1 个字符，生成结果固定。请增加可选字符数量；此分数仅供配置参考。",
+            hintEn = "Only one character is selected, so the result is fixed. Select more characters; this score is only a configuration reference."
+        )
         return when {
             score >= 76 -> PasswordStrength(
                 score = score,
-                labelZh = "较高",
-                labelEn = "Higher",
-                hintZh = "仅根据生成长度与字符类型提供配置参考；不检查具体密码的常见模式或重复使用。",
-                hintEn = "A configuration reference based on length and character types. It does not check the actual password for predictable patterns or reuse."
+                labelZh = "参考值较高",
+                labelEn = "Higher estimate",
+                hintZh = "仅按长度与所选字符数量粗略提供配置参考；不保证具体密码的安全，也不检查常见模式或重复使用。",
+                hintEn = "A rough configuration reference from length and selected-character count, not a safety guarantee. It does not check predictable patterns or reuse."
             )
             score >= 52 -> PasswordStrength(
                 score = score,
-                labelZh = "中等",
-                labelEn = "Moderate",
-                hintZh = "可增加生成长度。此配置参考不等于具体密码的健康评分。",
-                hintEn = "Consider increasing length. This configuration reference is not a health score for the actual password."
+                labelZh = "参考值中等",
+                labelEn = "Moderate estimate",
+                hintZh = "可增加生成长度或所选字符数量。此粗略配置参考不等于具体密码的健康评分。",
+                hintEn = "Consider increasing length or the selected-character count. This rough configuration reference is not a health score for the actual password."
             )
             else -> PasswordStrength(
                 score = score,
-                labelZh = "较低",
-                labelEn = "Lower",
-                hintZh = "建议优先增加长度；此参考不代表具体密码的安全程度。",
-                hintEn = "Increase length first. This reference does not establish how safe the actual password is."
+                labelZh = "参考值较低",
+                labelEn = "Lower estimate",
+                hintZh = "建议增加长度及所选字符数量；此粗略参考不代表具体密码的安全程度。",
+                hintEn = "Increase length and the selected-character count. This rough reference does not establish how safe the actual password is."
             )
         }
     }

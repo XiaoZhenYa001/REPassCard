@@ -1,6 +1,7 @@
 package com.example.passcard.ui.screens
 
 import android.content.Context
+import android.content.res.Configuration
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
@@ -11,8 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,19 +30,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.paging.PagingData
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.passcard.data.PasswordHealthSnapshot
 import com.example.passcard.data.PasswordSecurityStats
 import com.example.passcard.data.ReusedPasswordGroup
-import kotlinx.coroutines.delay
 import com.example.passcard.ui.components.*
 import com.example.passcard.ui.theme.*
 import com.example.passcard.util.PreferencesManager
@@ -150,26 +149,13 @@ fun MainContainer(
     onDeletePassword: (suspend (String) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val currentLanguage = remember(languageKey) {
+    val appearanceTransition = LocalAppearanceTransitionController.current
+    val tabTransition = rememberAppearanceTransitionController()
+    val touchInput = LocalInputModeManager.current.inputMode == InputMode.Touch
+    val layoutDirection = LocalLayoutDirection.current
+    val displayedLanguage = remember(languageKey) {
         if (languageKey == "ENGLISH") AppLanguage.ENGLISH else AppLanguage.CHINESE
     }
-    var displayedLanguage by remember { mutableStateOf(currentLanguage) }
-    var contentVisible by remember { mutableStateOf(true) }
-
-    LaunchedEffect(currentLanguage) {
-        if (displayedLanguage != currentLanguage) {
-            contentVisible = false
-            delay(120)
-            displayedLanguage = currentLanguage
-            contentVisible = true
-        }
-    }
-
-    val contentAlpha by animateFloatAsState(
-        targetValue = if (contentVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 180),
-        label = "language_content_alpha"
-    )
 
     val themeColors = LocalThemeColors.current
     val homeScrollState = rememberLazyListState()
@@ -183,6 +169,18 @@ fun MainContainer(
     var allPasswordsCategory by stateHolder.allPasswordsCategory
     
     var uiState by stateHolder.uiState
+    SideEffect {
+        if (uiState.route != MainRoute.Tabs) {
+            appearanceTransition?.clear()
+            tabTransition.clear()
+        }
+    }
+    DisposableEffect(appearanceTransition, tabTransition) {
+        onDispose {
+            appearanceTransition?.clear()
+            tabTransition.clear()
+        }
+    }
     var biometricEnabled by remember { mutableStateOf(preferencesManager?.biometricEnabled ?: false) }
     val homePasswordSnapshot = remember(passwords) { PasswordListSnapshot(passwords) }
         // 计算字符串（非 Composable）
@@ -252,18 +250,35 @@ fun MainContainer(
         uiState = uiState.copy(route = MainRoute.AllPasswords)
     }
 
+    fun selectTab(tab: TabItem) {
+        if (tab == uiState.selectedTab) return
+        appearanceTransition?.clear()
+        val updateTab = {
+            uiState = uiState.copy(selectedTab = tab, showThemeDropdown = false, showLanguageDropdown = false)
+        }
+        if (touchInput) {
+            val logicalDirection = if (tab.ordinal > uiState.selectedTab.ordinal) 1 else -1
+            val direction = if (layoutDirection == LayoutDirection.Rtl) -logicalDirection else logicalDirection
+            tabTransition.requestNavigation(direction, updateTab)
+        } else {
+            tabTransition.clear()
+            updateTab()
+        }
+    }
+
     Box(modifier.fillMaxSize()) {
     AnimatedContent(
         targetState = uiState.route,
         modifier = Modifier.fillMaxSize(),
         transitionSpec = {
-            mainRouteTransition(initialState, targetState)
+            // Every route fills the viewport; no container size interpolation is needed.
+            mainRouteTransition(initialState, targetState).using(null)
         },
         label = "main_route_content"
     ) routeContent@{ route ->
         when (route) {
             is MainRoute.EditPassword -> {
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     val currentPassword = route.initialPassword ?: passwords.find { it.id == route.passwordId }
                     EditScreen(
                         password = currentPassword,
@@ -315,7 +330,7 @@ fun MainContainer(
 
             MainRoute.AllPasswords -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     AllPasswordsScreen(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
@@ -349,7 +364,7 @@ fun MainContainer(
 
             MainRoute.Help -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     HelpContent(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(route = MainRoute.Tabs) },
@@ -362,7 +377,7 @@ fun MainContainer(
 
             MainRoute.SearchHelp -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Help) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     SearchHelpContent(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(route = MainRoute.Help) }
@@ -372,7 +387,7 @@ fun MainContainer(
 
             MainRoute.CloudBackupHelp -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Help) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     CloudBackupHelpContent(
                         currentLanguage = displayedLanguage,
                         onBack = { uiState = uiState.copy(route = MainRoute.Help) }
@@ -382,21 +397,21 @@ fun MainContainer(
 
             MainRoute.Privacy -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     PrivacyContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(route = MainRoute.Tabs) })
                 }
             }
 
             MainRoute.About -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     AboutContent(currentLanguage = displayedLanguage, onBack = { uiState = uiState.copy(route = MainRoute.Tabs) })
                 }
             }
 
             MainRoute.MasterPasswordSetup -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     SetupMasterPasswordScreen(
                         preferencesManager = preferencesManager ?: return@routeContent,
                         currentLanguage = displayedLanguage,
@@ -414,7 +429,7 @@ fun MainContainer(
 
             MainRoute.RandomPasswordSettings -> {
                 BackHandler { uiState = uiState.copy(route = MainRoute.Tabs) }
-                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     RandomPasswordSettingsScreen(
                         preferencesManager = preferencesManager,
                         currentLanguage = displayedLanguage,
@@ -468,7 +483,7 @@ fun MainContainer(
 
             MainRoute.Tabs -> {
                 Scaffold(
-                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha },
+                    modifier = Modifier.fillMaxSize(),
                     containerColor = themeColors.background,
                     bottomBar = {
                         Box(
@@ -481,34 +496,21 @@ fun MainContainer(
                             TabBar(
                                 selectedTab = uiState.selectedTab,
                                 isChinese = displayedLanguage == AppLanguage.CHINESE,
-                                onTabSelected = { tab -> uiState = uiState.copy(selectedTab = tab) },
+                                onTabSelected = ::selectTab,
                                 onAddClick = { uiState = uiState.copy(route = MainRoute.EditPassword(null)) }
                             )
                         }
                     }
                 ) { innerPadding ->
-                    Box(
+                    AppearanceTransitionHost(
+                        controller = tabTransition,
+                        provideController = false,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
                             .background(themeColors.background)
                     ) {
-                        AnimatedContent(
-                            targetState = uiState.selectedTab,
-                            modifier = Modifier.fillMaxSize(),
-                            transitionSpec = {
-                                fadeIn(
-                                    animationSpec = tween(
-                                        durationMillis = 160,
-                                        easing = FastOutSlowInEasing
-                                    )
-                                ) togetherWith fadeOut(
-                                    animationSpec = tween(durationMillis = 110)
-                                )
-                            },
-                            label = "main_tab_content"
-                        ) { selectedTab ->
-                            when (selectedTab) {
+                            when (uiState.selectedTab) {
                             TabItem.HOME -> HomeContent(
                                 passwords = homePasswordSnapshot,
                                 selectedCategory = uiState.selectedCategory,
@@ -531,7 +533,7 @@ fun MainContainer(
                                 },
                                 onNavigateToAllPasswords = { openAllPasswords(uiState.searchQuery, uiState.selectedCategory) },
                                 onOpenAllPasswords = { openAllPasswords() },
-                                onNavigateToSecurity = { uiState = uiState.copy(selectedTab = TabItem.SECURITY) },
+                                onNavigateToSecurity = { selectTab(TabItem.SECURITY) },
                                 onPasswordClick = { id ->
                                     uiState = uiState.copy(
                                         route = MainRoute.EditPassword(
@@ -622,7 +624,6 @@ fun MainContainer(
                                 scrollState = cloudScrollState
                             )
                         }
-                        }
 
 
                     }
@@ -638,16 +639,45 @@ fun MainContainer(
             themeOptions = themeOptionSet,
             languageOptions = languageOptionSet,
             onDismissTheme = { uiState = uiState.copy(showThemeDropdown = false) },
-            onThemeSelected = { option ->
-                preferencesManager?.theme = option.value
+            onThemeSelected = { option, origin ->
                 uiState = uiState.copy(showThemeDropdown = false)
-                onThemeChanged?.invoke()
+                if (option.value != currentTheme) {
+                    val applyTheme = {
+                        preferencesManager?.theme = option.value
+                        onThemeChanged?.invoke()
+                        Unit
+                    }
+                    val nextDark = when (option.value) {
+                        "DARK" -> true
+                        "SYSTEM" -> context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+                        else -> false
+                    }
+                    tabTransition.clear()
+                    if (appearanceTransition != null && nextDark != themeColors.isDark && touchInput) {
+                        appearanceTransition.requestTheme(origin, applyTheme)
+                    } else {
+                        appearanceTransition?.clear()
+                        applyTheme()
+                    }
+                }
             },
             onDismissLanguage = { uiState = uiState.copy(showLanguageDropdown = false) },
             onLanguageSelected = { option ->
-                preferencesManager?.language = option.value
                 uiState = uiState.copy(showLanguageDropdown = false)
-                onThemeChanged?.invoke()
+                if (option.value != languageKey) {
+                    val applyLanguage = {
+                        preferencesManager?.language = option.value
+                        onThemeChanged?.invoke()
+                        Unit
+                    }
+                    tabTransition.clear()
+                    if (appearanceTransition != null && touchInput) {
+                        appearanceTransition.requestLanguage(applyLanguage)
+                    } else {
+                        appearanceTransition?.clear()
+                        applyLanguage()
+                    }
+                }
             },
             onExportFormatSelected = { format ->
                 uiState = uiState.copy(showExportFormatPicker = false)
@@ -688,31 +718,32 @@ private fun mainRouteTransition(
     initialRoute: MainRoute,
     targetRoute: MainRoute
 ): ContentTransform {
-    return when (mainNavigationDirection(initialRoute, targetRoute)) {
+    val transition = when (mainNavigationDirection(initialRoute, targetRoute)) {
         MainNavigationDirection.FORWARD -> {
             slideInHorizontally(
-                initialOffsetX = { width -> width / 4 },
-                animationSpec = tween(220, easing = FastOutSlowInEasing)
-            ) + fadeIn(tween(180)) togetherWith slideOutHorizontally(
-                targetOffsetX = { width -> -width / 10 },
-                animationSpec = tween(180, easing = FastOutSlowInEasing)
-            ) + fadeOut(tween(140))
+                initialOffsetX = { width -> width / 12 },
+                animationSpec = tween(MotionDuration.Emphasized, easing = MotionEasing.EnterExit)
+            ) + fadeIn(tween(MotionDuration.Standard, easing = MotionEasing.EnterExit)) togetherWith slideOutHorizontally(
+                targetOffsetX = { width -> -width / 24 },
+                animationSpec = tween(MotionDuration.Exit, easing = MotionEasing.EnterExit)
+            ) + fadeOut(tween(MotionDuration.Exit, easing = MotionEasing.EnterExit))
         }
 
         MainNavigationDirection.BACKWARD -> {
             slideInHorizontally(
-                initialOffsetX = { width -> -width / 10 },
-                animationSpec = tween(200, easing = FastOutSlowInEasing)
-            ) + fadeIn(tween(170)) togetherWith slideOutHorizontally(
-                targetOffsetX = { width -> width / 4 },
-                animationSpec = tween(180, easing = FastOutSlowInEasing)
-            ) + fadeOut(tween(130))
+                initialOffsetX = { width -> -width / 24 },
+                animationSpec = tween(MotionDuration.Emphasized, easing = MotionEasing.EnterExit)
+            ) + fadeIn(tween(MotionDuration.Standard, easing = MotionEasing.EnterExit)) togetherWith slideOutHorizontally(
+                targetOffsetX = { width -> width / 12 },
+                animationSpec = tween(MotionDuration.Exit, easing = MotionEasing.EnterExit)
+            ) + fadeOut(tween(MotionDuration.Exit, easing = MotionEasing.EnterExit))
         }
 
         MainNavigationDirection.REPLACE -> {
-            fadeIn(tween(160, easing = FastOutSlowInEasing)) togetherWith
-                fadeOut(tween(110))
+            fadeIn(tween(MotionDuration.Standard, easing = MotionEasing.EnterExit)) togetherWith
+                fadeOut(tween(MotionDuration.Fast, easing = MotionEasing.EnterExit))
         }
     }
+    return transition
 }
 

@@ -7,10 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,9 +37,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.Radius14
 import com.example.passcard.ui.theme.SearchBarHeight
+import com.example.passcard.ui.theme.MotionDuration
+import com.example.passcard.ui.theme.MotionEasing
 import com.example.passcard.ui.theme.Spacing14
 import com.example.passcard.ui.theme.Spacing8
 import com.example.passcard.ui.theme.appleSurface
@@ -61,26 +62,27 @@ fun SearchBar(
     val shape = RoundedCornerShape(Radius14)
     val borderColor by animateColorAsState(
         targetValue = if (focused) themeColors.primary else themeColors.border.copy(alpha = 0f),
-        animationSpec = tween(durationMillis = 150),
+        animationSpec = tween(durationMillis = MotionDuration.Fast, easing = MotionEasing.EnterExit),
         label = "search_border"
     )
     val iconColor by animateColorAsState(
         targetValue = if (focused) themeColors.primary else themeColors.muted,
-        animationSpec = tween(durationMillis = 150),
+        animationSpec = tween(durationMillis = MotionDuration.Fast, easing = MotionEasing.EnterExit),
         label = "search_icon"
     )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(SearchBarHeight)
+            .heightIn(min = SearchBarHeight)
             .appleSurface(colors = themeColors, radius = Radius14)
             .border(width = if (focused) 1.dp else 0.dp, color = borderColor, shape = shape),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .heightIn(min = SearchBarHeight)
                 .clip(shape)
                 .background(themeColors.surface)
                 .padding(start = Spacing14, end = 4.dp),
@@ -101,7 +103,7 @@ fun SearchBar(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
+                    .padding(vertical = 12.dp)
                     .semantics { contentDescription = placeholder }
                     .onFocusChanged { focused = it.isFocused },
                 textStyle = textStyle,
@@ -111,22 +113,27 @@ fun SearchBar(
                 keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                 decorationBox = { innerTextField ->
                     Box(
-                        modifier = Modifier.fillMaxHeight(),
+                        modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (value.isEmpty()) {
                             Text(
                                 text = placeholder,
-                                style = textStyle.copy(color = themeColors.muted)
+                                style = textStyle.copy(color = themeColors.muted),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         innerTextField()
                     }
                 }
             )
-            if (value.isNotEmpty()) {
-                IconButton(onClick = { onValueChange("") }) {
-                    Icon(Icons.Outlined.Close, clearContentDescription, tint = themeColors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            // Keep the input width stable when the first character reveals the clear action.
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                if (value.isNotEmpty()) {
+                    IconButton(onClick = { onValueChange("") }) {
+                        Icon(Icons.Outlined.Close, clearContentDescription, tint = themeColors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }

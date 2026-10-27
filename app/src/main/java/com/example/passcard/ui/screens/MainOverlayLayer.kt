@@ -8,6 +8,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -48,37 +49,34 @@ fun MainOverlayLayer(
     themeOptions: DropdownOptionSet,
     languageOptions: DropdownOptionSet,
     onDismissTheme: () -> Unit,
-    onThemeSelected: (DropdownOption) -> Unit,
+    onThemeSelected: (DropdownOption, Offset) -> Unit,
     onDismissLanguage: () -> Unit,
     onLanguageSelected: (DropdownOption) -> Unit,
     onExportFormatSelected: (ExportFormat) -> Unit,
     onDismissExportPicker: () -> Unit
 ) {
-    if (state.showThemeDropdown) {
-        DropdownSelectMenu(
-            expanded = true,
-            onDismissRequest = onDismissTheme,
-            options = themeOptions.items,
-            selectedValue = currentTheme,
-            onOptionSelected = onThemeSelected,
-            offset = state.themeDropdownOffset,
-            itemWidth = state.themeDropdownSize.width,
-            itemHeight = state.themeDropdownSize.height
-        )
-    }
+    DropdownSelectMenu(
+        expanded = state.showThemeDropdown,
+        onDismissRequest = onDismissTheme,
+        options = themeOptions.items,
+        selectedValue = currentTheme,
+        onOptionSelected = { option -> onThemeSelected(option, Offset.Unspecified) },
+        onOptionSelectedAt = onThemeSelected,
+        offset = state.themeDropdownOffset,
+        itemWidth = state.themeDropdownSize.width,
+        itemHeight = state.themeDropdownSize.height
+    )
 
-    if (state.showLanguageDropdown) {
-        DropdownSelectMenu(
-            expanded = true,
-            onDismissRequest = onDismissLanguage,
-            options = languageOptions.items,
-            selectedValue = languageKey,
-            onOptionSelected = onLanguageSelected,
-            offset = state.languageDropdownOffset,
-            itemWidth = state.languageDropdownSize.width,
-            itemHeight = state.languageDropdownSize.height
-        )
-    }
+    DropdownSelectMenu(
+        expanded = state.showLanguageDropdown,
+        onDismissRequest = onDismissLanguage,
+        options = languageOptions.items,
+        selectedValue = languageKey,
+        onOptionSelected = onLanguageSelected,
+        offset = state.languageDropdownOffset,
+        itemWidth = state.languageDropdownSize.width,
+        itemHeight = state.languageDropdownSize.height
+    )
 
     FormatPickerSheet(
         visible = state.showExportFormatPicker,

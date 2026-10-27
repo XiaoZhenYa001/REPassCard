@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,10 +50,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.R
 import com.example.passcard.ui.components.PressableScale
-import com.example.passcard.ui.theme.BackButtonSize
 import com.example.passcard.ui.theme.IconBgBlue
 import com.example.passcard.ui.theme.IconBgCyan
 import com.example.passcard.ui.theme.IconBgGray
@@ -110,6 +113,7 @@ fun HelpContent(
     SupportScaffold(
         title = if (isZh) "使用帮助" else "Help",
         onBack = onBack,
+        backContentDescription = if (isZh) "返回" else "Back",
         themeColors = themeColors,
         modifier = modifier,
         scrollState = scrollState
@@ -152,6 +156,7 @@ fun SearchHelpContent(
     SupportScaffold(
         title = if (isZh) "搜索密码" else "Search Passwords",
         onBack = onBack,
+        backContentDescription = if (isZh) "返回" else "Back",
         themeColors = themeColors,
         modifier = modifier
     ) {
@@ -197,6 +202,7 @@ fun CloudBackupHelpContent(
     SupportScaffold(
         title = if (isZh) "云同步与加密备份" else "Cloud Sync & Encrypted Backup",
         onBack = onBack,
+        backContentDescription = if (isZh) "返回" else "Back",
         themeColors = themeColors,
         modifier = modifier
     ) {
@@ -271,6 +277,7 @@ fun PrivacyContent(
     SupportScaffold(
         title = if (isZh) "隐私条款" else "Privacy Policy",
         onBack = onBack,
+        backContentDescription = if (isZh) "返回" else "Back",
         themeColors = themeColors,
         modifier = modifier
     ) {
@@ -309,6 +316,7 @@ fun AboutContent(
     SupportScaffold(
         title = if (isZh) "关于" else "About",
         onBack = onBack,
+        backContentDescription = if (isZh) "返回" else "Back",
         themeColors = themeColors,
         modifier = modifier
     ) {
@@ -386,6 +394,7 @@ fun AboutContent(
 private fun SupportScaffold(
     title: String,
     onBack: () -> Unit,
+    backContentDescription: String,
     themeColors: ThemeColors,
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
@@ -396,35 +405,36 @@ private fun SupportScaffold(
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
-                .padding(horizontal = Spacing20),
+                .heightIn(min = 58.dp)
+                .padding(horizontal = Spacing20, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PressableScale(onClick = onBack) {
-                Box(
-                    modifier = Modifier
-                        .size(BackButtonSize)
-                        .clip(RoundedCornerShape(Radius12))
-                        .background(themeColors.surface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back",
-                        tint = themeColors.onBackground,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.size(48.dp)
+                    .clip(RoundedCornerShape(Radius12))
+                    .background(themeColors.surface)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = backContentDescription,
+                    tint = themeColors.onBackground,
+                    modifier = Modifier.size(20.dp)
+                )
             }
             Spacer(modifier = Modifier.width(Spacing14))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
-                color = themeColors.onBackground
+                color = themeColors.onBackground,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
         Column(

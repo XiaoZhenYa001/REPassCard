@@ -162,13 +162,17 @@ Encrypted backups preserve generated-icon attributes and custom image bytes. Ima
 
 首页、安全中心及问题列表区分加载、成功空结果和读取失败；失败可以重试。数据库初始化失败也提供重试入口。统计、弱密码原因和重复组来自同一份数据库快照，并在后台计算。
 
-健康检查使用本地启发式规则，提示长度不足 15 个字符、常见密码、重复模式及连续字符；不要求固定大小写或符号组合，不查询泄露库，也不承诺破解时间。空字符串不参与评分或重复检查；非空的纯空白密码保留原文并提示较弱。重复判断逐字比较，不修剪密码。随机密码使用系统密码学随机源；新安装默认长度为 16，已有设置保持不变。
+健康检查使用本地启发式规则，提示长度不足 15 个字符、常见密码、重复模式及连续字符；不要求固定大小写或符号组合，不查询泄露库，也不承诺破解时间。空字符串不参与评分或重复检查；非空的纯空白密码保留原文并提示较弱。重复判断逐字比较，不修剪密码。随机密码使用系统密码学随机源；新安装默认长度为 16，保留已有长度和字符类型开关。
+
+设置中的随机密码支持展开大写字母、小写字母、数字和常用符号，逐个点亮允许生成的字符，也可整类全选或清空；所有分类合计至少保留一个字符。选定字符构成可用字符池，每次生成会包含每个非空分类的至少一个字符，不要求包含所有选定字符。配置自动保存，并用于添加和编辑密码页面；生成配置参考会随长度及实际选中字符数量调整。
 
 ## Loading and Password Health
 
 Home, security and issue lists distinguish loading, a successful empty result and a failed read with retry. Database initialization failures also offer retry. Statistics, weak-password reasons and reuse groups are calculated in the background from one database snapshot.
 
-Local heuristics flag passwords shorter than 15 code points, familiar passwords, repetitions and predictable sequences. They do not enforce character-class combinations, query breach databases or promise a cracking-time estimate. Empty strings are excluded from scoring and reuse checks; nonempty whitespace-only passwords are preserved and flagged. Reuse compares exact passwords. Password generation uses a cryptographic random source. New installations default to 16 characters; existing settings are preserved.
+Local heuristics flag passwords shorter than 15 code points, familiar passwords, repetitions and predictable sequences. They do not enforce character-class combinations, query breach databases or promise a cracking-time estimate. Empty strings are excluded from scoring and reuse checks; nonempty whitespace-only passwords are preserved and flagged. Reuse compares exact passwords. Password generation uses a cryptographic random source. New installations default to 16 characters; existing length and character-type preferences are retained.
+
+Random Password settings expand uppercase letters, lowercase letters, digits and common symbols into individually selectable characters, with select-all and clear actions for each group. Keep at least one character across all groups. Selected characters form the allowed pool; generated passwords include at least one character from each nonempty group, without requiring every selected character. Settings save automatically and apply when adding or editing a password. The generation reference considers length and the actual number of selected characters.
 
 ## 安全说明
 

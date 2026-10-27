@@ -3,7 +3,10 @@ package com.example.passcard.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,8 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.data.PasswordSearch
 import com.example.passcard.data.PasswordSearchField
@@ -62,9 +67,11 @@ import com.example.passcard.ui.theme.Spacing20
 import com.example.passcard.ui.theme.Spacing24
 import com.example.passcard.ui.theme.Spacing4
 import com.example.passcard.ui.theme.Spacing8
+import com.example.passcard.ui.theme.StatValueStyle
 import com.example.passcard.ui.theme.appleSurface
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun HomeContent(
     passwords: PasswordListSnapshot,
     selectedCategory: String?,
@@ -131,23 +138,32 @@ fun HomeContent(
 
         item(key = "search_metrics_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
         item(key = "home_metrics", contentType = "metrics") {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
-                HomeMetricCard(
-                    value = if (isLoading && passwordCount == 0) "—" else passwordCount.toString(),
-                    label = if (isZh) "所有密码" else "All passwords",
-                    icon = Icons.Outlined.VpnKey,
-                    iconColor = IconBgBlue,
-                    onClick = onOpenAllPasswords,
-                    modifier = Modifier.weight(1f)
-                )
-                HomeMetricCard(
-                    value = if (!securityStats.hasScore || isHealthLoading || healthErrorMessage != null) "—" else "${securityStats.score} / 100",
-                    label = if (isZh) "密码健康" else "Password health",
-                    icon = Icons.Outlined.Shield,
-                    iconColor = themeColors.primary,
-                    onClick = onNavigateToSecurity,
-                    modifier = Modifier.weight(1f)
-                )
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val singleColumn = maxWidth < 280.dp * LocalDensity.current.fontScale
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing12),
+                    verticalArrangement = Arrangement.spacedBy(Spacing12),
+                    maxItemsInEachRow = if (singleColumn) 1 else 2
+                ) {
+                    HomeMetricCard(
+                        value = if (isLoading && passwordCount == 0) "—" else passwordCount.toString(),
+                        label = if (isZh) "所有密码" else "All passwords",
+                        icon = Icons.Outlined.VpnKey,
+                        iconColor = IconBgBlue,
+                        onClick = onOpenAllPasswords,
+                        modifier = Modifier.weight(1f)
+                    )
+                    HomeMetricCard(
+                        value = if (!securityStats.hasScore || isHealthLoading || healthErrorMessage != null) "—" else securityStats.score.toString(),
+                        valueSuffix = if (securityStats.hasScore && !isHealthLoading && healthErrorMessage == null) "/ 100" else null,
+                        label = if (isZh) "密码健康" else "Password health",
+                        icon = Icons.Outlined.Shield,
+                        iconColor = themeColors.primary,
+                        onClick = onNavigateToSecurity,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -161,7 +177,7 @@ fun HomeContent(
 
         item(key = "categories_results_spacing", contentType = "spacing") { Spacer(Modifier.height(Spacing24)) }
         item(key = "home_results_header", contentType = "results_header") {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = if (isSearching) {
                         if (isZh) "搜索结果" else "Search Results"
@@ -171,7 +187,10 @@ fun HomeContent(
                         recentText
                     },
                     style = MaterialTheme.typography.titleMedium,
-                    color = themeColors.onBackground
+                    color = themeColors.onBackground,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 TextButton(onClick = onNavigateToAllPasswords) {
                     Text(
@@ -266,6 +285,7 @@ private fun HomeMetricCard(
     icon: ImageVector,
     iconColor: Color,
     modifier: Modifier = Modifier,
+    valueSuffix: String? = null,
     onClick: (() -> Unit)? = null
 ) {
     val themeColors = LocalThemeColors.current
@@ -294,11 +314,22 @@ private fun HomeMetricCard(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineMedium,
-                color = themeColors.onBackground
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing4)) {
+                Text(
+                    text = value,
+                    style = StatValueStyle,
+                    color = themeColors.onBackground,
+                    modifier = Modifier.alignByBaseline()
+                )
+                if (valueSuffix != null) {
+                    Text(
+                        text = valueSuffix,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = themeColors.onSurfaceVariant,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                }
+            }
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodySmall,

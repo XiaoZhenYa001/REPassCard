@@ -3,7 +3,6 @@ package com.example.passcard.ui.screens
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -12,14 +11,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -77,6 +78,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -776,6 +783,7 @@ fun CloudSyncContent(
         }
         item(key = "connection", contentType = "disclosure") {
             CloudDisclosureCard(
+                zh = zh,
                 title = if (zh) "云端连接" else "Cloud Connection",
                 summary = when {
                     !configuration.loaded -> if (zh) "正在读取配置" else "Loading settings"
@@ -821,6 +829,7 @@ fun CloudSyncContent(
         }
         item(key = "security", contentType = "disclosure") {
             CloudDisclosureCard(
+                zh = zh,
                 title = if (zh) "安全与恢复" else "Security & Recovery",
                 summary = if (hasSavedPassword) {
                     if (zh) "指纹确认 · 备份密码可用于换机恢复" else "Biometric confirmation · password recovery on a new device"
@@ -860,6 +869,7 @@ fun CloudSyncContent(
         }
         item(key = "details", contentType = "disclosure") {
             CloudDisclosureCard(
+                zh = zh,
                 title = if (zh) "同步详情" else "Sync Details",
                 summary = if (lastCheckedAt > 0) {
                     if (zh) "上次检查 ${formatTime(lastCheckedAt)}" else "Checked ${formatTime(lastCheckedAt)}"
@@ -1168,6 +1178,7 @@ private fun CloudMetric(value: String, label: String, themeColors: ThemeColors, 
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun CloudPrimaryActions(
     zh: Boolean,
     themeColors: ThemeColors,
@@ -1175,27 +1186,35 @@ private fun CloudPrimaryActions(
     onUpload: () -> Unit,
     onDownload: () -> Unit
 ) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
-        Button(
-            onClick = onUpload,
-            enabled = enabled,
-            modifier = Modifier.weight(1f).height(54.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val singleColumn = maxWidth < 320.dp * LocalDensity.current.fontScale
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing12),
+            verticalArrangement = Arrangement.spacedBy(Spacing12),
+            maxItemsInEachRow = if (singleColumn) 1 else 2
         ) {
-            Icon(Icons.Outlined.CloudUpload, null)
-            Spacer(Modifier.width(8.dp))
-            Text(if (zh) "上传备份" else "Upload")
-        }
-        OutlinedButton(
-            onClick = onDownload,
-            enabled = enabled,
-            modifier = Modifier.weight(1f).height(54.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(Icons.Outlined.CloudDownload, null)
-            Spacer(Modifier.width(8.dp))
-            Text(if (zh) "恢复" else "Restore")
+            Button(
+                onClick = onUpload,
+                enabled = enabled,
+                modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary)
+            ) {
+                Icon(Icons.Outlined.CloudUpload, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (zh) "上传备份" else "Upload")
+            }
+            OutlinedButton(
+                onClick = onDownload,
+                enabled = enabled,
+                modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Outlined.CloudDownload, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (zh) "恢复" else "Restore")
+            }
         }
     }
 }
@@ -1219,11 +1238,16 @@ private fun CloudProgressCard(
         if (busy) {
             LoadingIndicator(stageLabel(stage, zh), Modifier.fillMaxWidth().padding(Spacing16), compact = true)
         } else {
-            Row(Modifier.fillMaxWidth().padding(Spacing16), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().padding(Spacing16).semantics(mergeDescendants = true) {
+                    liveRegion = LiveRegionMode.Polite
+                },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(if (isError) Icons.Outlined.ErrorOutline else Icons.Outlined.CheckCircle,
                     null, Modifier.size(18.dp), tint = if (isError) themeColors.error else themeColors.success)
                 Spacer(Modifier.width(10.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(message, style = MaterialTheme.typography.bodyMedium,
                         color = if (isError) themeColors.error else themeColors.onBackground)
                     if (warnings.isNotEmpty()) Text(warnings.take(3).joinToString("\n"),
@@ -1236,6 +1260,7 @@ private fun CloudProgressCard(
 
 @Composable
 private fun CloudDisclosureCard(
+    zh: Boolean,
     title: String,
     summary: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1250,9 +1275,26 @@ private fun CloudDisclosureCard(
         shape = RoundedCornerShape(Radius18),
         colors = CardDefaults.cardColors(containerColor = themeColors.surface)
     ) {
-        Column(Modifier.fillMaxWidth().animateContentSize()) {
+        Column(Modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(Spacing16),
+                Modifier.fillMaxWidth()
+                    .semantics(mergeDescendants = true) {
+                        stateDescription = if (expanded) {
+                            if (zh) "已展开" else "Expanded"
+                        } else {
+                            if (zh) "已折叠" else "Collapsed"
+                        }
+                    }
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = if (expanded) {
+                            if (zh) "收起" else "Collapse"
+                        } else {
+                            if (zh) "展开" else "Expand"
+                        },
+                        onClick = onToggle
+                    )
+                    .padding(Spacing16),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(

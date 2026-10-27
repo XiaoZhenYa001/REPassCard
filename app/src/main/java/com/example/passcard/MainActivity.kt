@@ -29,6 +29,8 @@ import com.example.passcard.ui.SessionStateViewModel
 import com.example.passcard.ui.screens.LockScreen
 import com.example.passcard.ui.screens.MainScreen
 import com.example.passcard.ui.theme.PassCardTheme
+import com.example.passcard.ui.components.AppearanceTransitionHost
+import com.example.passcard.ui.components.rememberAppearanceTransitionController
 import com.example.passcard.util.PreferencesManager
 import com.example.passcard.util.ClipboardHelper
 
@@ -50,6 +52,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             var themeMode by remember { mutableStateOf(preferencesManager.theme) }
             var languageKey by remember { mutableStateOf(preferencesManager.language) }
+            val appearanceTransition = rememberAppearanceTransitionController()
 
             val isDarkTheme = when (themeMode) {
                 "DARK" -> true
@@ -64,6 +67,10 @@ class MainActivity : FragmentActivity() {
             }
             
             PassCardTheme(darkTheme = isDarkTheme) {
+                AppearanceTransitionHost(
+                    controller = appearanceTransition,
+                    enabled = sessionState.isUnlocked || !preferencesManager.hasMasterPassword
+                ) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
@@ -121,6 +128,7 @@ class MainActivity : FragmentActivity() {
                             }
                         }
                     }
+                }
             }
         }
     }

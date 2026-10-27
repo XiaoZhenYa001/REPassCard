@@ -60,6 +60,10 @@ class PreferencesManager(context: Context) {
         private const val KEY_RANDOM_PASSWORD_LOWERCASE = "random_password_lowercase"
         private const val KEY_RANDOM_PASSWORD_NUMBERS = "random_password_numbers"
         private const val KEY_RANDOM_PASSWORD_SYMBOLS = "random_password_symbols"
+        private const val KEY_RANDOM_PASSWORD_UPPERCASE_CHARACTERS = "random_password_uppercase_characters"
+        private const val KEY_RANDOM_PASSWORD_LOWERCASE_CHARACTERS = "random_password_lowercase_characters"
+        private const val KEY_RANDOM_PASSWORD_NUMBER_CHARACTERS = "random_password_number_characters"
+        private const val KEY_RANDOM_PASSWORD_SYMBOL_CHARACTERS = "random_password_symbol_characters"
         
         // Default Values
         private const val DEFAULT_THEME = "LIGHT"
@@ -283,7 +287,15 @@ class PreferencesManager(context: Context) {
             includeUppercase = prefs.getBoolean(KEY_RANDOM_PASSWORD_UPPERCASE, true),
             includeLowercase = prefs.getBoolean(KEY_RANDOM_PASSWORD_LOWERCASE, true),
             includeNumbers = prefs.getBoolean(KEY_RANDOM_PASSWORD_NUMBERS, true),
-            includeSymbols = prefs.getBoolean(KEY_RANDOM_PASSWORD_SYMBOLS, true)
+            includeSymbols = prefs.getBoolean(KEY_RANDOM_PASSWORD_SYMBOLS, true),
+            uppercaseCharacters = prefs.getString(KEY_RANDOM_PASSWORD_UPPERCASE_CHARACTERS, null)
+                ?: PasswordCharacterGroup.Uppercase.availableCharacters,
+            lowercaseCharacters = prefs.getString(KEY_RANDOM_PASSWORD_LOWERCASE_CHARACTERS, null)
+                ?: PasswordCharacterGroup.Lowercase.availableCharacters,
+            numberCharacters = prefs.getString(KEY_RANDOM_PASSWORD_NUMBER_CHARACTERS, null)
+                ?: PasswordCharacterGroup.Numbers.availableCharacters,
+            symbolCharacters = prefs.getString(KEY_RANDOM_PASSWORD_SYMBOL_CHARACTERS, null)
+                ?: PasswordCharacterGroup.Symbols.availableCharacters
         ).normalized()
         set(value) {
             val normalized = value.normalized()
@@ -293,6 +305,10 @@ class PreferencesManager(context: Context) {
                 putBoolean(KEY_RANDOM_PASSWORD_LOWERCASE, normalized.includeLowercase)
                 putBoolean(KEY_RANDOM_PASSWORD_NUMBERS, normalized.includeNumbers)
                 putBoolean(KEY_RANDOM_PASSWORD_SYMBOLS, normalized.includeSymbols)
+                putString(KEY_RANDOM_PASSWORD_UPPERCASE_CHARACTERS, normalized.uppercaseCharacters)
+                putString(KEY_RANDOM_PASSWORD_LOWERCASE_CHARACTERS, normalized.lowercaseCharacters)
+                putString(KEY_RANDOM_PASSWORD_NUMBER_CHARACTERS, normalized.numberCharacters)
+                putString(KEY_RANDOM_PASSWORD_SYMBOL_CHARACTERS, normalized.symbolCharacters)
             }
         }
 

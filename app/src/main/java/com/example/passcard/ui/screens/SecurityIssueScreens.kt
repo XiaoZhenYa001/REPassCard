@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -19,12 +21,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import com.example.passcard.data.ReusedPasswordGroup
 import com.example.passcard.data.PasswordHealthAnalyzer
 import com.example.passcard.data.PasswordAssessment
@@ -60,6 +65,7 @@ fun WeakPasswordsScreen(
         title = if (isZh) "弱密码" else "Weak Passwords",
         subtitle = if (isLoading) (if (isZh) "正在本机检查…" else "Checking locally…") else if (errorMessage != null) (if (isZh) "检查未完成" else "Check incomplete") else if (isZh) "${items.size} 个账户需要关注" else "${items.size} accounts need attention",
         onBack = onBack,
+        backContentDescription = if (isZh) "返回" else "Back",
         modifier = modifier
     ) {
         if (isLoading || errorMessage != null) {
@@ -97,19 +103,35 @@ fun ReusedPasswordsScreen(
         title = if (isZh) "重复使用" else "Reused Passwords",
         subtitle = if (isLoading) (if (isZh) "正在本机检查…" else "Checking locally…") else if (errorMessage != null) (if (isZh) "检查未完成" else "Check incomplete") else if (isZh) "${groups.size} 组，共 $accountCount 个账户" else "${groups.size} groups, $accountCount accounts",
         onBack = onBack,
-        modifier = modifier
+        backContentDescription = if (isZh) "返回" else "Back",
+        modifier = modifier,
+        itemSpacing = 0.dp
     ) {
         if (isLoading || errorMessage != null) {
             item { SecurityOperationState(currentLanguage, modifier = Modifier.fillMaxWidth().padding(top = 64.dp), errorMessage = errorMessage, onRetry = onRetry) }
         } else if (groups.isEmpty()) {
             item { EmptySecurityState(if (isZh) "没有发现重复使用的密码" else "No reused passwords") }
         } else {
-            items(groups, key = { it.items.minOf { item -> item.id } }) { group ->
-                ReusedPasswordGroupCard(
-                    group = group,
-                    currentLanguage = currentLanguage,
-                    onPasswordClick = onPasswordClick
-                )
+            groups.forEach { group ->
+                val groupKey = group.items.minOf { it.id }
+                item(key = "reused_header:$groupKey", contentType = "reused_header") {
+                    ReusedPasswordGroupHeader(group = group, currentLanguage = currentLanguage)
+                }
+                itemsIndexed(
+                    items = group.items,
+                    key = { _, item -> "reused_account:${item.id}" },
+                    contentType = { _, _ -> "reused_account" }
+                ) { index, item ->
+                    ReusedPasswordAccountRow(
+                        item = item,
+                        currentLanguage = currentLanguage,
+                        isLast = index == group.items.lastIndex,
+                        onClick = { onPasswordClick(item) }
+                    )
+                }
+                item(key = "reused_spacing:$groupKey", contentType = "spacing") {
+                    Spacer(Modifier.height(12.dp))
+                }
             }
         }
     }
@@ -120,7 +142,9 @@ private fun SecurityListScaffold(
     title: String,
     subtitle: String,
     onBack: () -> Unit,
+    backContentDescription: String,
     modifier: Modifier = Modifier,
+    itemSpacing: Dp = 12.dp,
     content: LazyListScope.() -> Unit
 ) {
     val themeColors = LocalThemeColors.current
@@ -129,33 +153,38 @@ private fun SecurityListScaffold(
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 20.dp),
+                .heightIn(min = 64.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = null,
-                tint = themeColors.onBackground,
-                modifier = Modifier
-                    .size(28.dp)
-                    .clickable { onBack() }
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
+            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = backContentDescription,
+                    tint = themeColors.onBackground,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = themeColors.onBackground
+                    color = themeColors.onBackground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = themeColors.onSurfaceVariant
+                    color = themeColors.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -164,7 +193,7 @@ private fun SecurityListScaffold(
                 .fillMaxSize()
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(itemSpacing),
             content = content
         )
     }
@@ -232,17 +261,16 @@ private fun WeakPasswordRow(
 }
 
 @Composable
-private fun ReusedPasswordGroupCard(
+private fun ReusedPasswordGroupHeader(
     group: ReusedPasswordGroup,
-    currentLanguage: AppLanguage,
-    onPasswordClick: (PasswordItem) -> Unit
+    currentLanguage: AppLanguage
 ) {
     val themeColors = LocalThemeColors.current
     val isZh = currentLanguage == AppLanguage.CHINESE
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .background(themeColors.surface)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -271,31 +299,53 @@ private fun ReusedPasswordGroupCard(
                 )
             }
         }
-        group.items.forEach { item ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onPasswordClick(item) }
-                    .padding(vertical = 8.dp, horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = item.name.ifBlank { if (isZh) "未命名" else "Untitled" },
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = themeColors.onBackground,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = item.accountLabel(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = themeColors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+    }
+}
+
+@Composable
+private fun ReusedPasswordAccountRow(
+    item: PasswordItem,
+    currentLanguage: AppLanguage,
+    isLast: Boolean,
+    onClick: () -> Unit
+) {
+    val themeColors = LocalThemeColors.current
+    val isZh = currentLanguage == AppLanguage.CHINESE
+    val shape = RoundedCornerShape(
+        bottomStart = if (isLast) 16.dp else 0.dp,
+        bottomEnd = if (isLast) 16.dp else 0.dp
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(themeColors.surface)
+            .padding(horizontal = 16.dp)
+            .padding(bottom = if (isLast) 16.dp else 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onClick)
+                .padding(vertical = 8.dp, horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = item.name.ifBlank { if (isZh) "未命名" else "Untitled" },
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = themeColors.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = item.accountLabel(),
+                style = MaterialTheme.typography.bodySmall,
+                color = themeColors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

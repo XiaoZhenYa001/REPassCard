@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
@@ -106,6 +107,9 @@ fun EditScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isZh = currentLanguage == AppLanguage.CHINESE
+    val generationSpec = remember(randomPasswordSpec) {
+        (randomPasswordSpec ?: RandomPasswordSpec()).normalized()
+    }
     
     // 使用 rememberSaveable 防止屏幕旋转数据丢失
     val initialState = remember(password) {
@@ -323,10 +327,10 @@ fun EditScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .height(58.dp)
-                .padding(horizontal = Spacing20),
+                .heightIn(min = 58.dp)
+                .padding(horizontal = Spacing20, vertical = Spacing4),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(Spacing12)
         ) {
             PressableScale(onClick = { requestBack() }, enabled = !isSaving) {
                 Box(
@@ -348,7 +352,10 @@ fun EditScreen(
             Text(
                 text = if (uiState.isNew) AppStrings.addPassword(currentLanguage) else AppStrings.editPassword(currentLanguage),
                 style = MaterialTheme.typography.titleLarge,
-                color = themeColors.onBackground
+                color = themeColors.onBackground,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             
             PressableScale(
@@ -371,15 +378,20 @@ fun EditScreen(
                     }
                 }
             ) {
-                Text(
-                    text = if (isSaving) { if (isZh) "保存中…" else "Saving…" } else AppStrings.save(currentLanguage),
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
-                    color = themeColors.primary,
+                Box(
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .clip(RoundedCornerShape(Radius12))
                         .background(themeColors.primaryLight)
-                        .padding(horizontal = Spacing12, vertical = Spacing8)
-                )
+                        .padding(horizontal = Spacing12, vertical = Spacing8),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isSaving) { if (isZh) "保存中…" else "Saving…" } else AppStrings.save(currentLanguage),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                        color = themeColors.primary
+                    )
+                }
             }
         }
         
@@ -404,7 +416,6 @@ fun EditScreen(
                     pickerIconValue = uiState.iconValue
                     deleteOldIconOnSave = true
                     showIconPicker = true
-                    refreshLocalImages()
                 },
                 changeIconText = AppStrings.changeIcon(currentLanguage)
             )
@@ -465,15 +476,15 @@ fun EditScreen(
                 placeholder = if (currentLanguage == AppLanguage.CHINESE) "输入密码" else "Enter password"
             )
             
-            // 分类选择器
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(Spacing4)
             ) {
                 FilledTonalButton(
                     enabled = !isSaving,
                     onClick = {
-                        val generated = RandomPasswordGenerator.generate(randomPasswordSpec ?: RandomPasswordSpec())
+                        val generated = RandomPasswordGenerator.generate(generationSpec)
                         uiState = uiState.copy(password = generated)
                     },
                     shape = RoundedCornerShape(Radius14),
@@ -490,6 +501,15 @@ fun EditScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (currentLanguage == AppLanguage.CHINESE) "生成随机密码" else "Generate Password")
                 }
+                Text(
+                    text = if (isZh) {
+                        "使用设置中选定的字符 · ${generationSpec.length} 位"
+                    } else {
+                        "Uses your selected characters · ${generationSpec.length} characters"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeColors.onSurfaceVariant
+                )
             }
 
             CategorySelector(

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -80,67 +81,60 @@ fun InputField(
             color = themeColors.onSurfaceVariant
         )
         
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (isMultiline) Modifier.heightIn(min = 120.dp) else Modifier.height(56.dp))
-                .appleSurface(colors = themeColors, radius = Radius16),
-            contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
+                .heightIn(min = if (isMultiline) 120.dp else 56.dp)
+                .appleSurface(colors = themeColors, radius = Radius16)
+                .padding(start = Spacing16, end = Spacing4, top = Spacing4, bottom = Spacing4),
+            verticalAlignment = if (isMultiline) Alignment.Top else Alignment.CenterVertically
         ) {
-            Box(
+            val textStyle = InputTextStyle.copy(color = themeColors.onBackground)
+
+            BasicTextField(
+                value = value,
+                enabled = enabled,
+                onValueChange = onValueChange,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = Spacing16, vertical = if (isMultiline) Spacing12 else 0.dp),
-                contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
-            ) {
-                val textStyle = InputTextStyle.copy(color = themeColors.onBackground)
-                
-                BasicTextField(
-                    value = value,
-                    enabled = enabled,
-                    onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = label }.padding(end = if (isPassword) {
-                        if (onCopy != null) 88.dp else 44.dp
-                    } else 0.dp),
-                    textStyle = textStyle,
-                    cursorBrush = SolidColor(themeColors.primary),
-                    visualTransformation = if (isPassword && !passwordVisible) {
-                        PasswordVisualTransformation()
-                    } else {
-                        VisualTransformation.None
-                    },
-                    singleLine = !isMultiline,
-                    maxLines = if (isMultiline) 4 else 1,
-                    keyboardOptions = smartKeyboardOptions,
-                    keyboardActions = keyboardActions,
-                    decorationBox = { innerTextField ->
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            if (value.isEmpty()) {
-                                Text(
-                                    text = placeholder,
-                                    style = textStyle.copy(color = themeColors.muted),
-                                    modifier = Modifier.padding(top = Spacing2)
-                                )
-                            }
-                            innerTextField()
+                    .weight(1f)
+                    .heightIn(min = if (isMultiline) 112.dp else 48.dp)
+                    .semantics { contentDescription = label }
+                    .padding(end = Spacing12, top = Spacing10, bottom = Spacing10),
+                textStyle = textStyle,
+                cursorBrush = SolidColor(themeColors.primary),
+                visualTransformation = if (isPassword && !passwordVisible) {
+                    PasswordVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                },
+                singleLine = !isMultiline,
+                maxLines = if (isMultiline) 4 else 1,
+                keyboardOptions = smartKeyboardOptions,
+                keyboardActions = keyboardActions,
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = if (isMultiline) Alignment.TopStart else Alignment.CenterStart
+                    ) {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = placeholder,
+                                style = textStyle.copy(color = themeColors.muted),
+                                maxLines = if (isMultiline) 4 else 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
+                        innerTextField()
                     }
-                )
-            }
-            
+                }
+            )
             Row(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isPassword) {
                     onCopy?.let { copyAction ->
-                        IconButton(onClick = copyAction, enabled = enabled) {
+                        IconButton(onClick = copyAction, enabled = enabled, modifier = Modifier.size(48.dp)) {
                             Icon(
                                 imageVector = Icons.Outlined.ContentCopy,
                                 contentDescription = copyDescription,
@@ -149,7 +143,7 @@ fun InputField(
                             )
                         }
                     }
-                    IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = enabled) {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }, enabled = enabled, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                             contentDescription = if (passwordVisible) hideDescription else showDescription,
@@ -190,9 +184,9 @@ fun CategorySelector(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = themeColors.onSurfaceVariant
+                color = themeColors.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(Modifier.weight(1f))
             onAddCategory?.let { addCategory ->
                 TextButton(onClick = addCategory, enabled = enabled) { Text(addCategoryText) }
             }
@@ -247,15 +241,20 @@ fun LogoSelector(
         }
         
         PressableScale(onClick = onChangeIcon) {
-            Text(
-                text = changeIconText,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
-                color = themeColors.primary,
+            Box(
                 modifier = Modifier
+                    .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(Radius14))
                     .background(themeColors.primaryLight)
-                    .padding(horizontal = Spacing14, vertical = Spacing8)
-            )
+                    .padding(horizontal = Spacing14, vertical = Spacing8),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = changeIconText,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
+                    color = themeColors.primary
+                )
+            }
         }
     }
 }
@@ -275,16 +274,16 @@ fun DeleteButton(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ActionButtonHeight)
+                .heightIn(min = ActionButtonHeight)
                 .clip(RoundedCornerShape(Radius16))
                 .background(themeColors.errorContainer)
-                .padding(horizontal = Spacing16),
+                .padding(horizontal = Spacing16, vertical = Spacing12),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = Icons.Outlined.Delete,
-                contentDescription = "删除",
+                contentDescription = null,
                 tint = themeColors.error,
                 modifier = Modifier.size(20.dp)
             )

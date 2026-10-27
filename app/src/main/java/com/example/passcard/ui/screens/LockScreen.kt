@@ -5,15 +5,16 @@ import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -23,14 +24,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -59,17 +65,8 @@ fun LockScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var shakeOffset by remember { mutableFloatStateOf(0f) }
     var isVerifying by remember { mutableStateOf(false) }
     var hasAutoPromptedBiometric by rememberSaveable { mutableStateOf(false) }
-
-    // 抖动动画
-    val shakeAnim by animateFloatAsState(
-        targetValue = shakeOffset,
-        animationSpec = spring(dampingRatio = 0.3f, stiffness = 800f),
-        finishedListener = { shakeOffset = 0f },
-        label = "shake"
-    )
 
     // 自动弹出指纹
     fun attemptUnlock() {
@@ -94,7 +91,6 @@ fun LockScreen(
                 onUnlocked()
             } else {
                 errorMessage = if (isZh) "密码错误，请重试" else "Incorrect password, try again"
-                shakeOffset = 16f
             }
         }
     }
@@ -106,186 +102,215 @@ fun LockScreen(
         }
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = Spacing28),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .imePadding()
+            .padding(horizontal = Spacing28)
     ) {
-        // 锁图标
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(themeColors.primaryLight),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Lock,
-                contentDescription = "Lock",
-                tint = themeColors.primary,
-                modifier = Modifier.size(36.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Spacing24))
-
-        Text(
-            text = if (isZh) "欢迎回来" else "Welcome Back",
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.W700),
-            color = themeColors.onBackground
-        )
-
-        Spacer(modifier = Modifier.height(Spacing8))
-
-        Text(
-            text = if (isZh) "请输入主密码解锁" else "Enter master password to unlock",
-            style = MaterialTheme.typography.bodyMedium,
-            color = themeColors.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(Spacing32))
-
-        // 密码输入框（带抖动动画）
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { translationX = shakeAnim * density }
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight)
+                .padding(vertical = Spacing24),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            BasicTextField(
-                value = password,
-                onValueChange = {
-                    password = it
-                    errorMessage = null
-                },
+            // 锁图标
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(themeColors.primaryLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Lock,
+                    contentDescription = if (isZh) "保险库已锁定" else "Vault locked",
+                    tint = themeColors.primary,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing24))
+
+            Text(
+                text = if (isZh) "欢迎回来" else "Welcome Back",
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.W700),
+                color = themeColors.onBackground,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(Spacing8))
+
+            Text(
+                text = if (isZh) "请输入主密码解锁" else "Enter master password to unlock",
+                style = MaterialTheme.typography.bodyMedium,
+                color = themeColors.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(Spacing32))
+
+            // Keep the input still when submitting from the keyboard.
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .appleSurface(colors = themeColors, radius = Radius16)
-                    .border(
-                        width = if (errorMessage != null) 1.dp else 0.dp,
-                        color = if (errorMessage != null) themeColors.error else Color.Transparent,
-                        shape = RoundedCornerShape(Radius16)
-                    )
-                    .padding(horizontal = Spacing16),
-                textStyle = InputTextStyle.copy(color = themeColors.onBackground),
-                singleLine = true,
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(onDone = { attemptUnlock() }),
-                decorationBox = { innerTextField ->
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Key,
-                            contentDescription = null,
-                            tint = themeColors.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+            ) {
+                BasicTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        errorMessage = null
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .semantics { contentDescription = if (isZh) "主密码" else "Master password" }
+                        .appleSurface(colors = themeColors, radius = Radius16)
+                        .border(
+                            width = if (errorMessage != null) 1.dp else 0.dp,
+                            color = if (errorMessage != null) themeColors.error else Color.Transparent,
+                            shape = RoundedCornerShape(Radius16)
                         )
-                        Spacer(modifier = Modifier.width(Spacing12))
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (password.isEmpty()) {
-                                Text(
-                                    text = if (isZh) "输入主密码" else "Master password",
-                                    color = themeColors.muted,
-                                    style = InputTextStyle
-                                )
-                            }
-                            innerTextField()
-                        }
-                        PressableScale(onClick = { passwordVisible = !passwordVisible }) {
+                        .padding(start = Spacing16, end = Spacing4, top = Spacing4, bottom = Spacing4),
+                    textStyle = InputTextStyle.copy(color = themeColors.onBackground),
+                    cursorBrush = SolidColor(themeColors.primary),
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { attemptUnlock() }),
+                    decorationBox = { innerTextField ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
-                                imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                contentDescription = "Toggle visibility",
+                                imageVector = Icons.Outlined.Key,
+                                contentDescription = null,
                                 tint = themeColors.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
+                            Spacer(modifier = Modifier.width(Spacing12))
+                            Box(modifier = Modifier.weight(1f).padding(vertical = Spacing8)) {
+                                if (password.isEmpty()) {
+                                    Text(
+                                        text = if (isZh) "输入主密码" else "Master password",
+                                        color = themeColors.muted,
+                                        style = InputTextStyle,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                innerTextField()
+                            }
+                            IconButton(
+                                onClick = { passwordVisible = !passwordVisible },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                    contentDescription = if (passwordVisible) {
+                                        if (isZh) "隐藏密码" else "Hide password"
+                                    } else {
+                                        if (isZh) "显示密码" else "Show password"
+                                    },
+                                    tint = themeColors.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
-                }
-            )
-        }
-
-        // 错误提示
-        errorMessage?.let { message ->
-            Spacer(modifier = Modifier.height(Spacing8))
-            Text(
-                text = message,
-                color = themeColors.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Start
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Spacing20))
-
-        // 解锁按钮
-        Button(
-            onClick = { attemptUnlock() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(ActionButtonHeight),
-            shape = RoundedCornerShape(Radius16),
-            colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary, contentColor = themeColors.onPrimary),
-            enabled = password.isNotEmpty() && !isVerifying
-        ) {
-            if (isVerifying) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = themeColors.onPrimary,
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Text(
-                    text = if (isZh) "解锁" else "Unlock",
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700)
                 )
             }
-        }
 
-        // 指纹解锁按钮（仅在开启时显示）
-        if (preferencesManager.biometricEnabled) {
-            Spacer(modifier = Modifier.height(Spacing24))
-
-            PressableScale(
-                enabled = !isVerifying,
-                onClick = {
-                    triggerBiometric(context, preferencesManager, onUnlocked)
-                }
+            // Reserve space so a validation message doesn't shift the centered form.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp)
+                    .padding(top = Spacing8)
+                    .semantics { liveRegion = LiveRegionMode.Polite }
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                errorMessage?.let { message ->
+                    Text(
+                        text = message,
+                        color = themeColors.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Start
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing20))
+
+            // 解锁按钮
+            Button(
+                onClick = { attemptUnlock() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = ActionButtonHeight),
+                shape = RoundedCornerShape(Radius16),
+                colors = ButtonDefaults.buttonColors(containerColor = themeColors.primary, contentColor = themeColors.onPrimary),
+                enabled = password.isNotEmpty() && !isVerifying
+            ) {
+                if (isVerifying) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = themeColors.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = if (isZh) "解锁" else "Unlock",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.W700)
+                    )
+                }
+            }
+
+            // 指纹解锁按钮（仅在开启时显示）
+            if (preferencesManager.biometricEnabled) {
+                Spacer(modifier = Modifier.height(Spacing24))
+
+                PressableScale(
+                    enabled = !isVerifying,
+                    onClick = {
+                        triggerBiometric(context, preferencesManager, onUnlocked)
+                    }
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(themeColors.primaryLight),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Fingerprint,
-                            contentDescription = "Fingerprint",
-                            tint = themeColors.primary,
-                            modifier = Modifier.size(28.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(themeColors.primaryLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Fingerprint,
+                                contentDescription = null,
+                                tint = themeColors.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing8))
+                        Text(
+                            text = if (isZh) "点击指纹解锁" else "Tap to use fingerprint",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = themeColors.onSurfaceVariant,
+                            textAlign = TextAlign.Center
                         )
                     }
-                    Spacer(modifier = Modifier.height(Spacing8))
-                    Text(
-                        text = if (isZh) "点击指纹解锁" else "Tap to use fingerprint",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = themeColors.onSurfaceVariant
-                    )
                 }
             }
         }

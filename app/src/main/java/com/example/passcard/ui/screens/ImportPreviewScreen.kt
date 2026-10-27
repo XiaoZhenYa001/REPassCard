@@ -70,6 +70,7 @@ fun ImportPreviewScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var receiptClosing by remember(receipt) { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner, entries) {
@@ -87,6 +88,19 @@ fun ImportPreviewScreen(
         if (issues.isEmpty()) return
         showIssues = true
         scope.launch { listState.animateScrollToItem(if (entries.isEmpty()) 1 else 2) }
+    }
+
+    fun closeReceipt(action: () -> Unit) {
+        if (receiptClosing || isBusy) return
+        receiptClosing = true
+        scope.launch {
+            try {
+                sheetState.hide()
+                if (!sheetState.isVisible) action()
+            } finally {
+                receiptClosing = false
+            }
+        }
     }
 
     Column(
@@ -266,7 +280,7 @@ fun ImportPreviewScreen(
 
     if (receipt != null && !isBusy) {
         ModalBottomSheet(
-            onDismissRequest = onDismissReceipt,
+            onDismissRequest = { if (!receiptClosing) onDismissReceipt() },
             sheetState = sheetState,
             containerColor = colors.surface,
             contentColor = colors.onSurface
@@ -274,14 +288,19 @@ fun ImportPreviewScreen(
             ImportReceiptCard(
                 receipt = receipt,
                 currentLanguage = currentLanguage,
-                onDismiss = onDismissReceipt,
+                enabled = !receiptClosing,
+                onDismiss = { closeReceipt(onDismissReceipt) },
                 onPrimaryAction = {
-                    if (receipt.primaryAction == ImportReceiptActionType.SHOW_ISSUES) revealIssues()
-                    onPrimaryReceiptAction()
+                    closeReceipt {
+                        if (receipt.primaryAction == ImportReceiptActionType.SHOW_ISSUES) revealIssues()
+                        onPrimaryReceiptAction()
+                    }
                 },
                 onSecondaryAction = {
-                    if (receipt.secondaryAction == ImportReceiptActionType.SHOW_ISSUES) revealIssues()
-                    onSecondaryReceiptAction()
+                    closeReceipt {
+                        if (receipt.secondaryAction == ImportReceiptActionType.SHOW_ISSUES) revealIssues()
+                        onSecondaryReceiptAction()
+                    }
                 },
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)
             )
@@ -430,6 +449,7 @@ private fun ImportEntryItem(
 private fun ImportReceiptCard(
     receipt: ImportReceiptUi,
     currentLanguage: AppLanguage,
+    enabled: Boolean,
     onDismiss: () -> Unit,
     onPrimaryAction: () -> Unit,
     onSecondaryAction: () -> Unit,
@@ -462,7 +482,7 @@ private fun ImportReceiptCard(
                 Text(receipt.title, style = MaterialTheme.typography.titleMedium, color = colors.onSurface, fontWeight = FontWeight.SemiBold)
                 Text(receipt.description, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
-            IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+            IconButton(onClick = onDismiss, enabled = enabled, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Outlined.Close, contentDescription = if (currentLanguage == AppLanguage.CHINESE) "关闭导入结果" else "Dismiss import result", tint = colors.onSurfaceVariant)
             }
         }
@@ -490,10 +510,10 @@ private fun ImportReceiptCard(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onSecondaryAction, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+            OutlinedButton(onClick = onSecondaryAction, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                 Text(receipt.secondaryActionText, textAlign = TextAlign.Center)
             }
-            Button(onClick = onPrimaryAction, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+            Button(onClick = onPrimaryAction, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                 Text(receipt.primaryActionText, textAlign = TextAlign.Center)
             }
         }

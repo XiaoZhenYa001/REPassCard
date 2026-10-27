@@ -4,14 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -55,6 +55,7 @@ import com.example.passcard.ui.theme.rememberThemeColors
 import com.example.passcard.ui.theme.softShadow
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun SecurityScoreCard(
     score: Int,
     description: String,
@@ -94,13 +95,14 @@ fun SecurityScoreCard(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(Spacing12),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = if (isZh) "本地密码健康评分" else "Local password health score",
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.W700),
-                color = Color.White.copy(alpha = 0.62f)
+                color = Color.White.copy(alpha = 0.72f),
+                modifier = Modifier.weight(1f)
             )
             Box(
                 modifier = Modifier
@@ -118,14 +120,18 @@ fun SecurityScoreCard(
             }
         }
 
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(text = if (hasPasswords) safeScore.toString() else "—", style = SecurityScoreStyle, color = Color.White)
-            Spacer(modifier = Modifier.width(Spacing8))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing8)) {
+            Text(
+                text = if (hasPasswords) safeScore.toString() else "—",
+                style = SecurityScoreStyle,
+                color = Color.White,
+                modifier = Modifier.alignByBaseline()
+            )
             if (hasPasswords) Text(
                 text = "/ 100",
                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.W500),
-                color = Color.White.copy(alpha = 0.56f),
-                modifier = Modifier.padding(bottom = 9.dp)
+                color = Color.White.copy(alpha = 0.66f),
+                modifier = Modifier.alignByBaseline()
             )
         }
 
@@ -187,7 +193,7 @@ fun SecurityStatCard(
                 Text(text = value, style = StatValueStyle, color = valueColor)
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.W700),
+                    style = MaterialTheme.typography.bodySmall,
                     color = labelColor
                 )
             }
@@ -279,13 +285,13 @@ fun SecuritySuggestionItem(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(Radius10))
-                .background(themeColors.successContainer),
+                .background(themeColors.primaryLight),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Outlined.Shield,
                 contentDescription = null,
-                tint = themeColors.success,
+                tint = themeColors.primary,
                 modifier = Modifier.size(18.dp)
             )
         }

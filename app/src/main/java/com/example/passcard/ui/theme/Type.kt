@@ -40,21 +40,21 @@ val AppTypography = Typography(
     ),
     titleMedium = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.W700,
+        fontWeight = FontWeight.W600,
         fontSize = 18.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.W600,
+        fontWeight = FontWeight.W500,
         fontSize = 15.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.W500,
+        fontWeight = FontWeight.W400,
         fontSize = 15.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
@@ -82,7 +82,7 @@ val AppTypography = Typography(
     ),
     labelSmall = TextStyle(
         fontFamily = InterFontFamily,
-        fontWeight = FontWeight.W700,
+        fontWeight = FontWeight.W600,
         fontSize = 12.sp,
         lineHeight = 17.sp,
         letterSpacing = 0.sp
@@ -112,6 +112,7 @@ val SecurityScoreStyle = TextStyle(
     fontWeight = FontWeight.W800,
     fontSize = 64.sp,
     lineHeight = 64.sp,
+    fontFeatureSettings = "tnum",
     letterSpacing = 0.sp
 )
 
@@ -120,6 +121,7 @@ val StatValueStyle = TextStyle(
     fontWeight = FontWeight.W700,
     fontSize = 22.sp,
     lineHeight = 26.sp,
+    fontFeatureSettings = "tnum",
     letterSpacing = 0.sp
 )
 

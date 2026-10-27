@@ -3,7 +3,10 @@ package com.example.passcard.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.example.passcard.data.PasswordSecurityStats
 import com.example.passcard.ui.components.SectionTitle
@@ -37,6 +41,7 @@ import com.example.passcard.ui.theme.Spacing20
 import com.example.passcard.ui.theme.Spacing24
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun SecurityContent(
     currentLanguage: AppLanguage,
     stats: PasswordSecurityStats,
@@ -90,40 +95,48 @@ fun SecurityContent(
             currentLanguage = currentLanguage,
             hasPasswords = stats.hasScore
         )
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing12)) {
-            SecurityStatCard(
-                icon = Icons.Outlined.Storage,
-                value = stats.totalCount.toString(),
-                label = if (isZh) "记录总数" else "Records",
-                backgroundColor = themeColors.surfaceVariant,
-                iconTint = themeColors.onSurfaceVariant,
-                valueColor = themeColors.onBackground,
-                labelColor = themeColors.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenAllPasswords
-            )
-            SecurityStatCard(
-                icon = Icons.Outlined.Warning,
-                value = stats.weakCount.toString(),
-                label = if (isZh) "弱密码" else "Weak",
-                backgroundColor = themeColors.errorContainer,
-                iconTint = themeColors.error,
-                valueColor = themeColors.error,
-                labelColor = themeColors.error,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenWeakPasswords
-            )
-            SecurityStatCard(
-                icon = Icons.Outlined.Refresh,
-                value = stats.reusedCount.toString(),
-                label = if (isZh) "重复使用" else "Reused",
-                backgroundColor = themeColors.warningContainer,
-                iconTint = themeColors.warning,
-                valueColor = themeColors.warning,
-                labelColor = themeColors.warning,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenReusedPasswords
-            )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val singleColumn = maxWidth < 240.dp * LocalDensity.current.fontScale
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing12),
+                verticalArrangement = Arrangement.spacedBy(Spacing12),
+                maxItemsInEachRow = if (singleColumn) 1 else 3
+            ) {
+                SecurityStatCard(
+                    icon = Icons.Outlined.Storage,
+                    value = stats.totalCount.toString(),
+                    label = if (isZh) "记录总数" else "Records",
+                    backgroundColor = themeColors.surfaceVariant,
+                    iconTint = themeColors.onSurfaceVariant,
+                    valueColor = themeColors.onBackground,
+                    labelColor = themeColors.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenAllPasswords
+                )
+                SecurityStatCard(
+                    icon = Icons.Outlined.Warning,
+                    value = stats.weakCount.toString(),
+                    label = if (isZh) "弱密码" else "Weak",
+                    backgroundColor = if (stats.weakCount > 0) themeColors.errorContainer else themeColors.surfaceVariant,
+                    iconTint = if (stats.weakCount > 0) themeColors.error else themeColors.onSurfaceVariant,
+                    valueColor = if (stats.weakCount > 0) themeColors.error else themeColors.onBackground,
+                    labelColor = themeColors.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenWeakPasswords
+                )
+                SecurityStatCard(
+                    icon = Icons.Outlined.Refresh,
+                    value = stats.reusedCount.toString(),
+                    label = if (isZh) "重复使用" else "Reused",
+                    backgroundColor = if (stats.reusedCount > 0) themeColors.warningContainer else themeColors.surfaceVariant,
+                    iconTint = if (stats.reusedCount > 0) themeColors.warning else themeColors.onSurfaceVariant,
+                    valueColor = if (stats.reusedCount > 0) themeColors.warning else themeColors.onBackground,
+                    labelColor = themeColors.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    onClick = onOpenReusedPasswords
+                )
+            }
         }
         Text(
             text = if (isZh) {

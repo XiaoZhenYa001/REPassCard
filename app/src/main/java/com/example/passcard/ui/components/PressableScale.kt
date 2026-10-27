@@ -11,9 +11,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 import com.example.passcard.util.playPassCardClick
 import com.example.passcard.ui.theme.MotionDuration
+import com.example.passcard.ui.theme.MotionEasing
 import com.example.passcard.ui.theme.MotionScale
 
 @Composable
@@ -25,11 +28,15 @@ fun PressableScale(
     content: @Composable () -> Unit
 ) {
     val view = LocalView.current
+    val touchInput = LocalInputModeManager.current.inputMode == InputMode.Touch
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) pressScale else 1f,
-        animationSpec = tween(durationMillis = MotionDuration.Press),
+        targetValue = if (pressed && enabled && touchInput) pressScale else 1f,
+        animationSpec = tween(
+            durationMillis = if (!touchInput) 0 else if (pressed) MotionDuration.Press else MotionDuration.Release,
+            easing = MotionEasing.EnterExit
+        ),
         label = "press_scale"
     )
 

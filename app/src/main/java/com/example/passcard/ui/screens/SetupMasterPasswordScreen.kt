@@ -1,8 +1,6 @@
 package com.example.passcard.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +23,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.passcard.ui.components.LoadingIndicator
@@ -212,11 +216,15 @@ fun SetupMasterPasswordScreen(
                         visible = removalPasswordVisible,
                         onToggleVisible = { removalPasswordVisible = !removalPasswordVisible },
                         themeColors = themeColors,
+                        isZh = isZh,
                         enabled = !isRemoving,
                         imeAction = ImeAction.Done,
                         onDone = { handleRemoval() }
                     )
-                    removalError?.let { Text(it, color = themeColors.error, style = MaterialTheme.typography.bodySmall) }
+                    removalError?.let {
+                        Text(it, color = themeColors.error, style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive; error(it) })
+                    }
                     if (isRemoving) {
                         LoadingIndicator(
                             message = if (isZh) "正在验证主密码" else "Verifying master password",
@@ -247,13 +255,15 @@ fun SetupMasterPasswordScreen(
             .fillMaxSize()
             .background(themeColors.background)
             .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
     ) {
         // 顶部导航栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 20.dp),
+                .heightIn(min = 56.dp)
+                .padding(horizontal = 20.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack, enabled = !isSaving && !isRemoving) {
@@ -272,7 +282,10 @@ fun SetupMasterPasswordScreen(
                     if (isZh) "设置主密码" else "Set Master Password"
                 },
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.W700),
-                color = themeColors.onBackground
+                color = themeColors.onBackground,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
 
@@ -323,6 +336,7 @@ fun SetupMasterPasswordScreen(
                     visible = currentPwdVisible,
                     onToggleVisible = { currentPwdVisible = !currentPwdVisible },
                     themeColors = themeColors,
+                    isZh = isZh,
                     enabled = !isSaving && !isRemoving,
                     focusRequester = focusRequester,
                     imeAction = ImeAction.Next
@@ -338,6 +352,7 @@ fun SetupMasterPasswordScreen(
                 visible = newPwdVisible,
                 onToggleVisible = { newPwdVisible = !newPwdVisible },
                 themeColors = themeColors,
+                isZh = isZh,
                 enabled = !isSaving && !isRemoving,
                 focusRequester = if (!isEditing) focusRequester else null,
                 imeAction = ImeAction.Next
@@ -369,6 +384,7 @@ fun SetupMasterPasswordScreen(
                 visible = confirmPwdVisible,
                 onToggleVisible = { confirmPwdVisible = !confirmPwdVisible },
                 themeColors = themeColors,
+                isZh = isZh,
                 enabled = !isSaving && !isRemoving,
                 imeAction = ImeAction.Done,
                 onDone = { handleSave() }
@@ -379,6 +395,7 @@ fun SetupMasterPasswordScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .semantics { liveRegion = LiveRegionMode.Assertive; error(it) }
                         .clip(RoundedCornerShape(12.dp))
                         .background(themeColors.errorContainer)
                         .padding(12.dp),
@@ -412,7 +429,7 @@ fun SetupMasterPasswordScreen(
                 onClick = { handleSave() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
+                    .heightIn(min = 52.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = themeColors.primary,
@@ -460,7 +477,7 @@ fun SetupMasterPasswordScreen(
                     enabled = !isSaving && !isRemoving,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .heightIn(min = 48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColors.error),
                     border = androidx.compose.foundation.BorderStroke(
@@ -491,6 +508,7 @@ private fun PasswordInputField(
     visible: Boolean,
     onToggleVisible: () -> Unit,
     themeColors: ThemeColors,
+    isZh: Boolean,
     enabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     imeAction: ImeAction = ImeAction.Next,
@@ -509,17 +527,15 @@ private fun PasswordInputField(
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .heightIn(min = 56.dp)
+                .semantics { contentDescription = label }
                 .clip(RoundedCornerShape(14.dp))
                 .background(themeColors.surfaceVariant)
                 .border(1.dp, themeColors.border, RoundedCornerShape(14.dp))
-                .padding(horizontal = 16.dp)
+                .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
-            textStyle = TextStyle(
-                fontSize = 15.sp,
-                color = themeColors.onBackground,
-                fontWeight = FontWeight.W500
-            ),
+            textStyle = InputTextStyle.copy(color = themeColors.onBackground),
+            cursorBrush = SolidColor(themeColors.primary),
             singleLine = true,
             visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
@@ -531,23 +547,28 @@ private fun PasswordInputField(
             ),
             decorationBox = { innerTextField ->
                 Row(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
                         if (value.isEmpty()) {
-                            Text(text = placeholder, color = themeColors.muted, fontSize = 15.sp)
+                            Text(text = placeholder, color = themeColors.muted,
+                                style = InputTextStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         innerTextField()
                     }
                     IconButton(
                         onClick = onToggleVisible,
                         enabled = enabled,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = if (visible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = if (visible) "Hide password" else "Show password",
+                            contentDescription = if (visible) {
+                                if (isZh) "隐藏密码" else "Hide password"
+                            } else {
+                                if (isZh) "显示密码" else "Show password"
+                            },
                             tint = themeColors.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -576,11 +597,7 @@ private fun PasswordStrengthIndicator(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             repeat(3) { index ->
-                val segColor by animateColorAsState(
-                    targetValue = if (index < segments) color else themeColors.border,
-                    animationSpec = tween(300),
-                    label = "strengthSeg"
-                )
+                val segColor = if (index < segments) color else themeColors.border
                 Box(
                     modifier = Modifier
                         .weight(1f)

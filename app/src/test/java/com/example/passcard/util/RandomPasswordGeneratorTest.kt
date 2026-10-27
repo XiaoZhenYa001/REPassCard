@@ -24,7 +24,7 @@ class RandomPasswordGeneratorTest {
             includeSymbols = false
         ))
         assertEquals(18, digitsOnly.length)
-        assertTrue(digitsOnly.all { it in "23456789" })
+        assertTrue(digitsOnly.all { it in "0123456789" })
     }
 
     @Test
@@ -79,5 +79,121 @@ class RandomPasswordGeneratorTest {
 
         assertTrue(password.all(Char::isLowerCase))
         assertFalse(password.any(Char::isDigit))
+    }
+
+    @Test
+    fun generatesOnlyCustomCharactersAndIncludesEveryNonemptyGroup() {
+        val spec = RandomPasswordSpec(length = 18)
+            .withSelectedCharacters(PasswordCharacterGroup.Uppercase, "AZ")
+            .withSelectedCharacters(PasswordCharacterGroup.Lowercase, "mq")
+            .withSelectedCharacters(PasswordCharacterGroup.Numbers, "01")
+            .withSelectedCharacters(PasswordCharacterGroup.Symbols, "!?")
+        repeat(100) { seed ->
+            val generated = RandomPasswordGenerator.generate(spec, Random(seed))
+            assertEquals(18, generated.length)
+            assertTrue(generated.all { it in "AZmq01!?" })
+            PasswordCharacterGroup.entries.forEach { group ->
+                assertTrue(generated.any { it in spec.selectedCharacters(group) })
+            }
+        }
+    }
+
+    @Test
+    fun shortestLengthSupportsOneCharacterFromEachGroup() {
+        val spec = RandomPasswordSpec(length = 4, uppercaseCharacters = "O",
+            lowercaseCharacters = "l", numberCharacters = "0", symbolCharacters = "!")
+        repeat(30) { seed ->
+            assertEquals(setOf('O', 'l', '0', '!'),
+                RandomPasswordGenerator.generate(spec, Random(seed)).toSet())
+        }
+    }
+
+    @Test
+    fun emptyCategoriesStayEmptyWithoutIntroducingUnselectedCharacters() {
+        val spec = RandomPasswordSpec(length = 12)
+            .withSelectedCharacters(PasswordCharacterGroup.Uppercase, "")
+            .withSelectedCharacters(PasswordCharacterGroup.Lowercase, "")
+            .withSelectedCharacters(PasswordCharacterGroup.Numbers, "09")
+            .withSelectedCharacters(PasswordCharacterGroup.Symbols, "")
+            .normalized()
+        assertFalse(spec.includeUppercase)
+        assertFalse(spec.includeLowercase)
+        assertFalse(spec.includeSymbols)
+        repeat(30) { seed ->
+            assertTrue(RandomPasswordGenerator.generate(spec, Random(seed)).all { it in "09" })
+        }
+    }
+
+    @Test
+    fun sanitizesDuplicatesWrongCaseAndUnknownCharactersInCanonicalOrder() {
+        val spec = RandomPasswordSpec(uppercaseCharacters = "ZAAa0中!I",
+            lowercaseCharacters = "zzzAa!", numberCharacters = "9910a", symbolCharacters = "??!日a")
+            .normalized()
+        assertEquals("AIZ", spec.uppercaseCharacters)
+        assertEquals("az", spec.lowercaseCharacters)
+        assertEquals("019", spec.numberCharacters)
+        assertEquals("!?", spec.symbolCharacters)
+        assertEquals(spec, spec.normalized())
+    }
+
+    @Test
+    fun allEmptyCandidateIsDetectableBeforePersistenceRepair() {
+        val empty = PasswordCharacterGroup.entries.fold(RandomPasswordSpec()) { spec, group ->
+            spec.withSelectedCharacters(group, "")
+        }
+        assertFalse(empty.hasSelectedCharacters)
+        val repaired = empty.normalized()
+        assertEquals(PasswordCharacterGroup.Lowercase.availableCharacters,
+            repaired.selectedCharacters(PasswordCharacterGroup.Lowercase))
+        assertTrue(RandomPasswordGenerator.generate(empty, Random(1)).all(Char::isLowerCase))
+    }
+
+    @Test
+    fun malformedEmptyEnabledGroupsAreDisabledWithoutReplacingOtherChoices() {
+        val normalized = RandomPasswordSpec(uppercaseCharacters = "?中", lowercaseCharacters = "k",
+            numberCharacters = "", symbolCharacters = "").normalized()
+        assertFalse(normalized.includeUppercase)
+        assertFalse(normalized.includeNumbers)
+        assertFalse(normalized.includeSymbols)
+        assertEquals("k".repeat(16), RandomPasswordGenerator.generate(normalized))
+    }
+
+    @Test
+    fun disabledStoredSubsetIsPreservedButNeverGenerated() {
+        val spec = RandomPasswordSpec(includeUppercase = false, uppercaseCharacters = "Q",
+            lowercaseCharacters = "a", includeNumbers = false, includeSymbols = false).normalized()
+        assertEquals("Q", spec.uppercaseCharacters)
+        assertEquals("", spec.selectedCharacters(PasswordCharacterGroup.Uppercase))
+        assertEquals("a".repeat(16), RandomPasswordGenerator.generate(spec))
+        assertEquals("Q", spec.withSelectedCharacters(PasswordCharacterGroup.Uppercase, "Q")
+            .selectedCharacters(PasswordCharacterGroup.Uppercase))
+    }
+
+    @Test
+    fun fullAlphabetsIncludePreviouslyExcludedAmbiguousCharacters() {
+        assertEquals(('A'..'Z').joinToString(""), PasswordCharacterGroup.Uppercase.availableCharacters)
+        assertEquals(('a'..'z').joinToString(""), PasswordCharacterGroup.Lowercase.availableCharacters)
+        assertEquals(('0'..'9').joinToString(""), PasswordCharacterGroup.Numbers.availableCharacters)
+        assertEquals(14, PasswordCharacterGroup.Symbols.availableCharacters.length)
+        assertEquals(14, PasswordCharacterGroup.Symbols.availableCharacters.toSet().size)
+    }
+
+    @Test
+    fun singleAllowedCharacterHasZeroConfigurationReferenceRegardlessOfLength() {
+        val spec = RandomPasswordSpec(length = 18, includeUppercase = false,
+            lowercaseCharacters = "a", includeNumbers = false, includeSymbols = false)
+        assertEquals(0, RandomPasswordGenerator.strength(spec).score)
+        assertEquals("a".repeat(18), RandomPasswordGenerator.generate(spec))
+    }
+
+    @Test
+    fun configurationReferenceRespondsToPoolSizeAndLength() {
+        val small = RandomPasswordSpec(length = 12, includeUppercase = false,
+            lowercaseCharacters = "ab", includeNumbers = false, includeSymbols = false)
+        val moreCharacters = small.copy(lowercaseCharacters = "abcdefghijklmnopqrstuvwxyz")
+        assertTrue(RandomPasswordGenerator.strength(moreCharacters).score >
+            RandomPasswordGenerator.strength(small).score)
+        assertTrue(RandomPasswordGenerator.strength(moreCharacters.copy(length = 18)).score >
+            RandomPasswordGenerator.strength(moreCharacters).score)
     }
 }

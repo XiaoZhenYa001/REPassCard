@@ -1,7 +1,9 @@
 package com.example.passcard.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,9 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -43,46 +51,52 @@ fun DropdownSelectMenu(
     modifier: Modifier = Modifier,
     offset: IntOffset = IntOffset.Zero,
     itemWidth: Int = 0,
-    itemHeight: Int = 0
+    itemHeight: Int = 0,
+    onOptionSelectedAt: ((DropdownOption, Offset) -> Unit)? = null
 ) {
-    if (!expanded) return
+    val visibility = remember { MutableTransitionState(false) }
+    visibility.targetState = expanded
+    val transition = updateTransition(visibility, label = "dropdown_visibility")
+    if (!visibility.currentState && !visibility.targetState && visibility.isIdle) return
 
     val density = LocalDensity.current
     val themeColors = rememberThemeColors()
-    var isVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { isVisible = true }
-    val menuAlpha by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(MotionDuration.Fast),
+    val menuAlpha = transition.animateFloat(
+        transitionSpec = { tween(if (targetState) MotionDuration.Standard else MotionDuration.Exit, easing = MotionEasing.EnterExit) },
         label = "dropdown_alpha"
-    )
-    val menuScale by animateFloatAsState(
-        targetValue = if (isVisible) 1f else MotionScale.Enter,
-        animationSpec = tween(MotionDuration.Standard),
+    ) { if (it) 1f else 0f }
+    val menuScale = transition.animateFloat(
+        transitionSpec = { tween(if (targetState) MotionDuration.Standard else MotionDuration.Exit, easing = MotionEasing.EnterExit) },
         label = "dropdown_scale"
-    )
+    ) { if (it) 1f else MotionScale.Enter }
+    var menuTransformOrigin by remember { mutableStateOf(TransformOrigin(1f, 0f)) }
+    var menuPosition by remember { mutableStateOf(IntOffset.Zero) }
     val screenMarginPx = with(density) { Spacing8.roundToPx() }
     val positionProvider = remember(offset, itemWidth, itemHeight, screenMarginPx) {
         DropdownPopupPositionProvider(
             anchorOffset = offset,
             anchorSize = IntSize(itemWidth, itemHeight),
-            screenMarginPx = screenMarginPx
+            screenMarginPx = screenMarginPx,
+            onPositionCalculated = { position, size ->
+                menuPosition = position
+                menuTransformOrigin = calculateDropdownMenuTransformOrigin(offset, IntSize(itemWidth, itemHeight), position, size)
+            }
         )
     }
 
     Popup(
         popupPositionProvider = positionProvider,
-        onDismissRequest = onDismissRequest,
-        properties = PopupProperties(focusable = true)
+        onDismissRequest = { if (expanded) onDismissRequest() },
+        properties = PopupProperties(focusable = expanded)
     ) {
         Surface(
             modifier = modifier
                 .width(180.dp)
                 .graphicsLayer {
-                    alpha = menuAlpha
-                    scaleX = menuScale
-                    scaleY = menuScale
-                    transformOrigin = TransformOrigin(1f, 0f)
+                    alpha = menuAlpha.value
+                    scaleX = menuScale.value
+                    scaleY = menuScale.value
+                    transformOrigin = menuTransformOrigin
                 },
             shape = RoundedCornerShape(Radius16),
             color = themeColors.surface,
@@ -96,8 +110,13 @@ fun DropdownSelectMenu(
                     DropdownMenuItem(
                         option = option,
                         isSelected = option.value == selectedValue,
-                        onClick = {
-                            onOptionSelected(option)
+                        enabled = expanded,
+                        onClick = { centerInPopup ->
+                            if (onOptionSelectedAt != null) {
+                                onOptionSelectedAt(option, Offset(menuPosition.x.toFloat(), menuPosition.y.toFloat()) + centerInPopup)
+                            } else {
+                                onOptionSelected(option)
+                            }
                             onDismissRequest()
                         },
                         colors = themeColors
@@ -111,21 +130,36 @@ fun DropdownSelectMenu(
 private class DropdownPopupPositionProvider(
     private val anchorOffset: IntOffset,
     private val anchorSize: IntSize,
-    private val screenMarginPx: Int
+    private val screenMarginPx: Int,
+    private val onPositionCalculated: (IntOffset, IntSize) -> Unit
 ) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize
-    ): IntOffset = calculateDropdownMenuPosition(
-        anchorOffset = anchorOffset,
-        anchorSize = anchorSize,
-        popupSize = popupContentSize,
-        windowSize = windowSize,
-        screenMarginPx = screenMarginPx
-    )
+    ): IntOffset {
+        val position = calculateDropdownMenuPosition(
+            anchorOffset = anchorOffset,
+            anchorSize = anchorSize,
+            popupSize = popupContentSize,
+            windowSize = windowSize,
+            screenMarginPx = screenMarginPx
+        )
+        onPositionCalculated(position, popupContentSize)
+        return position
+    }
 }
+
+internal fun calculateDropdownMenuTransformOrigin(
+    anchorOffset: IntOffset,
+    anchorSize: IntSize,
+    popupOffset: IntOffset,
+    popupSize: IntSize
+): TransformOrigin = TransformOrigin(
+    pivotFractionX = ((anchorOffset.x + anchorSize.width - popupOffset.x).toFloat() / popupSize.width.coerceAtLeast(1)).coerceIn(0f, 1f),
+    pivotFractionY = ((anchorOffset.y + anchorSize.height / 2f - popupOffset.y) / popupSize.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+)
 
 internal fun calculateDropdownMenuPosition(
     anchorOffset: IntOffset,
@@ -150,22 +184,35 @@ internal fun calculateDropdownMenuPosition(
 private fun DropdownMenuItem(
     option: DropdownOption,
     isSelected: Boolean,
-    onClick: () -> Unit,
+    enabled: Boolean,
+    onClick: (Offset) -> Unit,
     colors: ThemeColors = rememberThemeColors()
 ) {
+    var itemCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .heightIn(min = 48.dp)
+            .onGloballyPositioned { coordinates ->
+                itemCoordinates = coordinates
+            }
             .clip(RoundedCornerShape(12.dp))
             .then(if (isSelected) Modifier.background(colors.primary.copy(alpha = 0.1f)) else Modifier)
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp),
+            .semantics { selected = isSelected }
+            .clickable(enabled = enabled, role = Role.RadioButton) {
+                val coordinates = itemCoordinates
+                val centerInPopup = if (coordinates?.isAttached == true) {
+                    coordinates.localToRoot(Offset(coordinates.size.width / 2f, coordinates.size.height / 2f))
+                } else Offset.Zero
+                onClick(centerInPopup)
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = option.label,
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontWeight = if (isSelected) FontWeight.W600 else FontWeight.W500
             ),
@@ -173,9 +220,10 @@ private fun DropdownMenuItem(
         )
         
         if (isSelected) {
+            Spacer(Modifier.width(Spacing8))
             Icon(
                 imageVector = Icons.Outlined.Check,
-                contentDescription = "Selected",
+                contentDescription = null,
                 tint = colors.primary,
                 modifier = Modifier.size(20.dp)
             )

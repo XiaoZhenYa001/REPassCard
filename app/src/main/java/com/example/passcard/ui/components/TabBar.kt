@@ -1,9 +1,8 @@
 package com.example.passcard.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,18 +23,33 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -60,7 +74,34 @@ fun TabBar(
     val themeColors = LocalThemeColors.current
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
-    val barElevation = if (themeColors.isDark) 20.dp else 12.dp
+    val density = LocalDensity.current
+    val animateSelection = LocalInputModeManager.current.inputMode == InputMode.Touch
+    val navigationDuration = if (animateSelection) MotionDuration.Navigation else 0
+    val tabCoordinates = remember { mutableMapOf<TabItem, LayoutCoordinates>() }
+    val tabBounds = remember { mutableStateMapOf<TabItem, Rect>() }
+    var barCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var addCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var addBounds by remember { mutableStateOf<Rect?>(null) }
+
+    fun updateBounds() {
+        val bar = barCoordinates?.takeIf { it.isAttached } ?: return
+        tabCoordinates.forEach { (tab, coordinates) ->
+            if (coordinates.isAttached) {
+                tabBounds[tab] = bar.localBoundingBoxOf(coordinates, clipBounds = false)
+            }
+        }
+        addCoordinates?.takeIf { it.isAttached }?.let { coordinates ->
+            addBounds = bar.localBoundingBoxOf(coordinates, clipBounds = false)
+        }
+    }
+
+    fun recordTabBounds(tab: TabItem, coordinates: LayoutCoordinates) {
+        tabCoordinates[tab] = coordinates
+        updateBounds()
+    }
+
+    val barHeight = maxOf(70.dp, 50.dp + with(LocalDensity.current) { 16.sp.toDp() })
+    val barElevation = if (themeColors.isDark) 12.dp else 8.dp
     val ambientShadowColor = Color.Black.copy(alpha = if (themeColors.isDark) 0.35f else 0.06f)
     val spotShadowColor = Color.Black.copy(alpha = if (themeColors.isDark) 0.45f else 0.1f)
     val topHighlightColor = if (themeColors.isDark) Color.White.copy(alpha = 0.08f) else Color.Transparent
@@ -69,7 +110,7 @@ fun TabBar(
         modifier = modifier
             .widthIn(max = 350.dp)
             .fillMaxWidth()
-            .height(70.dp)
+            .height(barHeight)
             .shadow(
                 elevation = barElevation,
                 shape = RoundedCornerShape(35.dp),
@@ -78,6 +119,10 @@ fun TabBar(
             )
             .clip(RoundedCornerShape(35.dp))
             .background(themeColors.tabBarBackground)
+            .onGloballyPositioned { coordinates ->
+                barCoordinates = coordinates
+                updateBounds()
+            }
             .drawBehind {
                 if (topHighlightColor.alpha > 0f) {
                     drawLine(
@@ -96,6 +141,40 @@ fun TabBar(
                 }
             }
     ) {
+        val selectedBounds = tabBounds[selectedTab]
+        val centerBounds = addBounds
+        if (selectedBounds != null && centerBounds != null) {
+            val capsuleOffset = animateOffsetAsState(
+                targetValue = selectedBounds.topLeft,
+                animationSpec = tween(navigationDuration, easing = MotionEasing.EnterExit),
+                label = "navigation_capsule"
+            )
+            // Clip only the indicator layer, keeping the add button outside selection motion.
+            Box(
+                Modifier.matchParentSize().drawWithCache {
+                    val indicatorClip = Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addRect(Rect(Offset.Zero, size))
+                        addRect(Rect(centerBounds.left, 0f, centerBounds.right, size.height))
+                    }
+                    onDrawWithContent { clipPath(indicatorClip) { this@onDrawWithContent.drawContent() } }
+                },
+                contentAlignment = AbsoluteAlignment.TopLeft
+            ) {
+                Box(
+                    Modifier
+                        .size(
+                            width = with(density) { selectedBounds.width.toDp() },
+                            height = with(density) { selectedBounds.height.toDp() }
+                        )
+                        .graphicsLayer {
+                            translationX = capsuleOffset.value.x
+                            translationY = capsuleOffset.value.y
+                        }
+                        .background(themeColors.primaryLight, RoundedCornerShape(20.dp))
+                )
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -117,6 +196,8 @@ fun TabBar(
                 label = if (isChinese) "首页" else "Home",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
+                animateSelection = animateSelection,
+                onPositioned = { recordTabBounds(TabItem.HOME, it) },
                 modifier = Modifier.weight(1f)
             )
             // 安全
@@ -134,19 +215,26 @@ fun TabBar(
                 label = if (isChinese) "安全" else "Security",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
+                animateSelection = animateSelection,
+                onPositioned = { recordTabBounds(TabItem.SECURITY, it) },
                 modifier = Modifier.weight(1f)
             )
 
             // 中间 + 按钮
-            IOSAddButton(
-                onClick = {
-                    view.playPassCardClick()
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onAddClick()
-                },
-                themeColors = themeColors,
-                contentDescription = if (isChinese) "添加密码" else "Add password"
-            )
+            Box(Modifier.onGloballyPositioned { coordinates ->
+                addCoordinates = coordinates
+                updateBounds()
+            }) {
+                IOSAddButton(
+                    onClick = {
+                        view.playPassCardClick()
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAddClick()
+                    },
+                    themeColors = themeColors,
+                    contentDescription = if (isChinese) "添加密码" else "Add password"
+                )
+            }
 
             // 加密
             IOSTabButton(
@@ -163,6 +251,8 @@ fun TabBar(
                 label = if (isChinese) "备份" else "Backup",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
+                animateSelection = animateSelection,
+                onPositioned = { recordTabBounds(TabItem.CLOUD, it) },
                 modifier = Modifier.weight(1f)
             )
             // 设置
@@ -180,6 +270,8 @@ fun TabBar(
                 label = if (isChinese) "设置" else "Settings",
                 activeColor = themeColors.tabActive,
                 inactiveColor = themeColors.tabInactive,
+                animateSelection = animateSelection,
+                onPositioned = { recordTabBounds(TabItem.SETTINGS, it) },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -195,35 +287,25 @@ private fun IOSTabButton(
     label: String,
     activeColor: Color,
     inactiveColor: Color,
+    animateSelection: Boolean,
+    onPositioned: (LayoutCoordinates) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    // 按压缩放（弹性回弹）
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) MotionScale.Pressed else 1f,
-        animationSpec = tween(durationMillis = MotionDuration.Press, easing = FastOutSlowInEasing),
-        label = "pressScale"
-    )
-
-    // 颜色过渡
-    val tintColor by animateColorAsState(
+    val tintColor = animateColorAsState(
         targetValue = if (selected) activeColor else inactiveColor,
-        animationSpec = tween(durationMillis = MotionDuration.Standard, easing = FastOutSlowInEasing),
-        label = "tintColor"
-    )
-
-    // 圆点指示器弹出
-    val dotScale by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(durationMillis = MotionDuration.Standard, easing = FastOutSlowInEasing),
-        label = "dotScale"
+        animationSpec = tween(
+            if (animateSelection) MotionDuration.Navigation else 0,
+            easing = MotionEasing.EnterExit
+        ),
+        label = "navigation_tint"
     )
 
     Column(
         modifier = modifier
             .fillMaxHeight()
+            .padding(vertical = 8.dp, horizontal = 2.dp)
+            .onGloballyPositioned(onPositioned)
             .clip(RoundedCornerShape(20.dp))
             .semantics { this.selected = selected }
             .clickable(
@@ -231,41 +313,40 @@ private fun IOSTabButton(
                 interactionSource = interactionSource,
                 indication = null
             ) { onClick() }
-            .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
-            }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                val canvas = drawContext.canvas.nativeCanvas
+                // Compose 1.6 ignores Offscreen for software View.draw at alpha=1.
+                // Isolate this small glyph layer explicitly so SrcIn cannot tint the bar.
+                val saved = if (!canvas.isHardwareAccelerated) {
+                    canvas.saveLayer(0f, 0f, size.width, size.height, null)
+                } else -1
+                try {
+                    drawContent()
+                    drawRect(color = tintColor.value, blendMode = BlendMode.SrcIn)
+                } finally {
+                    if (saved >= 0) canvas.restoreToCount(saved)
+                }
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = if (selected) selectedIcon else unselectedIcon,
-            contentDescription = label,
-            tint = tintColor,
-            modifier = Modifier.size(21.dp)
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(22.dp)
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
-            color = tintColor
-        )
-        Spacer(modifier = Modifier.height(3.dp))
-        // iOS 风格圆点指示器
-        Box(
-            modifier = Modifier
-                .size(4.dp)
-                .graphicsLayer {
-                    scaleX = dotScale
-                    scaleY = dotScale
-                    alpha = dotScale
-                }
-                .clip(CircleShape)
-                .background(tintColor)
+            fontWeight = FontWeight.W600,
+            color = Color.White
         )
     }
 }
@@ -278,20 +359,19 @@ private fun IOSAddButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val touchInput = LocalInputModeManager.current.inputMode == InputMode.Touch
 
     // 按压弹性缩放
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) MotionScale.StrongPressed else 1f,
-        animationSpec = tween(durationMillis = MotionDuration.Press, easing = FastOutSlowInEasing),
+        targetValue = if (isPressed && touchInput) MotionScale.Pressed else 1f,
+        animationSpec = tween(
+            durationMillis = if (!touchInput) 0 else if (isPressed) MotionDuration.Press else MotionDuration.Release,
+            easing = MotionEasing.EnterExit
+        ),
         label = "addScale"
     )
 
-    // 按压时阴影收缩
-    val elevation by animateDpAsState(
-        targetValue = if (isPressed) 3.dp else if (themeColors.isDark) 10.dp else 8.dp,
-        animationSpec = tween(MotionDuration.Fast),
-        label = "addElevation"
-    )
+    val elevation = if (themeColors.isDark) 6.dp else 4.dp
 
     // 渐变色
     val gradientColors = if (themeColors.isDark) {

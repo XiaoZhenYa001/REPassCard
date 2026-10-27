@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -36,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
@@ -77,10 +80,11 @@ fun AllPasswordsScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
+            .imePadding()
             .background(MaterialTheme.colorScheme.background)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) { Icon(
@@ -92,9 +96,11 @@ fun AllPasswordsScreen(
             Text(
                 text = AppStrings.allPasswords(currentLanguage),
                 style = MaterialTheme.typography.titleLarge,
-                color = themeColors.onBackground
+                color = themeColors.onBackground,
+                modifier = Modifier.weight(1f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.weight(1f))
             IconButton(onClick = onAddPassword) { Icon(
                 imageVector = Icons.Outlined.Add,
                 contentDescription = if (isZh) "添加密码" else "Add password",
@@ -103,70 +109,71 @@ fun AllPasswordsScreen(
             ) }
         }
 
-        SearchField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            currentLanguage = currentLanguage
-        )
-
-        if (categories.isNotEmpty() || selectedCategory != null) {
-            CategoryTagRow(categories, selectedCategory, onCategorySelected,
-                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), isChinese = isZh)
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // Search and feedback scroll with the results when the IME leaves little height.
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 40.dp)
         ) {
-            Text(
-                text = if (isInitialLoading) {
-                    if (isZh) "正在加载..." else "Loading..."
-                } else {
-                    if (searchQuery.isBlank() && selectedCategory == null) AppStrings.itemsCount(passwordCount, currentLanguage)
-                    else if (isZh) "筛选结果" else "Filtered results"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = themeColors.onSurfaceVariant
-            )
-        }
-
-        when {
-            isInitialLoading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    LoadingIndicator(if (isZh) "正在读取保险库…" else "Reading your vault…")
-                }
-            }
-            refreshError != null -> {
-                ErrorState(
-                    title = if (isZh) "加载失败" else "Failed to load",
-                    description = refreshError.error.message ?: if (isZh) "请稍后重试。" else "Please try again later.",
-                    onRetry = { lazyPasswords.retry() },
+            item(key = "all_passwords:search", contentType = "search") {
+                SearchField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
                     currentLanguage = currentLanguage
                 )
             }
-            lazyPasswords.itemCount == 0 -> {
-                EmptyState(
-                    hasQuery = searchQuery.isNotBlank() || selectedCategory != null,
-                    currentLanguage = currentLanguage,
-                    onAddPassword = onAddPassword,
-                    onClearFilters = { onSearchQueryChange(""); onCategorySelected(null) }
+            if (categories.isNotEmpty() || selectedCategory != null) {
+                item(key = "all_passwords:categories", contentType = "categories") {
+                    CategoryTagRow(categories, selectedCategory, onCategorySelected,
+                        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp), isChinese = isZh)
+                }
+            }
+            item(key = "all_passwords:count", contentType = "count") {
+                Text(
+                    text = if (isInitialLoading) {
+                        if (isZh) "正在加载..." else "Loading..."
+                    } else {
+                        if (searchQuery.isBlank() && selectedCategory == null) AppStrings.itemsCount(passwordCount, currentLanguage)
+                        else if (isZh) "筛选结果" else "Filtered results"
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = themeColors.onSurfaceVariant
                 )
             }
-            else -> {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 40.dp)
-                ) {
+            when {
+                isInitialLoading -> item(key = "all_passwords:loading", contentType = "loading") {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                        LoadingIndicator(if (isZh) "正在读取保险库…" else "Reading your vault…")
+                    }
+                }
+                refreshError != null -> item(key = "all_passwords:error", contentType = "error") {
+                    ErrorState(
+                        title = if (isZh) "加载失败" else "Failed to load",
+                        description = refreshError.error.message ?: if (isZh) "请稍后重试。" else "Please try again later.",
+                        onRetry = { lazyPasswords.retry() },
+                        currentLanguage = currentLanguage
+                    )
+                }
+                lazyPasswords.itemCount == 0 -> item(key = "all_passwords:empty", contentType = "empty") {
+                    EmptyState(
+                        hasQuery = searchQuery.isNotBlank() || selectedCategory != null,
+                        currentLanguage = currentLanguage,
+                        onAddPassword = onAddPassword,
+                        onClearFilters = { onSearchQueryChange(""); onCategorySelected(null) }
+                    )
+                }
+                else -> {
                     items(
                         count = lazyPasswords.itemCount,
-                        key = lazyPasswords.itemKey { it.id }
+                        key = lazyPasswords.itemKey { "password:${it.id}" },
+                        contentType = { "password" }
                     ) { index ->
                         val item = lazyPasswords[index]
                         if (item != null) {
                             PasswordListItem(
                                 name = item.name.ifBlank { if (isZh) "未命名记录" else "Untitled item" },
+                                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp),
                                 email = item.accountLabel(),
                                 password = item.password,
                                 iconText = item.name.take(1).uppercase(),
@@ -179,10 +186,12 @@ fun AllPasswordsScreen(
                         }
                     }
                     if (isAppendLoading) {
-                        item { LoadingMoreRow(currentLanguage = currentLanguage) }
+                        item(key = "all_passwords:append_loading", contentType = "loading") {
+                            LoadingMoreRow(currentLanguage = currentLanguage)
+                        }
                     }
                     if (appendError != null) {
-                        item {
+                        item(key = "all_passwords:append_error", contentType = "error") {
                             TextButton(
                                 onClick = { lazyPasswords.retry() },
                                 modifier = Modifier.fillMaxWidth()
@@ -204,7 +213,7 @@ private fun SearchField(
     currentLanguage: AppLanguage
 ) {
     Box(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 16.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 16.dp)
     ) {
         SearchBar(
             value = value,
@@ -225,7 +234,7 @@ private fun EmptyState(
     val themeColors = rememberThemeColors()
     val isZh = currentLanguage == AppLanguage.CHINESE
     Box(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -288,7 +297,7 @@ private fun ErrorState(
     val themeColors = rememberThemeColors()
     val isZh = currentLanguage == AppLanguage.CHINESE
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {

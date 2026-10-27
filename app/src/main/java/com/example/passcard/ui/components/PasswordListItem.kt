@@ -1,8 +1,6 @@
 package com.example.passcard.ui.components
 
 import android.content.Context
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -28,7 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,7 +43,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.passcard.ui.theme.Radius13
 import com.example.passcard.ui.theme.Radius18
-import com.example.passcard.ui.theme.MotionDuration
 import com.example.passcard.ui.theme.MotionScale
 import com.example.passcard.ui.theme.Spacing12
 import com.example.passcard.ui.theme.Spacing14
@@ -138,25 +135,26 @@ private fun CopyPasswordButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    var copied by remember { mutableStateOf(false) }
+    var copyCount by remember { mutableIntStateOf(0) }
+    val copied = copyCount != 0
     val haptic = LocalHapticFeedback.current
 
-    LaunchedEffect(copied) {
+    LaunchedEffect(copyCount) {
         if (copied) {
             delay(COPY_FEEDBACK_DURATION_MS)
-            copied = false
+            copyCount = 0
         }
     }
 
     PressableScale(
         onClick = {
             onClick()
-            copied = true
+            copyCount++
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         },
         enabled = enabled,
         modifier = Modifier.semantics { if (copied) stateDescription = copiedContentDescription },
-        pressScale = MotionScale.StrongPressed
+        pressScale = MotionScale.Pressed
     ) {
         Box(
             modifier = Modifier
@@ -165,18 +163,12 @@ private fun CopyPasswordButton(
                 .background(themeColors.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            Crossfade(
-                targetState = copied,
-                animationSpec = tween(MotionDuration.Standard),
-                label = "copy_feedback"
-            ) { isCopied ->
-                Icon(
-                    imageVector = if (isCopied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
-                    contentDescription = if (isCopied) copiedContentDescription else contentDescription,
-                    tint = if (!enabled) themeColors.muted else if (isCopied) themeColors.success else themeColors.onSurfaceVariant,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
+            Icon(
+                imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                contentDescription = if (copied) copiedContentDescription else contentDescription,
+                tint = if (!enabled) themeColors.muted else if (copied) themeColors.success else themeColors.onSurfaceVariant,
+                modifier = Modifier.size(19.dp)
+            )
         }
     }
 }
